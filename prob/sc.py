@@ -1,5 +1,5 @@
 """
-A random collection is a collection of random variables.
+A stocastic collection is a family of random variables.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -7,7 +7,7 @@ from prob.rv import RV
 import collections
 
 #-------------------------------------------------------------------------------
-class RC:
+class SC:
 
   # Protected
   _rvs = None

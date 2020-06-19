@@ -1,12 +1,12 @@
 """
-A stochastic process is an indexable random collection.
+A stochastic process is an indexable stochastic collection.
 """
 
 #-------------------------------------------------------------------------------
-from prob.rc import RC
+from prob.sc import SC
 
 #-------------------------------------------------------------------------------
-class SP (RC):
+class SP (SC):
 
   # Private
   _index = None
