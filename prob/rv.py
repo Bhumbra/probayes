@@ -7,7 +7,7 @@ A random variable is a triple (x, A_x, P_x) defined for an outcome x for every p
 realisation defined over the alphabet set $A_x$ with marginal probabilities P_x.
 """
 #-------------------------------------------------------------------------------
-class RandVar:
+class RV:
 
   # Protected
   _var = range(0, 1)   # Variable alphabet set (expressed as a numpy vector or python range)
@@ -16,7 +16,7 @@ class RandVar:
   _fun = np.zeros_like # Marginal probability distribution function
   _fun_args = None
   _fun_kwds = None 
-  _inv = np.copy       # Inverse functino
+  _inv = None          # Inverse function
   _inv_args = None
   _inv_kwds = None 
 
@@ -24,16 +24,17 @@ class RandVar:
   __callable = None    # Flag to denote if fun is callable
 
 #-------------------------------------------------------------------------------
-  def __init__(self, var=None, log_fun=None, name=None):
-    self.set_var(var, log_fun, name)
+  def __init__(self, name, var=None, log_fun=None):
+    self.set_var(name, var, log_fun)
     self.set_fun()
     self.set_inv()
 
 #-------------------------------------------------------------------------------
-  def set_var(self, var=None, log_fun=None, name=None):
+  def set_var(self, name, var=None, log_fun=None):
+    self._name = str(name)
+    assert len(self._name), "Random variable name mandatary"
     if var is not None: self._var = var
     if log_fun is not None: self._log_fun = bool(log_fun)
-    if name is not None: self._name = str(name)
     assert self._var is not None, "set_var(None) is not a valid random variable"
 
 #-------------------------------------------------------------------------------
@@ -86,7 +87,8 @@ class RandVar:
       samples = np.atleast_1d(samples)
       if randomise:
         samples = np.ravel(samples)
-        samples = samples[np.random.permutation(len(samples))]
+        samples = np.sort(samples[np.random.permutation(
+                          len(samples))])
 
     # Output probs
     sampfun = self._fun(samples, *self._fun_args, **self._fun_kwds)
