@@ -40,6 +40,8 @@ class SC:
       self._rvs = collections.OrderedDict()
     assert isinstance(rv, RV), \
         "RV not a RandVar instance but of type: {}".format(type(rv))
+    assert rv.name not in self._rvs.keys(), \
+        "Existing RV name {} already present in collection".format(rv.name)
     self._rvs.update({rv.name: rv})
 
 #-------------------------------------------------------------------------------

@@ -8,10 +8,11 @@ realisation defined over the alphabet set $A_x$ with marginal probabilities P_x.
 """
 #-------------------------------------------------------------------------------
 class RV:
+  # Public
+  name = "rv"          # Name of the random variable
 
   # Protected
   _var = range(0, 1)   # Variable alphabet set (expressed as a numpy vector or python range)
-  _name = "rv"         # Name of the random variable
   _log_fun = True          # Boolean flag denoting with _marg is in log_fun_e space
   _fun = np.zeros_like # Marginal probability distribution function
   _fun_args = None
@@ -31,7 +32,7 @@ class RV:
 
 #-------------------------------------------------------------------------------
   def set_var(self, name, var=None, log_fun=None):
-    self._name = str(name)
+    self.name = str(name)
     assert len(self._name), "Random variable name mandatary"
     if var is not None: self._var = var
     if log_fun is not None: self._log_fun = bool(log_fun)
