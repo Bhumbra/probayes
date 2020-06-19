@@ -12,8 +12,6 @@ class SC:
   # Protected
   _rvs = None
   _nrvs = None
-  _index = None
-
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -45,6 +43,9 @@ class SC:
       self._rvs.update({rv.name: rv})
     self._nrvs = len(self._rvs)
     return self._nrvs
+#-------------------------------------------------------------------------------
+  def __len__(self):
+    return self._nvrs
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):
