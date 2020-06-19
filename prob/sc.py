@@ -21,6 +21,8 @@ class SC:
   def set_rvs(self, *args):
     if len(args) == 1 and isinstance(args[0], (SC, dict, set, tuple, list)):
       args = args[0]
+    else:
+      args = tuple(args)
     self.add_rv(args)
     return self.ret_rvs()
 
