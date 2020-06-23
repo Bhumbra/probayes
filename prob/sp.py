@@ -1,14 +1,15 @@
 """
-A stochastic process is an indexable stochastic collection.
+A stocastic process is indexable stochastic collection
 """
-
 #-------------------------------------------------------------------------------
+import numpy as np
 from prob.sc import SC
+import collections
 
 #-------------------------------------------------------------------------------
 class SP (SC):
 
-  # Private
+  # Protected
   _index = None
 
 #-------------------------------------------------------------------------------
