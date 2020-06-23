@@ -1,4 +1,4 @@
 from prob.rv import RV
-from prob.jc import JC
+from prob.sj import SJ
 from prob.sc import SC
 from prob.sp import SP

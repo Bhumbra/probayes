@@ -1,5 +1,5 @@
 """
-A stocastic process is indexable stochastic collection
+A stocastic process is indexable sequence of realisations of a stochastic condition
 """
 #-------------------------------------------------------------------------------
 import numpy as np

@@ -1,5 +1,5 @@
 """
-A joint collection comprises a colletion of a random variables.
+A stochastic junction collection comprises a colletion of a random variables.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -8,7 +8,7 @@ from prob.rv import RV
 import collections
 
 #-------------------------------------------------------------------------------
-class JC:
+class SJ:
 
   # Protected
   _name = None
@@ -30,7 +30,7 @@ class JC:
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
-    if len(args) == 1 and isinstance(args[0], (JC, dict, set, tuple, list)):
+    if len(args) == 1 and isinstance(args[0], (SJ, dict, set, tuple, list)):
       args = args[0]
     else:
       args = tuple(args)
@@ -41,9 +41,9 @@ class JC:
   def add_rv(self, rv):
     if self._rvs is None:
       self._rvs = collections.OrderedDict()
-    if isinstance(rv, (JC, dict, set, tuple, list)):
+    if isinstance(rv, (SJ, dict, set, tuple, list)):
       rvs = rv
-      if isinstance(rvs, JC):
+      if isinstance(rvs, SJ):
         rvs = rvs.ret_rvs()
       if isinstance(rvs, dict):
         rvs = rvs.values()
@@ -113,7 +113,7 @@ class JC:
 #-------------------------------------------------------------------------------
   def eval_marg_prod(self, samples):
     """ Evaluates the marginal product """
-    assert isinstance(samples, dict), "JC.eval_prob() requires samples dict"
+    assert isinstance(samples, dict), "SJ.eval_prob() requires samples dict"
     assert set(samples.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         samples.keys(), self._keys())
@@ -161,7 +161,7 @@ class JC:
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, samples):
-    assert isinstance(samples, dict), "JC.eval_prob() requires samples dict"
+    assert isinstance(samples, dict), "SJ.eval_prob() requires samples dict"
     assert set(samples.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         samples.keys(), self._keys())

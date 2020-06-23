@@ -1,13 +1,14 @@
 """
-A stocastic condition is a family of inter-dependent random variables.
+A stocastic condition is the condition of a conditioned stochastic junction
+(called marg here) and conditioning stochastic junction (called cond here).
 """
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-from prob.jc import JC 
+from prob.sj import SJ
 
 #-------------------------------------------------------------------------------
-class SC (JC):
+class SC (SJ):
 
   # Protected
   _marg = None
@@ -26,13 +27,13 @@ class SC (JC):
 
 #-------------------------------------------------------------------------------
   def add_marg(self, *args):
-    if self._marg is None: self._marg = RC()
+    if self._marg is None: self._marg = SJ()
     self._marg.add_rv(*args)
     self._set_name()
 
 #-------------------------------------------------------------------------------
   def add_cond(self, *args):
-    if self._cond is None: self._cond = RC()
+    if self._cond is None: self._cond = SJ()
     self._cond.add_rv(*args)
     self._set_name()
 
