@@ -1,22 +1,23 @@
 """
-A random collection comprises a colletion of a random variables.
+A joint collection comprises a colletion of a random variables.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
+from prob.base import log_prob, exp_logs
 from prob.rv import RV
 import collections
 
 #-------------------------------------------------------------------------------
-class RC:
+class JC:
 
   # Protected
   _name = None
+  _id = None
   _get = None
   _rvs = None
   _nrvs = None
   _keys = None
   _keyset = None
-  _id = None
 
   # Private
   __nrvs_1s = None
@@ -29,7 +30,7 @@ class RC:
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
-    if len(args) == 1 and isinstance(args[0], (RC, dict, set, tuple, list)):
+    if len(args) == 1 and isinstance(args[0], (JC, dict, set, tuple, list)):
       args = args[0]
     else:
       args = tuple(args)
@@ -40,9 +41,9 @@ class RC:
   def add_rv(self, rv):
     if self._rvs is None:
       self._rvs = collections.OrderedDict()
-    if isinstance(rv, (RC, dict, set, tuple, list)):
+    if isinstance(rv, (JC, dict, set, tuple, list)):
       rvs = rv
-      if isinstance(rvs, RC):
+      if isinstance(rvs, JC):
         rvs = rvs.ret_rvs()
       if isinstance(rvs, dict):
         rvs = rvs.values()
@@ -112,25 +113,55 @@ class RC:
 #-------------------------------------------------------------------------------
   def eval_marg_prod(self, samples):
     """ Evaluates the marginal product """
-    assert isinstance(samples, dict), "RC.eval_prob() requires samples dict"
+    assert isinstance(samples, dict), "JC.eval_prob() requires samples dict"
     assert set(samples.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         samples.keys(), self._keys())
-    probs = None
+    probs = [None] * self._nrvs
+    use_logs = any([type(rv.ret_prsc()) is str for rv in self._rvs.values()])
+    run_prsc = 0. if use_logs else 1.
     for i, rv in enumerate(self._rvs.values()):
       prob = rv.eval_prob(samples[rv.name])
       re_shape = np.copy(self.__nrvs_1s)
       re_shape[i] = prob.size
       prob = prob.reshape(re_shape)
-      if probs is None:
-        probs = np.copy(prob)
+      prsc = rv.ret_prsc()
+      if not use_logs:
+        if prsc is not None or prsc==1.:
+          run_prsc *= prsc
+        probs[i] = np.copy(prob)
       else:
-        probs = np.multiply(probs, prob)
+        logprob = prsc is None
+        if isinstance(prsc, str):
+          prsc = float(prsc)
+          run_prsc += prsc
+          logprob = False
+        elif type(prsc) is float:
+          prsc = np.log(prsc)
+          run_prsc += prsc
+          logprob = True
+        probs[i] = log_prob(prob) if logprob else np.copy(prob)
+    prob = None
+    for i in range(self._nrvs):
+      if prob is None:
+        prob = probs[i]
+      elif use_logs:
+        prob = prob + probs[i]
+      else:
+        prob = prob * probs[i]
+    if use_logs:
+      if run_prsc != 0.:
+        prob = prob - run_prsc
+      probs = exp_logs(prob)
+    else:
+      if run_prsc != 1. and run_prsc != 0.:
+        prob = prob / run_prsc
+      probs = prob
     return probs
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, samples):
-    assert isinstance(samples, dict), "RC.eval_prob() requires samples dict"
+    assert isinstance(samples, dict), "JC.eval_prob() requires samples dict"
     assert set(samples.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         samples.keys(), self._keys())

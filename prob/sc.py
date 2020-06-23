@@ -1,17 +1,15 @@
 """
-A stocastic collection is a family of random variables.
+A stocastic condition is a family of inter-dependent random variables.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
-from prob.rc import RC
 import collections
+from prob.jc import JC 
 
 #-------------------------------------------------------------------------------
-class SC:
+class SC (JC):
 
   # Protected
-  _name = None
-  _id = None
   _marg = None
   _cond = None
 
@@ -46,5 +44,49 @@ class SC:
     cond_name, cond_id = self._cond.ret_name(), self._cond.ret_id()
     self._name = '|'.join([marg_name, cond_name])
     self._id = '_with_'.join([marg_id, cond_id])
+
+#-------------------------------------------------------------------------------
+  def set_rvs(self, *args):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def add_rv(self, rv):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def set_prob(self, prob=None, *args, **kwds):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def ret_rvs(self):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def get_rvs(self):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def eval_samp(self, samples):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def eval_marg_prod(self, samples):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def eval_prob(self, samples):
+    raise NotImplementedError()
+   
+#-------------------------------------------------------------------------------
+  def __call__(self, samples=None, **kwds): 
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def __len__(self):
+    raise NotImplementedError()
+
+#-------------------------------------------------------------------------------
+  def __getitem__(self, key):
+    raise NotImplementedError()
 
 #-------------------------------------------------------------------------------

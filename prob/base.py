@@ -73,6 +73,10 @@ class _P:
     return self._prsc
 
 #-------------------------------------------------------------------------------
+  def ret_prsc(self):
+    return self._prsc
+
+#-------------------------------------------------------------------------------
   def rescale(self, probs, rsc=None):
     psc = self._prsc
     if type(psc) is float and psc <= 0.:
