@@ -1,6 +1,7 @@
 """
-A stocastic condition is the condition of a conditioned stochastic junction
-(called marg here) and conditioning stochastic junction (called cond here).
+A stocastic condition is a stochastic junction (here called marg) conditioned 
+by a another stochastic junction (here called cond) according to a conditional
+probability distribution function.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -29,22 +30,36 @@ class SC (SJ):
   def add_marg(self, *args):
     if self._marg is None: self._marg = SJ()
     self._marg.add_rv(*args)
-    self._set_name()
+    self._refresh()
 
 #-------------------------------------------------------------------------------
   def add_cond(self, *args):
     if self._cond is None: self._cond = SJ()
     self._cond.add_rv(*args)
-    self._set_name()
+    self._refresh()
 
 #-------------------------------------------------------------------------------
-  def _set_name(self):
+  def _refresh(self):
+    marg_name, marg_rvid, cond_name, cond_rvid = None, None, None, None
+    self._rvs = []
+    self._keys = []
+    if self._marg:
+      marg_name, marg_id = self._marg.ret_name(), self._marg.ret_id()
+      marg_rvs = [rv for rv in self._marg.ret_rvs()]
+      self._rvs.extend([rv for rv in self._marg.ret_rvs()])
+    if self._cond:
+      cond_name, cond_id = self._cond.ret_name(), self._cond.ret_id()
+      cond_rvs = [rv for rv in self._cond.ret_rvs()]
+      self._rvs.extend([rv for rv in self._cond.ret_rvs()])
     if self._marg is None or self._cond is None:
       return
-    marg_name, marg_id = self._marg.ret_name(), self._marg.ret_id()
-    cond_name, cond_id = self._cond.ret_name(), self._cond.ret_id()
-    self._name = '|'.join([marg_name, cond_name])
-    self._id = '_with_'.join([marg_id, cond_id])
+    self._nrvs = len(self._rvs)
+    self._keys = [rv.name for rv in self._rvs]
+    self._keyset = set(self._keys)
+    names = [name for name in [marg_name, cond_name] if name]
+    rvids = [rvid for rvid in [marg_rvid, cond_rvid] if rvid]
+    self._name = '|'.join(names)
+    self._id = '_with_'.join(rvids)
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -55,39 +70,18 @@ class SC (SJ):
     raise NotImplementedError()
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, *args, **kwds):
-    raise NotImplementedError()
-
-#-------------------------------------------------------------------------------
-  def ret_rvs(self):
-    raise NotImplementedError()
-
-#-------------------------------------------------------------------------------
-  def get_rvs(self):
-    raise NotImplementedError()
-
-#-------------------------------------------------------------------------------
-  def eval_samp(self, samples):
-    raise NotImplementedError()
-
-#-------------------------------------------------------------------------------
   def eval_marg_prod(self, samples):
     raise NotImplementedError()
 
 #-------------------------------------------------------------------------------
-  def eval_prob(self, samples):
-    raise NotImplementedError()
-   
-#-------------------------------------------------------------------------------
-  def __call__(self, samples=None, **kwds): 
-    raise NotImplementedError()
-
-#-------------------------------------------------------------------------------
-  def __len__(self):
-    raise NotImplementedError()
+  def eval_vals(self, values):
+    assert self._marg, "No marginal stochastic random variables defined"
+    return super().eval_values(values, self._marg.ret_nrvs()-1)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):
-    raise NotImplementedError()
+    if isinstance(key, str):
+      key = self._keys.index(key)
+    return self._rvs[key]
 
 #-------------------------------------------------------------------------------

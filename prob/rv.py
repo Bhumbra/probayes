@@ -30,7 +30,7 @@ class RV (_Vals, _Prob):
 
   # Public
   name = "rv"                # Name of the random variable
-  _id = None                 # Same as name (used internally)
+  _rvid = None               # Same as name (used internally)
 
   # Protected
   _get = None                # A namedtuple for called realisations
@@ -58,7 +58,7 @@ class RV (_Vals, _Prob):
         "Mandatory RV name must be a string: {}".format(self.name)
     assert self.name.isidentifier(), \
         "RV name must ba a valid identifier: {}".format(self.name)
-    self._id = self.name
+    self._rvid = self.name
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, ptype=None, *args, **kwds):
@@ -95,7 +95,7 @@ class RV (_Vals, _Prob):
     mutable = isinstance(values, (np.ndarray, list))
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    self._get = collections.namedtuple(self._id, ['vals', 'prob'], **kwds)
+    self._get = collections.namedtuple(self._rvid, ['vals', 'prob'], **kwds)
 
     # Reciprocate vals evaluated using vfun or just recall if mutable array
     vals = self.vfun_1(vals, mutable)

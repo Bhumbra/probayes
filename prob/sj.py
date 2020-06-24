@@ -1,11 +1,13 @@
 """
-A stochastic junction collection comprises a colletion of a random variables.
+A stochastic junction comprises a collection of a random variables that 
+participate in a joint probability distribution function.
 """
 #-------------------------------------------------------------------------------
+import warnings
+import collections
 import numpy as np
 from prob.prob import log_prob, exp_logs
 from prob.rv import RV
-import collections
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -73,6 +75,10 @@ class SJ:
     return self._rvs
 
 #-------------------------------------------------------------------------------
+  def ret_nrvs(self):
+    return self._nrvs
+
+#-------------------------------------------------------------------------------
   def ret_name(self):
     return self._name
 
@@ -84,28 +90,43 @@ class SJ:
   def get_rvs(self):
     if self._get is None:
       self._get = collections.namedtuple(self._id, self._keys, **kwds)
+    rvs = self.ret_rvs()
+    rvs = list(rvs.values()) if isinstance(rvs, dict) else list(rvs)
     return self._get(*tuple(self.ret_rvs().values()))
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, values):
+  def eval_vals(self, values, min_rdim=0):
     if isinstance(values, dict):
-      assert set(values.keys()) == self._keyset, \
-        "Sample dictionary keys {} mismatch with RV names {}".format(
-          values.keys(), self._keys())
+      no_check = True
+      for val in values.values(): # bypass checks if possible
+        if val is None or type(val) is int:
+          no_check = False
+          break
+        elif type(val) is not float and isinstance(val, np.ndarray):
+          if val.size != 1:
+            no_check = False
+            break
+      if no_check:
+        return values
     else:
       values = {key: values for key in self._keys}
-    for i, rv in enumerate(self._rvs.values()):
+
+    rvs = self.ret_rvs()
+    # This next line is there just to play nice with inheriting classes
+    rvs = list(rvs.values()) if isinstance(rvs, dict) else list(rvs)
+    for i, rv in enumerate(rvs):
       vals = values[rv.name]
       re_shape = False
       if vals is None or type(vals) is int:
         vals = rv.eval_vals(vals)
         re_shape = True
       elif isinstance(vals, np.ndarray):
-        if vals.ndim > 0 and vals.size > 1:
-          re_shape = vals.ndim != self._nrvs
+        if vals.size != 1:
+          re_shape = vals.ndim != self._nrvs - min_rdim
       if re_shape:
-        re_shape = np.copy(self.__nrvs_1s)
-        re_shape[i] = vals.size
+        re_shape = np.copy(self.__nrvs_1s[min_rdim:])
+        re_dim = max(0, i - min_rdim)
+        re_shape[re_dim] = vals.size
         vals = vals.reshape(re_shape)
       values[rv.name] = vals
     return values
@@ -160,7 +181,7 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values):
-    assert isinstance(values, dict), "SJ.eval_prob() requires values dict"
+    assert isinstance(values, dict), "Input to eval_prob() requires values dict"
     assert set(values.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         values.keys(), self._keys())
@@ -170,10 +191,11 @@ class SJ:
       probs = probs(values, *self._prob_args, **self._prob_kwds)
     else:
       probs = np.atleast_1d(probs).astype(float)
-    assert probs.ndim > self._nrvs,\
-      "User supplied probability dimensionality {} ".format(probs.ndim) +\
-      "exceeds number of random variables {}".format(self._nrvs)
-      # If it's below, then it's the user's problem to sort out
+    if probs.ndim != self._nrvs:
+      warnings.warn(
+          "Evaluated probability dimensionality {}".format(probs.ndim) + \
+          "incommensurate with number of RVs {}".format(self._nrvs)
+      )
     return probs
 
 #-------------------------------------------------------------------------------
