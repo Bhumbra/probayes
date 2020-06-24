@@ -17,12 +17,9 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
-    arg0, arg1 = None, None
     assert len(args) < 3, "Maximum of two initialisation arguments"
-    if len(args) > 1:
-      arg0 = args[0]
-    if len(args) > 1:
-      arg1 = args[1]
+    arg0 = None if len(args) < 1 else args[0]
+    arg1 = None if len(args) < 2 else args[1]
     self.add_marg(arg0)
     self.add_cond(arg1)
 
