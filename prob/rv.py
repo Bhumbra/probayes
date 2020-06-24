@@ -3,26 +3,37 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-import scipy.stats as ss
-from prob.base import _P, _V, NOMINAL_VSET, nominal_prob
+from prob.vals import _Vals
+from prob.prob import _Prob
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
 possible realisation defined over the alphabet set A_x with probabilities P_x.
+It therefore requires a name for x (id), a variable alphabet set (vset), and its 
+asscociated probability distribution function (prob).
 """
+#-------------------------------------------------------------------------------
+def _uniform(vals, p=1., vset=None):
+  p = float(p)
+  probs = np.tile(p, vals.shape)
+  if isinstance(vset, np.ndarray):
+    outside = np.array([val not in vset for val in vals], dtype=bool)
+    probs[outside] = 0.
+  elif isinstance(vset, tuple) and len(vset) == 2:
+    lo, hi = min(vset), max(vset)
+    outside = np.logical_or(vals < lo, vals > hi)
+    probs[outside] = 0.
+  return probs
 
 #-------------------------------------------------------------------------------
-class RV (_P, _V):
+class RV (_Vals, _Prob):
 
   # Public
-  name = "rv"                # Name of the random vsetiable
+  name = "rv"                # Name of the random variable
+  _id = None                 # Same as name (used internally)
 
   # Protected
-  _id = None                 # Same as name
-  _prob = None               # The probability distribution function
-  _prob_args = None          # Arguments of probability distribution function
-  _prob_kwds = None          # Keywords of probability distribution function
-  _get = None                # Namedtuple
+  _get = None                # A namedtuple for called realisations
 
   # Private
   __callable = None          # Flag to denote if prob is callable
@@ -30,15 +41,14 @@ class RV (_P, _V):
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
                      vset=None, 
-                     vfun=None, 
-                     prsc=None,
+                     vtype=None,
                      prob=None,
+                     ptype=None,
                      *args,
                      **kwds):
     self.set_name(name)
-    self.set_vset(vset, vfun)
-    self.set_prsc(prsc)
-    self.set_prob(prob, *args, **kwds)
+    self.set_vset(vset, vtype)
+    self.set_prob(prob, ptype, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def set_name(self, name):
@@ -51,84 +61,45 @@ class RV (_P, _V):
     self._id = self.name
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, *args, **kwds):
-    if isinstance(prob, (float, int, bool)) and \
-       isinstance(self._vset, np.ndarray) and \
-       np.all(self._vset == np.atleast_1d(NOMINAL_VSET)) and not len(kwds):
-      prob, args = nominal_prob, tuple([float(prob)])
-    if prob is not None: self._prob = prob
-    self._prob_args = tuple(args)
-    self._prob_kwds = dict(kwds)
-    self.__callable = callable(self._prob)
+  def set_prob(self, prob=None, ptype=None, *args, **kwds):
+    super().set_prob(prob, ptype, *args, **kwds)
+
+    # Default unspecified probabilities to uniform over self._vset is given
     if self._prob is None:
       if self._vset is None:
-        return self.__callable
-      elif isinstance(self._vset, (bool, int, float)):
-        self._prob = 1.
-      elif isinstance(self._vset, np.ndarray):
-        nvset = len(self._vset)
-        self._prob = np.inf if not nvset else 1. / float(nvset)
-      elif isinstance(self._vset, tuple) and len(self._vset) == 2:
-        if self._vset[0] == self._vset[1]:
-          self._prob = np.inf
-        else:
-          self._prob = 1. / (float(max(self._vset)) - float(min(self._vset)))
-    elif not self.__callable:
-      self._prob = np.atleast_1d(self._prob)
-      assert not len(self._prob_args), "Optional arguments requires callable prob"
-      assert not len(self._prob_kwds), "Optional keywords requires callable prob"
+        return self.ret_callable()
+      else:
+        p = 1.
+        if isinstance(self._vset, np.ndarray):
+          nvset = len(self._vset)
+          p = np.inf if not nvset else 1. / float(nvset)
+        elif isinstance(self._vset, tuple) and len(self._vset) == 2:
+          if self._vset[0] == self._vset[1]:
+            p = np.inf
+          else:
+            p = 1. / (float(max(self._vset)) - float(min(self._vset)))
+        return super().set_prob(_uniform, ptype=self._ptype, p=p, vset=self._vset)
+
+    # Otherwise check uncallable probabilities commensurate with self._vset
+    elif not self.ret_callable():
       assert len(self._prob) == len(self._vset), \
           "Probability of length {} incommensurate with Vset of length {}".format(
-              len(self._prob),len(self._vset))
-    return self.__callable
+              len(self._prob), len(self._vset))
+    return self.ret_callable()
    
 #-------------------------------------------------------------------------------
-  def eval_prob(self, samples=None, rsc=None):
-
-    # Callable and non-callable evaluations
-    probs = self._prob
-    if self.__callable:
-      probs = probs(samples, *self._prob_args, **self._prob_kwds)
-    elif isinstance(samples, np.ndarray) and type(probs) is float:
-      probs = np.tile(probs, samples.shape)
-    else:
-      probs = np.atleast_1d(probs).astype(float)
-
-    # If not callable and samples is an array, check not outside variable set
-    if not self.__callable and isinstance(probs, np.ndarray):
-      if probs.ndim < 2 and isinstance(samples, np.ndarray):
-        probs_size = probs.size
-        if probs_size == samples.size:
-          if isinstance(self._vset, np.ndarray):
-            outside = np.array([samp not in self._vset for samp in samples], dtype=bool)
-            probs[outside] = 0.
-          elif isinstance(self._vset, tuple) and len(self._vset) == 2:
-            lo, hi = self.get_bounds(False)
-            outside = np.logical_or(samples<lo, samples>hi)
-            probs[outside] = 0.
-
-    return self.rescale(probs, rsc)
-
-#-------------------------------------------------------------------------------
-  def __call__(self, samples=None, **kwds):
+  def __call__(self, values=None, **kwds):
     ''' 
     Returns a namedtuple of samp and prob.
     '''
-    mutable = isinstance(samples, (np.ndarray, list))
-    samps = self.eval_samp(samples)
-    probs = self.eval_prob(samps)
-    self._get = collections.namedtuple(self._id, ['samp', 'prob'], **kwds)
+    mutable = isinstance(values, (np.ndarray, list))
+    vals = self.eval_vals(values)
+    prob = self.eval_prob(vals)
+    self._get = collections.namedtuple(self._id, ['vals', 'prob'], **kwds)
 
-    # Reciprocate samps evaluated using vfun or just recall if mutable array
-    vfun = self.ret_vfun()
-    if mutable:
-      samps = samples
-      if isinstance(samps, list):
-        samps = np.atleast_1d(samps) if not self._vtype else \
-                np.atleast_1d(samps).astype(self._vtype)
-    elif vfun:
-      samps = vfun[1](samps)
-    return self._get(samps, probs)
+    # Reciprocate vals evaluated using vfun or just recall if mutable array
+    vals = self.vfun_1(vals, mutable)
+    return self._get(vals, prob)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

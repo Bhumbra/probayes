@@ -8,7 +8,6 @@ import prob
 
 norm_range = (-3, 3)
 num_samples = 200
-norm_rv = prob.RV("norm", norm_range, prsc=0.)
-norm_rv.set_prob(ss.norm.logpdf, loc=0, scale=1)
-call_rv = norm_rv(num_samples)
-plot(call_rv.samp, call_rv.prob)
+rv = prob.RV("norm", norm_range, prob=ss.norm, ptype='log', loc=0, scale=1)
+pdf = rv(num_samples)
+plot(pdf.vals, pdf.prob)

@@ -3,7 +3,7 @@ A stochastic junction collection comprises a colletion of a random variables.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
-from prob.base import log_prob, exp_logs
+from prob.prob import log_prob, exp_logs
 from prob.rv import RV
 import collections
 
@@ -87,59 +87,58 @@ class SJ:
     return self._get(*tuple(self.ret_rvs().values()))
 
 #-------------------------------------------------------------------------------
-  def eval_samp(self, samples):
-    if isinstance(samples, dict):
-      assert set(samples.keys()) == self._keyset, \
+  def eval_vals(self, values):
+    if isinstance(values, dict):
+      assert set(values.keys()) == self._keyset, \
         "Sample dictionary keys {} mismatch with RV names {}".format(
-          samples.keys(), self._keys())
+          values.keys(), self._keys())
     else:
-      samples = {key: samples for key in self._keys}
+      values = {key: values for key in self._keys}
     for i, rv in enumerate(self._rvs.values()):
-      samp = samples[rv.name]
+      vals = values[rv.name]
       re_shape = False
-      if samp is None or type(samp) is int:
-        samp = rv.eval_samp(samp)
+      if vals is None or type(vals) is int:
+        vals = rv.eval_vals(vals)
         re_shape = True
-      elif isinstance(samp, np.ndarray):
-        if samp.ndim > 0 and samp.size > 1:
-          re_shape = samp.ndim != self._nrvs
+      elif isinstance(vals, np.ndarray):
+        if vals.ndim > 0 and vals.size > 1:
+          re_shape = vals.ndim != self._nrvs
       if re_shape:
         re_shape = np.copy(self.__nrvs_1s)
-        re_shape[i] = samp.size
-        samp = samp.reshape(re_shape)
-      samples[rv.name] = samp
-    return samples
+        re_shape[i] = vals.size
+        vals = vals.reshape(re_shape)
+      values[rv.name] = vals
+    return values
 
 #-------------------------------------------------------------------------------
-  def eval_marg_prod(self, samples):
+  def eval_marg_prod(self, values):
     """ Evaluates the marginal product """
-    assert isinstance(samples, dict), "SJ.eval_prob() requires samples dict"
-    assert set(samples.keys()) == self._keyset, \
+    assert isinstance(values, dict), "SJ.eval_prob() requires values dict"
+    assert set(values.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
-        samples.keys(), self._keys())
+        values.keys(), self._keys())
     probs = [None] * self._nrvs
-    use_logs = any([type(rv.ret_prsc()) is str for rv in self._rvs.values()])
-    run_prsc = 0. if use_logs else 1.
+    use_logs = any([isinstance(rv.ret_ptype(), str) for rv in self._rvs.values()])
+    run_ptype = 0. if use_logs else 1.
     for i, rv in enumerate(self._rvs.values()):
-      prob = rv.eval_prob(samples[rv.name])
+      prob = rv.eval_prob(values[rv.name])
       re_shape = np.copy(self.__nrvs_1s)
       re_shape[i] = prob.size
       prob = prob.reshape(re_shape)
-      prsc = rv.ret_prsc()
+      ptype = rv.ret_ptype()
       if not use_logs:
-        if prsc is not None or prsc==1.:
-          run_prsc *= prsc
+        if ptype is not None and ptype != 1.:
+          run_ptype *= ptype
         probs[i] = np.copy(prob)
       else:
-        logprob = prsc is None
-        if isinstance(prsc, str):
-          prsc = float(prsc)
-          run_prsc += prsc
+        logprob = ptype is None
+        if isinstance(ptype, str):
+          ptype = float(ptype)
           logprob = False
-        elif type(prsc) is float:
-          prsc = np.log(prsc)
-          run_prsc += prsc
+        elif type(ptype) is float:
+          ptype = np.log(ptype)
           logprob = True
+        run_ptype += ptype
         probs[i] = log_prob(prob) if logprob else np.copy(prob)
     prob = None
     for i in range(self._nrvs):
@@ -150,25 +149,25 @@ class SJ:
       else:
         prob = prob * probs[i]
     if use_logs:
-      if run_prsc != 0.:
-        prob = prob - run_prsc
+      if run_ptype != 0.:
+        prob = prob - run_ptype
       probs = exp_logs(prob)
     else:
-      if run_prsc != 1. and run_prsc != 0.:
-        prob = prob / run_prsc
+      if run_ptype != 1. and run_ptype != 0.:
+        prob = prob / run_ptype
       probs = prob
     return probs
 
 #-------------------------------------------------------------------------------
-  def eval_prob(self, samples):
-    assert isinstance(samples, dict), "SJ.eval_prob() requires samples dict"
-    assert set(samples.keys()) == self._keyset, \
+  def eval_prob(self, values):
+    assert isinstance(values, dict), "SJ.eval_prob() requires values dict"
+    assert set(values.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
-        samples.keys(), self._keys())
+        values.keys(), self._keys())
     if self._prob is None:
-      return self.eval_marg_prod(samples)
+      return self.eval_marg_prod(values)
     if self.__callable:
-      probs = probs(samples, *self._prob_args, **self._prob_kwds)
+      probs = probs(values, *self._prob_args, **self._prob_kwds)
     else:
       probs = np.atleast_1d(probs).astype(float)
     assert probs.ndim > self._nrvs,\
@@ -178,18 +177,18 @@ class SJ:
     return probs
 
 #-------------------------------------------------------------------------------
-  def __call__(self, samples=None, **kwds): 
+  def __call__(self, values=None, **kwds): 
     ''' 
     Returns a namedtuple of the rvs.
     '''
     if self._rvs is None:
       return None
     if self._get is None or len(kwds):
-      self._get = collections.namedtuple(self._id, ['samp', 'prob'], **kwds)
+      self._get = collections.namedtuple(self._id, ['vals', 'prob'], **kwds)
 
-    samps = self.eval_samp(samples)
-    probs = self.eval_prob(samps)
-    return self._get(samps, probs)
+    vals = self.eval_vals(values)
+    prob = self.eval_prob(vals)
+    return self._get(vals, prob)
 
 #-------------------------------------------------------------------------------
   def __len__(self):
