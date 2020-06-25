@@ -1,0 +1,198 @@
+# A distribution is triple comprising variable names, their values (vals), and respective probabilities.
+
+#-------------------------------------------------------------------------------
+import collections
+import numpy as np
+from prob.prob import rescale
+
+STR_FLOAT_ZERO = str(float(0))
+
+#-------------------------------------------------------------------------------
+class Dist:
+
+  # Public
+  name = None    # Name of distribution
+  vals = None    # Dictionary of values
+  prob = None    # Numpy array
+
+  # Protected
+  _ptype = None  # Same convention as _Prob
+  _scalar = None # if all scalars
+
+#-------------------------------------------------------------------------------
+  def __init__(self, name=None, vals=None, prob=None, ptype=None):
+    self.set_name(name)
+    self.set_vals(vals)
+    self.set_prob(prob, ptype)
+
+#-------------------------------------------------------------------------------
+  def set_name(self, name=None):
+    self.name = name
+
+#-------------------------------------------------------------------------------
+  def set_vals(self, vals=None):
+    self.vals = vals
+    self._scalar = None
+    if self.vals is not None:
+      self._scalar = True
+      print(self.vals)
+      for val in self.vals:
+        if not np.isscalar(val):
+          self._scalar = False
+        break
+    return self._scalar
+
+#-------------------------------------------------------------------------------
+  def set_prob(self, prob=None, ptype=None):
+    self.prob = prob
+    self._ptype = ptype
+    if isinstance(self.prob, np.ndarray) and self._scalar:
+      self.prob = float(self.prob)
+    if self._ptype in ['log', 'ln']:
+      self._ptype = STR_FLOAT_ZERO
+    return self._ptype
+
+#-------------------------------------------------------------------------------
+  def ret_scalar(self):
+    return self._scalar
+
+#-------------------------------------------------------------------------------
+  def ret_ptype(self):
+    return self._ptype
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+def parse_name(name):
+  """
+  Returns a dictionary of two lists:
+  {
+   'marg': list of marginal rv names
+   'cond': list of conditional rv names
+  }
+  """
+  marg_str = name
+  cond_str = ''
+  if '|' in marg_str:
+    split_str = name.split('|')
+    assert len(split_str) == 2, "Ambiguous name: {}".format(name)
+    marg_str, cond_str = split_str
+  split_str = ','.split(marg_str)
+  marg = [rv_name for rv_name in split_str if rv_name]
+  split_str = ','.split(cond_str)
+  cond = [rv_name for rv_name in split_str if rv_name]
+  return {'marg': marg, 'cond': cond}
+
+#-------------------------------------------------------------------------------
+def marg_prod(*args, check=True):
+  """ 
+  Returns the marginal product of single-variable distributions with identical 
+  ptypes. Assert checks cans be bypassed if set to zero
+  """
+  names = [parse_name(arg.ret_name()) for arg in args]
+  if not names:
+    return None
+  ptypes = [parse_name(arg.ret_ptype()) for arg in args]
+  ptype0 = ptypes[0]
+  marg_names = []
+  for name in names: marg_names.extend(name.marg)
+  cond_names = names.cond[0]
+  ptype = args[0].ret_ptype()
+  track_ptype = True
+  if ptype0 == STR_FLOAT_ZERO:
+    track_ptype = False
+    for ptype in ptypes[1:]:
+      if ptype != STR_FLOAT_ZERO:
+        track_ptype = True
+        break
+  elif ptype0 is None or ptype0 == 1.:
+    track_ptype = False
+    for ptype in ptypes[1:]:
+      if ptype != None or ptype == 1:
+        track_ptype = True
+        break
+  if check:
+    assert len(marg_names) == set(len(marg_names)),\
+      "Non-unique marginal variable name found in {}".format(marg_names)
+    for name in names:
+      assert cond_names == name.cond, "Non-identical conditional variables"
+    if len(cond_names):
+       for marg_name in marg_names:
+         assert marg_name not in cond_names,\
+           "Overlap between variable {} found within condition {}".format(
+               marg_name, cond_names)
+    if ptype0 is str:
+      assert all([isinstance(ptype, str) for ptype in ptypes])
+    else:
+      assert all([ptype is None or type(ptype) is float for ptype in ptypes])
+  prod_vals = collections.OrderedDict()
+  [prod_vals.update(arg.vals) for arg in args]
+  prod_marg_name = ','.join(marg_names)
+  prod_cond_name = ','.join(cond_names)
+  prod_name = '|'.join([prod_marg_name, prod_cond_name])
+  if not track_ptype and not check: # bypass long-winded approach for scalars
+    if all([arg.ret_scalar() for arg in args]):
+      probs = [arg.prob for arg in args]
+      prob = float(sum(probs)) if isinstance(ptype0, str) \
+             else float(np.prod(probs))
+      return Dist(prod_name, prod_vals, prob, ptype0)
+
+  n = len(names)
+  use_logs = isinstance(ptype, str)
+  run_ptype = 0. if use_logs else 1.
+  ndim_ones = np.ones(len(marg_names)+len(cond_names), dtype=float)
+  probs = [None] * n
+  for i, arg in enumerate(args):
+    vals, prob, marg_names, ptype = arg.vals, arg.prob, names[i].marg, ptypes[i]
+    reshape_prob = np.copy(ndim_ones)
+    for j, key in enumerate(vals.keys()):
+      reshape_vals = np.copy(ndim_ones)
+      index = marg_names.index(key)
+      reshape_vals[index] = vals[key].size
+      reshape_prob[index] = vals[key].size
+      prod_vals.update({key: vals[key].reshape(reshape_prob)})
+    if not track_ptypes:
+      probs[i] = prob
+    else:
+      if not use_logs:
+        if ptype is not None and ptype != 1.:
+          run_ptype *= ptype
+        probs[i] = prob
+      else:
+        logprob = ptype is None
+        if isinstance(ptype, str):
+          ptype = float(ptype)
+          logprob = False
+        elif type(ptype) is float:
+          ptype = np.log(ptype)
+          logprob = True
+        run_ptype += ptype
+        probs[i] = log_prob(prob) if logprob else np.copy(prob)
+    prob = None
+    for i in range(self._nrvs):
+      if prob is None:
+        prob = probs[i]
+      elif use_logs:
+        prob = prob + probs[i]
+      else:
+        prob = prob * probs[i]
+    if track_ptypes:
+      if use_logs:
+        if run_ptype != 0.:
+          prob = prob - run_ptype
+        prob = exp_logs(prob)
+      else:
+        if run_ptype != 1. and run_ptype != 0.:
+          prob = prob / run_ptype
+    return Dist(prod_name, prod_vals, prob, ptype0)
+ 
+#-------------------------------------------------------------------------------
+def dist_prod(*args, **kwds):
+  """ Multiplies two or more distributions subject to the following:
+  They must not share the same marginal variables. If ptype is
+  specified as a keyword, the resulting product distribution will
+  conform to that ptype.
+  """
+  return marg_prod(*args, **kwds)
+
+#-------------------------------------------------------------------------------

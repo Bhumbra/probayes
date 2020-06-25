@@ -8,18 +8,18 @@ import collections
 import numpy as np
 from prob.prob import log_prob, exp_logs
 from prob.rv import RV
+from prob.dist import Dist, marg_prod
 
 #-------------------------------------------------------------------------------
 class SJ:
 
   # Protected
-  _name = None
-  _id = None
-  _get = None
-  _rvs = None
+  _name = None    # Cannot be set externally
+  _rvs = None     # Dict of random variables
   _nrvs = None
   _keys = None
   _keyset = None
+  _ptype = None
 
   # Private
   __nrvs_1s = None
@@ -51,48 +51,75 @@ class SJ:
         rvs = rvs.values()
       [self.add_rv(rv) for rv in rvs]
     else:
+      rv_name = rv.ret_name()
       assert isinstance(rv, RV), \
           "Input not a RV instance but of type: {}".format(type(rv))
-      assert rv.name not in self._rvs.keys(), \
-          "Existing RV name {} already present in collection".format(rv.name)
-      self._rvs.update({rv.name: rv})
+      assert rv_name not in self._rvs.keys(), \
+          "Existing RV name {} already present in collection".format(rv_name)
+      self._rvs.update({rv_name: rv})
     self._nrvs = len(self._rvs)
     self.__nrvs_1s = np.ones(self._nrvs, dtype=int)
     self._keys = list(self._rvs.keys())
     self._keyset = set(self._keys)
     self._name = ','.join(self._keys)
-    self._id = '_and_'.join(self._keys)
     return self._nrvs
-
+  
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, *args, **kwds):
-    self._prob = prob
-    self._prob_args = tuple(args)
-    self._prob_kwds = dict(kwds)
-
-#-------------------------------------------------------------------------------
-  def ret_rvs(self):
-    return self._rvs
-
-#-------------------------------------------------------------------------------
-  def ret_nrvs(self):
-    return self._nrvs
+  def ret_rvs(self, aslist=True):
+    # Defaulting aslist=True plays more nicely with inheriting classes
+    rvs = self._rvs
+    if aslist:
+      if isinstance(rvs, dict):
+        rvs = list(rvs.values())
+      assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
+                                    format(type(rvs))
+    return rvs
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
     return self._name
 
 #-------------------------------------------------------------------------------
-  def ret_id(self):
-    return self._id
+  def ret_nrvs(self):
+    return self._nrvs
 
 #-------------------------------------------------------------------------------
-  def get_rvs(self):
-    if self._get is None:
-      self._get = collections.namedtuple(self._id, self._keys, **kwds)
-    rvs = self.ret_rvs()
-    rvs = list(rvs.values()) if isinstance(rvs, dict) else list(rvs)
-    return self._get(*tuple(self.ret_rvs().values()))
+  def set_ptype(self, ptype=None):
+    self._ptype = ptype
+    if self._ptype is not None:
+      if self._ptype in ['log', 'ln']:
+        self._ptype = str(float(0))
+      return self._ptype
+
+    rvs = self.ret_rvs(aslist=True)
+    all_none = all([rv.ret_ptype() is None for rv in rvs])
+    if all_none:
+      return self._ptype
+    use_logs = any([isinstance(rv.ret_ptype(), str) for rv in rvs])
+    ptype = 0. if use_logs else 1.
+    for rv in rvs:
+      rv_ptype = rv.ret_ptype()
+      if rv_ptype is None:
+        rv_ptype = 1.
+      rv_log = isinstance(rv_ptype, str)
+      if use_logs:
+        rtype = float(rv_ptype) if rv_log else np.log(rv_ptype)
+        ptype += rtype
+      else:
+        rtype = np.exp(float(rv_ptype)) if rv_log else rv_ptype
+        ptype *= ptype
+    self._ptype = str(ptype) if use_logs else ptype
+    return self._ptype
+
+#-------------------------------------------------------------------------------
+  def ret_ptype(self):
+    return self._ptype
+
+#-------------------------------------------------------------------------------
+  def set_prob(self, prob=None, *args, **kwds):
+    self._prob = prob
+    self._prob_args = tuple(args)
+    self._prob_kwds = dict(kwds)
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values, min_rdim=0):
@@ -110,12 +137,10 @@ class SJ:
         return values
     else:
       values = {key: values for key in self._keys}
-
-    rvs = self.ret_rvs()
-    # This next line is there just to play nice with inheriting classes
-    rvs = list(rvs.values()) if isinstance(rvs, dict) else list(rvs)
+    rvs = self.ret_rvs(aslist=True)
     for i, rv in enumerate(rvs):
-      vals = values[rv.name]
+      rv_name = rv.ret_name()
+      vals = values[rv_name]
       re_shape = False
       if vals is None or type(vals) is int:
         vals = rv.eval_vals(vals)
@@ -128,56 +153,8 @@ class SJ:
         re_dim = max(0, i - min_rdim)
         re_shape[re_dim] = vals.size
         vals = vals.reshape(re_shape)
-      values[rv.name] = vals
+      values[rv_name] = vals
     return values
-
-#-------------------------------------------------------------------------------
-  def eval_marg_prod(self, values):
-    """ Evaluates the marginal product """
-    assert isinstance(values, dict), "SJ.eval_prob() requires values dict"
-    assert set(values.keys()) == self._keyset, \
-      "Sample dictionary keys {} mismatch with RV names {}".format(
-        values.keys(), self._keys())
-    probs = [None] * self._nrvs
-    use_logs = any([isinstance(rv.ret_ptype(), str) for rv in self._rvs.values()])
-    run_ptype = 0. if use_logs else 1.
-    for i, rv in enumerate(self._rvs.values()):
-      prob = rv.eval_prob(values[rv.name])
-      re_shape = np.copy(self.__nrvs_1s)
-      re_shape[i] = prob.size
-      prob = prob.reshape(re_shape)
-      ptype = rv.ret_ptype()
-      if not use_logs:
-        if ptype is not None and ptype != 1.:
-          run_ptype *= ptype
-        probs[i] = np.copy(prob)
-      else:
-        logprob = ptype is None
-        if isinstance(ptype, str):
-          ptype = float(ptype)
-          logprob = False
-        elif type(ptype) is float:
-          ptype = np.log(ptype)
-          logprob = True
-        run_ptype += ptype
-        probs[i] = log_prob(prob) if logprob else np.copy(prob)
-    prob = None
-    for i in range(self._nrvs):
-      if prob is None:
-        prob = probs[i]
-      elif use_logs:
-        prob = prob + probs[i]
-      else:
-        prob = prob * probs[i]
-    if use_logs:
-      if run_ptype != 0.:
-        prob = prob - run_ptype
-      probs = exp_logs(prob)
-    else:
-      if run_ptype != 1. and run_ptype != 0.:
-        prob = prob / run_ptype
-      probs = prob
-    return probs
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values):
@@ -186,7 +163,8 @@ class SJ:
       "Sample dictionary keys {} mismatch with RV names {}".format(
         values.keys(), self._keys())
     if self._prob is None:
-      return self.eval_marg_prod(values)
+      dists = tuple([rv(values[rv.ret_name()]) for rv in self.ret_rvs(aslist=True)])
+      return marg_prod(*dists, check=False).prob
     if self.__callable:
       probs = probs(values, *self._prob_args, **self._prob_kwds)
     else:
@@ -199,18 +177,40 @@ class SJ:
     return probs
 
 #-------------------------------------------------------------------------------
+  def vfun_0(self, values, use_vfun=True):
+    if not isinstance(use_vfun, dict):
+      use_vfun = {key: use_vfun for key in values.keys()}
+    rvs = self.ret_rvs(aslist=True)
+    for key, rv in zip(self._self._keys, rvs):
+      if key in values:
+        values[key] = rv.vfun_0(values[key], use_vfun[key])
+    return values
+
+#-------------------------------------------------------------------------------
+  def vfun_1(self, values, use_vfun=True):
+    if not isinstance(use_vfun, dict):
+      use_vfun = {key: use_vfun for key in values.keys()}
+    rvs = self.ret_rvs(aslist=True)
+    for key, rv in zip(self._keys, rvs):
+      if key in values:
+        values[key] = rv.vfun_1(values[key], use_vfun[key])
+    return values
+
+#-------------------------------------------------------------------------------
   def __call__(self, values=None, **kwds): 
     ''' 
     Returns a namedtuple of the rvs.
     '''
     if self._rvs is None:
       return None
-    if self._get is None or len(kwds):
-      self._get = collections.namedtuple(self._id, ['vals', 'prob'], **kwds)
-
+    if not isinstance(values, dict):
+      values = {key: values for key in self._keys}
+    use_vfun = {key: val is None or isinstance(list, np.ndarray, bool, int, float)
+                for key, val in values.items()}
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    return self._get(vals, prob)
+    vals = self.vfun_1(vals, use_vfun)
+    return Dist(self._name, vals, prob, self._ptype)
 
 #-------------------------------------------------------------------------------
   def __len__(self):

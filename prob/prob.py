@@ -52,6 +52,47 @@ def log_offset(ptype=None):
   return np.log(sc)
 
 #-------------------------------------------------------------------------------
+def rescale(prob, *args):
+  ptype, rtype = None, None
+  if len(args) == 0: 
+    return prob
+  elif len(args) ==  1: 
+    rtype = args[0]
+  else: 
+    ptype, rtype = args[0], args[1]
+  if ptype == rtype:
+    return prob
+  if ptype in ['ln', 'log']:
+    ptype = str(float(0))
+  elif type(ptype) is float and ptype <= 0.:
+    ptype = str(abs(ptype))
+  if rtype in ['ln', 'log']:
+    rtype = str(float(0))
+  elif type(rtype) is float and rtype <= 0.:
+    rtype = str(abs(rtype))
+  if ptype == rtype:
+    return prob
+  
+  p_log = isinstance(ptype, str)
+  r_log = isinstance(rtype, str)
+
+  # Support non-logarithmic conversion (maybe used to avoid logging zeros)
+  if not p_log and not r_log:
+    coef = ptype / rtype
+    if coef == 1.:
+      return prob
+    else:
+      return coef * prob
+
+  # For floating point precision, perform other operations in log-space
+  if not p_log: prob = log_prob(prob)
+  d_offs = log_offset(ptype) - log_offset(rtype)
+  if d_offs != 0.: prob = prob + d_offs
+  if r_log:
+    return prob
+  return exp_logs(prob)
+
+#-------------------------------------------------------------------------------
 class _Prob (ABC):
 
   # Protected
@@ -171,46 +212,25 @@ class _Prob (ABC):
     return self.__pset
 
 #-------------------------------------------------------------------------------
-  def eval_prob(self, values=None, rtype=None):
+  def eval_prob(self, values=None, **kwds):
+    """ keys can include ptype """
 
     # Callable and non-callable evaluations
-    probs = self._prob
+    prob = self._prob
     if self.__callable:
-      probs = probs(values, *self._prob_args, **self._prob_kwds)
+      prob = prob(values, *self._prob_args, **self._prob_kwds)
     else:
       assert values is None, \
           "Cannot evaluate from values from an uncallable probability function"
-      probs = np.atleast_1d(probs).astype(float)
-    return self.rescale(probs, rtype)
+    if 'ptype' in kwds:
+      return self.rescale(probs, kwds['ptype'])
+    return prob
 
 #-------------------------------------------------------------------------------
-  def rescale(self, probs, rtype=None):
-    ptype = self._ptype
-    if type(ptype) is float and ptype <= 0.:
-      ptype = str(abs(ptype))
-    if type(rtype) is float and rtype <= 0.:
-      rtype = str(abs(rtype))
-    if ptype == rtype:
+  def rescale(self, probs, **kwds):
+    if 'ptype' not in kwds:
       return probs
-    
-    p_log = isinstance(ptype, str)
-    r_log = isinstance(rtype, str)
-
-    # Support non-logarithmic conversion (maybe used to avoid logging zeros)
-    if not p_log and not r_log:
-      coef = ptype / rtype
-      if coef == 1.:
-        return prob
-      else:
-        return coef * prob
-
-    # For floating point precision, perform other operations in log-space
-    if not p_log: probs = log_probs(probs)
-    d_offs = log_offset(ptype) - log_offset(rtype)
-    if d_offs != 0.: probs = probs + d_offs
-    if r_log:
-      return probs
-    return exp_logs(probs)
+    return rescale(probs, self._ptype, kwds['ptype'])
 
 #-------------------------------------------------------------------------------
   @abstractmethod
