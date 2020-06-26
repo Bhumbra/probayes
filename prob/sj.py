@@ -7,7 +7,7 @@ import warnings
 import collections
 import numpy as np
 from prob.prob import log_prob, exp_logs
-from prob.rv import RV
+from prob.rv import RV, io_use_vfun
 from prob.dist import Dist, marg_prod
 
 #-------------------------------------------------------------------------------
@@ -20,15 +20,16 @@ class SJ:
   _keys = None
   _keyset = None
   _ptype = None
+  _use_vfun = None
 
   # Private
-  __nrvs_1s = None
   __callable = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
     self.set_rvs(*args)
     self.set_prob()
+    self.set_use_vfun()
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -58,7 +59,6 @@ class SJ:
           "Existing RV name {} already present in collection".format(rv_name)
       self._rvs.update({rv_name: rv})
     self._nrvs = len(self._rvs)
-    self.__nrvs_1s = np.ones(self._nrvs, dtype=int)
     self._keys = list(self._rvs.keys())
     self._keyset = set(self._keys)
     self._name = ','.join(self._keys)
@@ -138,6 +138,7 @@ class SJ:
     else:
       values = {key: values for key in self._keys}
     rvs = self.ret_rvs(aslist=True)
+    nrvs_1s = np.ones(self._nrvs, dtype=int)
     for i, rv in enumerate(rvs):
       rv_name = rv.ret_name()
       vals = values[rv_name]
@@ -149,7 +150,7 @@ class SJ:
         if vals.size != 1:
           re_shape = vals.ndim != self._nrvs - min_rdim
       if re_shape:
-        re_shape = np.copy(self.__nrvs_1s[min_rdim:])
+        re_shape = np.copy(nrvs_1s[min_rdim:])
         re_dim = max(0, i - min_rdim)
         re_shape[re_dim] = vals.size
         vals = vals.reshape(re_shape)
@@ -177,23 +178,32 @@ class SJ:
     return probs
 
 #-------------------------------------------------------------------------------
+  def set_use_vfun(self, use_vfun=True):
+    self._use_vfun = io_use_vfun(use_vfun)
+    return self._use_vfun
+
+#-------------------------------------------------------------------------------
+  def ret_use_vfun(self):
+    return self._use_vfun
+
+#-------------------------------------------------------------------------------
   def vfun_0(self, values, use_vfun=True):
-    if not isinstance(use_vfun, dict):
-      use_vfun = {key: use_vfun for key in values.keys()}
+    if not use_vfun:
+      return values
     rvs = self.ret_rvs(aslist=True)
     for key, rv in zip(self._self._keys, rvs):
       if key in values:
-        values[key] = rv.vfun_0(values[key], use_vfun[key])
+        values[key] = rv.vfun_0(values[key], use_vfun)
     return values
 
 #-------------------------------------------------------------------------------
   def vfun_1(self, values, use_vfun=True):
-    if not isinstance(use_vfun, dict):
-      use_vfun = {key: use_vfun for key in values.keys()}
+    if not use_vfun:
+      return values
     rvs = self.ret_rvs(aslist=True)
     for key, rv in zip(self._keys, rvs):
       if key in values:
-        values[key] = rv.vfun_1(values[key], use_vfun[key])
+        values[key] = rv.vfun_1(values[key], use_vfun)
     return values
 
 #-------------------------------------------------------------------------------
@@ -207,11 +217,9 @@ class SJ:
       values = dict(kwds)
     elif not isinstance(values, dict):
       values = {key: values for key in self._keys}
-    use_vfun = {key: val is None or isinstance(list, np.ndarray, bool, int, float)
-                for key, val in values.items()}
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    vals = self.vfun_1(vals, use_vfun)
+    vals = self.vfun_1(vals, self._use_vfun[1])
     return Dist(self._name, vals, prob, self._ptype)
 
 #-------------------------------------------------------------------------------

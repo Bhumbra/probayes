@@ -49,6 +49,28 @@ def nominal_uniform(vals=None, prob=1., vset=None):
   return prob
 
 #-------------------------------------------------------------------------------
+def io_use_vfun(use_vfun=True):
+  """ Fiddly function to interpret use_vfun for input/output purpses """
+  use_vfun = use_vfun.lower() if isinstance(use_vfun, str) else use_vfun
+  _use_vfun = None
+  if use_vfun is None or use_vfun == 'none':
+    use_vfun = False
+  if isinstance(use_vfun, (list, tuple)) and len(use_vfun) == 2:
+    _use_vfun = tuple(use_vfun)
+  elif type(use_vfun) is bool:
+    _use_vfun = (use_vfun, use_vfun)
+  elif isinstance(use_vfun, str):
+    if use_vfun == 'in':
+      _use_vfun = (True, False)
+    elif use_vfun == 'out':
+      _use_vfun = (False, True)
+    elif use_vfun == 'both':
+      _use_vfun = (True, True)
+  if _use_vfun is None:
+    raise ValueError("Unable to interpret use_vfun input {}".format(use_vfun))
+  return _use_vfun
+
+#-------------------------------------------------------------------------------
 class RV (_Vals, _Prob):
 
   # Protected
@@ -115,23 +137,7 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def set_use_vfun(self, use_vfun=True):
-    use_vfun = use_vfun.lower() if isinstance(use_vfun, str) else use_vfun
-    self._use_vfun = None
-    if use_vfun is None or use_vfun == 'none':
-      use_vfun = False
-    if isinstance(use_vfun, (list, tuple)) and len(use_vfun) == 2:
-      self._use_vfun = tuple(use_vfun)
-    elif type(use_vfun) is bool:
-      self._use_vfun = (use_vfun, use_vfun)
-    elif isinstance(use_vfun, str):
-      if use_vfun == 'in':
-        self._use_vfun = (True, False)
-      elif use_vfun == 'out':
-        self._use_vfun = (False, True)
-      elif use_vfun == 'both':
-        self._use_vfun = (True, True)
-    if self._use_vfun is None:
-      raise ValueError("Unable to interpret use_vfun input {}".format(use_vfun))
+    self._use_vfun = io_use_vfun(use_vfun)
     return self._use_vfun
 
 #-------------------------------------------------------------------------------
