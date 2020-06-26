@@ -21,13 +21,6 @@ def is_scipy_stats_dist(ptype, scipy_stats_dists=SCIPY_STATS_DISTS):
   return isinstance(ptype, scipy_stats_dists)
 
 #-------------------------------------------------------------------------------
-def nominal_prob(x, p):
-  x, p = np.atleast_1d(x), float(p)
-  prob = np.tile(1.-p, x.shape)
-  prob[x.astype(bool)] = p
-  return prob
-
-#-------------------------------------------------------------------------------
 def log_prob(prob):
   logs = np.tile(NEARLY_NEGATIVE_INF, prob.shape)
   ok = prob >= NEARLY_POSITIVE_ZERO
@@ -106,6 +99,7 @@ class _Prob (ABC):
 
   # Private
   __pset = None     # Set of pdfs/logpdfs/cdfs/icdfs
+  __scalar = None
   __callable = None # Flag for callable function
 
 #-------------------------------------------------------------------------------
@@ -118,16 +112,16 @@ class _Prob (ABC):
     self._prob_args = tuple(args)
     self._prob_kwds = dict(kwds)
     self.__pset = None
+    self.__scalar = None
 
     # Handle SciPy distributions first
     if is_scipy_stats_dist(self._prob):
       self.__pset = self._prob
       self._prob = None
 
-    # Now nominal probabilities
-    elif isinstance(prob, (float, int, bool)) and ptype is None and \
-         not len(args) and not len(kwds):
-      self._prob, self._prob_args = nominal_prob, tuple([float(prob)])
+    # Then scalars probabilities
+    elif isinstance(prob, (float, int, bool)): 
+      self._prob = float(self._prob)
 
     # And the rest
     else:
@@ -136,12 +130,18 @@ class _Prob (ABC):
     # Set ptype and distinguish between non-callable and callable self._prob
     self.set_ptype(ptype) # this defaults self._pfun
     self.__callable = callable(self._prob)
-    if self._prob is not None and not self.__callable:
-      if not isinstance(self._prob, np.ndarray) or self._prob.ndim < 1:
-        self._prob = np.atleast_1d(self._prob)
+    if self.__callable:
+      self.__scalar = False
+    elif self._prob is not None:
+      self.__scalar = np.isscalar(self._prob)
       assert not len(self._prob_args), "Optional arguments requires callable prob"
       assert not len(self._prob_kwds), "Optional keywords requires callable prob"
-    return self.ret_callable()
+
+      # Convert non-scalar foreign types to 1D Numpy array
+      if isinstance(self._prob, (list, tuple, np.ndarray)) and not self.__scalar:
+          self._prob = np.atleast_1d(self._prob)
+
+    return self.__callable
 
 #-------------------------------------------------------------------------------
   def set_ptype(self, ptype=None):
@@ -202,6 +202,10 @@ class _Prob (ABC):
 #-------------------------------------------------------------------------------
   def ret_callable(self):
     return self.__callable
+
+#-------------------------------------------------------------------------------
+  def ret_scalar(self):
+    return self.__scalar
 
 #-------------------------------------------------------------------------------
   def ret_ptype(self):

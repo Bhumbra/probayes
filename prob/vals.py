@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 #-------------------------------------------------------------------------------
-NOMINAL_VSET = [False, True]
+NOMINAL_VSET = np.array([False, True], dtype=bool)
 NUMPY_DTYPES = {
                  np.dtype('bool'): bool,
                  np.dtype('int'): int,
@@ -63,7 +63,7 @@ class _Vals (ABC):
       raise TypeError("Unrecognised variable set type: {}".format(
                       type(self._vset)))
 
-    # Detect vtype if not specified (None is permitted)
+    # Detect vtype if not specified (custom types are permitted)
     self._vtype = vtype
     if self._vtype is None:
       if isinstance(self._vset, set):
@@ -123,9 +123,9 @@ class _Vals (ABC):
 
     # Default to complete sets
     if values is None:
-      assert not isinstance(self._vset, set),\
-          "Samples must be specified for variable set: {}".format(self._vset)
-      self.values = np._vset
+      values = self._vset
+      if isinstance(values, set):
+        values = sum(values) / len(values)
 
     # Sets may be used to sample from support sets
     elif isinstance(values, set):
