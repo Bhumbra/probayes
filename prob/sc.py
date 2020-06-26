@@ -14,6 +14,7 @@ class SC (SJ):
   # Protected
   _marg = None
   _cond = None
+  _iid = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -22,6 +23,7 @@ class SC (SJ):
     arg1 = None if len(args) < 2 else args[1]
     self.add_marg(arg0)
     self.add_cond(arg1)
+    self.set_iid()
 
 #-------------------------------------------------------------------------------
   def add_marg(self, *args):
@@ -36,8 +38,12 @@ class SC (SJ):
     self._refresh()
 
 #-------------------------------------------------------------------------------
+  def set_iid(self, iid=False):
+    self._iid = iid
+
+#-------------------------------------------------------------------------------
   def _refresh(self):
-    marg_name, marg_rvid, cond_name, cond_rvid = None, None, None, None
+    marg_name, cond_name = None, None
     self._rvs = []
     self._keys = []
     if self._marg:
@@ -56,7 +62,6 @@ class SC (SJ):
     names = [name for name in [marg_name, cond_name] if name]
     rvids = [rvid for rvid in [marg_rvid, cond_rvid] if rvid]
     self._name = '|'.join(names)
-    self._id = '_with_'.join(rvids)
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):

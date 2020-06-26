@@ -22,7 +22,7 @@ def nominal_uniform(vals=None, prob=1., vset=None):
 
   # If scalar, check within variable set
   if np.isscalar(vals):
-    if isinstance(vset, np.array):
+    if isinstance(vset, np.ndarray):
       prob = prob if vals in vset else 0.
     elif isinstance(vset, set):
       prob = 0. if vals < min(vset) or vals > max(vset) else prob
@@ -34,8 +34,8 @@ def nominal_uniform(vals=None, prob=1., vset=None):
 
   # Handle nominal probabilities
   if isinstance(vset, np.ndarray) and vset.dtype is np.dtype('bool'):
-    isfalse_vals = np.logical_not(vals)
-    prob[isfalse_vals] = 1. - prob[isfalse_vals]
+    isfalse = np.logical_not(vals)
+    prob[isfalse] = 1. - prob[isfalse]
     return prob
 
   # Otherwise treat as uniform within range
