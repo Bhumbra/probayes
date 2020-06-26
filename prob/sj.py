@@ -197,13 +197,15 @@ class SJ:
     return values
 
 #-------------------------------------------------------------------------------
-  def __call__(self, values=None, **kwds): 
+  def __call__(self, values=None, **kwds):  # Let's make this args ands kwds
     ''' 
     Returns a namedtuple of the rvs.
     '''
     if self._rvs is None:
       return None
-    if not isinstance(values, dict):
+    if values is None and len(kwds):
+      values = dict(kwds)
+    elif not isinstance(values, dict):
       values = {key: values for key in self._keys}
     use_vfun = {key: val is None or isinstance(list, np.ndarray, bool, int, float)
                 for key, val in values.items()}

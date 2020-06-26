@@ -57,8 +57,7 @@ class _Vals (ABC):
     elif isinstance(self._vset, set): # Convert elements to float
       assert len(self._vset) == 2, \
           "Tuple vset must be of length 2, not {}".format(len(self._vset))
-      vset = np.array(list(self._vset), dtype=float)
-      self._vset = set([np.min(vset), np.max(vset)])
+      self._vset = {float(min(self._vset)), float(max(self._vset))}
     else:
       raise TypeError("Unrecognised variable set type: {}".format(
                       type(self._vset)))
