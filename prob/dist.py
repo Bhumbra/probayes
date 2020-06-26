@@ -73,7 +73,7 @@ class Dist:
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
-    prefix = 'LogP' if isinstance(self._ptype, str) else 'P'
+    prefix = 'logp' if isinstance(self._ptype, str) else 'p'
     return super().__repr__() + ": " + prefix + "(" + self.name + ") [vals,prob]"
 
 #-------------------------------------------------------------------------------
@@ -83,8 +83,8 @@ def parse_name(name):
   """
   Returns a dictionary of two lists:
   {
-   'marg': list of marginal rv names
-   'cond': list of conditional rv names
+   'marg': list of marginal rv names    (removing equals and beyond)
+   'cond': list of conditional rv names (removing equals and beyond)
   }
   """
   marg_str = name
@@ -100,6 +100,15 @@ def parse_name(name):
   if len(cond_str):
     cond = cond_str.split(',') if ',' in cond_str else [cond_str]
   return {'marg': marg, 'cond': cond}
+
+#-------------------------------------------------------------------------------
+def str2key(string):
+  if isinstance(string, str):
+    k = string.find('=')
+    if k > 0:
+      return string[:k]
+    return string
+  return [str2key(element) for element in string]
 
 #-------------------------------------------------------------------------------
 def marg_prod(*args, check=True):
@@ -147,7 +156,7 @@ def marg_prod(*args, check=True):
   prod_marg_name = ','.join(marg_names)
   prod_cond_name = ','.join(cond_names)
   prod_name = '|'.join([prod_marg_name, prod_cond_name])
-  prod_keys = marg_names + cond_names
+  prod_keys = str2key(marg_names) + str2key(cond_names)
 
   # Bypass comprehensive approach for scalars
   if not track_ptype and not check: # bypass long-winded approach for scalars
