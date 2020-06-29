@@ -3,9 +3,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.prob import rescale
-
-STR_FLOAT_ZERO = str(float(0))
+from prob.ptypes import eval_ptype, rescale, prod_prob
 
 #-------------------------------------------------------------------------------
 class Dist:
@@ -47,11 +45,9 @@ class Dist:
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, ptype=None):
     self.prob = prob
-    self._ptype = ptype
+    self._ptype = eval_ptype(ptype)
     if isinstance(self.prob, np.ndarray) and self._scalar:
       self.prob = float(self.prob)
-    if self._ptype in ['log', 'ln']:
-      self._ptype = STR_FLOAT_ZERO
     return self._ptype
 
 #-------------------------------------------------------------------------------
@@ -73,7 +69,7 @@ class Dist:
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
-    prefix = 'logp' if isinstance(self._ptype, str) else 'p'
+    prefix = 'logp' if np.iscomplex(self._ptype) else 'p'
     return super().__repr__() + ": " + prefix + "(" + self.name + ") [vals,prob]"
 
 #-------------------------------------------------------------------------------
@@ -111,11 +107,13 @@ def str2key(string):
   return [str2key(element) for element in string]
 
 #-------------------------------------------------------------------------------
-def marg_prod(*args, check=True):
+def marg_prod(*args, **kwds):
   """ 
   Returns the marginal product of single-variable distributions with identical 
   ptypes. Assert checks cans be bypassed if set to zero
   """
+  kwds = dict(kwds)
+  check = kwds.get('check', True)
   names = [parse_name(arg.name) for arg in args]
   if not names:
     return None
@@ -125,16 +123,16 @@ def marg_prod(*args, check=True):
   cond_names = names[0]['cond']
   ptype = args[0].ret_ptype()
   track_ptype = True
-  if ptype == STR_FLOAT_ZERO:
+  if ptype == 0.j:
     track_ptype = False
     for _ptype in ptypes[1:]:
-      if _ptype != STR_FLOAT_ZERO:
+      if _ptype != 0.j:
         track_ptype = True
         break
-  elif ptype is None or ptype == 1.:
+  elif ptype == 1.:
     track_ptype = False
     for _ptype in ptypes[1:]:
-      if _ptype != None or _ptype == 1:
+      if _ptype != 1:
         track_ptype = True
         break
   if check:
@@ -147,77 +145,46 @@ def marg_prod(*args, check=True):
          assert marg_name not in cond_names,\
            "Overlap between variable {} found within condition {}".format(
                marg_name, cond_names)
-    if isinstance(ptype, str):
-      assert all([isinstance(_ptype, str) for _ptype in ptypes])
+    if np.iscomplex(ptype):
+      assert all([np.iscomplex(_ptype) for _ptype in ptypes])
     else:
-      assert all([_ptype is None or type(_ptype) is float for _ptype in ptypes])
+      assert all([not np.iscomplex(_ptype) for _ptype in ptypes])
   prod_vals = collections.OrderedDict()
   [prod_vals.update(arg.vals) for arg in args]
   prod_marg_name = ','.join(marg_names)
   prod_cond_name = ','.join(cond_names)
   prod_name = '|'.join([prod_marg_name, prod_cond_name])
   prod_keys = str2key(marg_names) + str2key(cond_names)
+  arg_scalars = [arg.ret_scalar() for arg in args]
 
   # Bypass comprehensive approach for scalars
-  if not track_ptype and not check: # bypass long-winded approach for scalars
-    if all([arg.ret_scalar() for arg in args]):
-      probs = [arg.prob for arg in args]
-      prob = float(sum(probs)) if isinstance(ptype0, str) \
-             else float(np.prod(probs))
-      return Dist(prod_name, prod_vals, prob, ptype0)
+  if not check and not track_ptype and all(arg_scalars):
+    probs = [arg.prob for arg in args]
+    prob = float(sum(probs)) if np.iscomplex(ptype) \
+           else float(np.prod(probs))
+    return Dist(prod_name, prod_vals, prob, ptype)
 
   # Reshape values and marginal probabilities
-  use_logs = isinstance(ptype, str)
-  run_ptype = 0. if use_logs else 1.
-  ndim_ones = np.ones(len(prod_keys), dtype=int)
+  reshape_refs = np.cumsum(np.logical_not(arg_scalars))
+  maybe_reshape = np.max(reshape_refs) < 1
+  nres_ones = None if not maybe_reshape else np.ones(reshape_refs[-1], dtype=int)
   probs = [None] * len(args)
   for i, arg in enumerate(args):
     vals, prob, marg_names, ptype = arg.vals, arg.prob, names[i]['marg'], ptypes[i]
-    reshape_prob = np.copy(ndim_ones)
-    for key in vals.keys():
-      reshape_vals = np.copy(ndim_ones)
-      index = prod_keys.index(key)
-      reshape_vals[index] = vals[key].size
-      reshape_prob[index] = vals[key].size
-      prod_vals.update({key: vals[key].reshape(reshape_vals)})
-    if isinstance(prob, np.ndarray):
-      prob = prob.reshape(reshape_prob)
-    if not track_ptype:
-      probs[i] = prob
-    else:
-      if not use_logs:
-        if ptype is not None and ptype != 1.:
-          run_ptype *= ptype
-        probs[i] = prob
-      else:
-        logprob = ptype is None
-        if isinstance(ptype, str):
-          ptype = float(ptype)
-          logprob = False
-        elif type(ptype) is float:
-          ptype = np.log(ptype)
-          logprob = True
-        run_ptype += ptype
-        probs[i] = log_prob(prob) if logprob else np.copy(prob)
+    if maybe_reshape:
+      reshape_prob = np.copy(nres_ones)
+      for key in vals.keys():
+        reshape_vals = np.copy(nres_ones)
+        index = prod_keys.index(key)
+        reshape_vals[reshape_refs[index]] = vals[key].size
+        reshape_prob[reshape_refs[index]] = vals[key].size
+        prod_vals.update({key: vals[key].reshape(reshape_vals)})
+      if isinstance(prob, np.ndarray):
+        prob = prob.reshape(reshape_prob)
+    probs[i] = prob
 
-  # Evaluate joint probability
-  prob = None
-  for i in range(len(args)):
-    if prob is None:
-      prob = probs[i]
-    elif use_logs:
-      prob = prob + probs[i]
-    else:
-      prob = prob * probs[i]
-  if track_ptype:
-    if use_logs:
-      if run_ptype != 0.:
-        prob = prob - run_ptype
-      prob = exp_logs(prob)
-    else:
-      if run_ptype != 1. and run_ptype != 0.:
-        prob = prob / run_ptype
-
+  # Multiply the probabilities and output the result as a distribution
+  prob, ptype = prod_prob(*tuple(probs), ptypes=ptypes)
   return Dist(prod_name, prod_vals, prob, ptype)
  
 #-------------------------------------------------------------------------------

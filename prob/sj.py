@@ -6,9 +6,9 @@ participate in a joint probability distribution function.
 import warnings
 import collections
 import numpy as np
-from prob.prob import log_prob, exp_logs
 from prob.rv import RV, io_use_vfun
 from prob.dist import Dist, marg_prod
+from prob.ptypes import prod_ptype, prod_prob
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -92,30 +92,12 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def set_ptype(self, ptype=None):
-    self._ptype = ptype
-    if self._ptype is not None:
-      if self._ptype in ['log', 'ln']:
-        self._ptype = str(float(0))
+    if ptype is not None or not self._nvrs:
+      self._ptype = eval_ptype(ptype)
       return self._ptype
-
     rvs = self.ret_rvs(aslist=True)
-    all_none = all([rv.ret_ptype() is None for rv in rvs])
-    if all_none:
-      return self._ptype
-    use_logs = any([isinstance(rv.ret_ptype(), str) for rv in rvs])
-    ptype = 0. if use_logs else 1.
-    for rv in rvs:
-      rv_ptype = rv.ret_ptype()
-      if rv_ptype is None:
-        rv_ptype = 1.
-      rv_log = isinstance(rv_ptype, str)
-      if use_logs:
-        rtype = float(rv_ptype) if rv_log else np.log(rv_ptype)
-        ptype += rtype
-      else:
-        rtype = np.exp(float(rv_ptype)) if rv_log else rv_ptype
-        ptype *= ptype
-    self._ptype = str(ptype) if use_logs else ptype
+    ptypes = [rv.ret_ptype() for rv in rvs]
+    self._ptype = prod_ptypes(ptypes)
     return self._ptype
 
 #-------------------------------------------------------------------------------

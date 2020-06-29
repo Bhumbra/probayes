@@ -8,82 +8,14 @@ from abc import ABC, abstractmethod
 import warnings
 import numpy as np
 import scipy.stats
+from prob.ptypes import eval_ptype, rescale
 
 #-------------------------------------------------------------------------------
-NEARLY_POSITIVE_ZERO = 1.175494e-38
-NEARLY_NEGATIVE_INF = -3.4028236e38
-NEARLY_POSITIVE_INF =  3.4028236e38
-LOG_NEARLY_POSITIVE_INF = np.log(NEARLY_POSITIVE_INF)
 SCIPY_STATS_DISTS = (scipy.stats.rv_continuous, scipy.stats.rv_discrete)
 
 #-------------------------------------------------------------------------------
-def is_scipy_stats_dist(ptype, scipy_stats_dists=SCIPY_STATS_DISTS):
-  return isinstance(ptype, scipy_stats_dists)
-
-#-------------------------------------------------------------------------------
-def log_prob(prob):
-  logs = np.tile(NEARLY_NEGATIVE_INF, prob.shape)
-  ok = prob >= NEARLY_POSITIVE_ZERO
-  logs[ok] = np.log(prob[ok])
-  return logs
-
-#-------------------------------------------------------------------------------
-def exp_logs(logs):
-  prob = np.tile(NEARLY_POSITIVE_INF, logs.shape)
-  ok = logs <= LOG_NEARLY_POSITIVE_INF
-  prob[ok] = np.exp(logs[ok])
-  return prob
-
-#-------------------------------------------------------------------------------
-def log_offset(ptype=None):
-  if ptype is None:
-    return 0.
-  if isinstance(ptype, str):
-    return float(ptype)
-  if ptype <= 0.:
-    return ptype
-  return np.log(sc)
-
-#-------------------------------------------------------------------------------
-def rescale(prob, *args):
-  ptype, rtype = None, None
-  if len(args) == 0: 
-    return prob
-  elif len(args) ==  1: 
-    rtype = args[0]
-  else: 
-    ptype, rtype = args[0], args[1]
-  if ptype == rtype:
-    return prob
-  if ptype in ['ln', 'log']:
-    ptype = str(float(0))
-  elif type(ptype) is float and ptype <= 0.:
-    ptype = str(abs(ptype))
-  if rtype in ['ln', 'log']:
-    rtype = str(float(0))
-  elif type(rtype) is float and rtype <= 0.:
-    rtype = str(abs(rtype))
-  if ptype == rtype:
-    return prob
-  
-  p_log = isinstance(ptype, str)
-  r_log = isinstance(rtype, str)
-
-  # Support non-logarithmic conversion (maybe used to avoid logging zeros)
-  if not p_log and not r_log:
-    coef = ptype / rtype
-    if coef == 1.:
-      return prob
-    else:
-      return coef * prob
-
-  # For floating point precision, perform other operations in log-space
-  if not p_log: prob = log_prob(prob)
-  d_offs = log_offset(ptype) - log_offset(rtype)
-  if d_offs != 0.: prob = prob + d_offs
-  if r_log:
-    return prob
-  return exp_logs(prob)
+def is_scipy_stats_dist(arg, scipy_stats_dists=SCIPY_STATS_DISTS):
+  return isinstance(arg, scipy_stats_dists)
 
 #-------------------------------------------------------------------------------
 class _Prob (ABC):
@@ -147,17 +79,15 @@ class _Prob (ABC):
   def set_ptype(self, ptype=None):
     """
     Positive denotes a normalising coefficient.
-    If a string, denotes log probability offset ('log' or 'ln' means '0.0').
+    If zero or negative, denotes log probability offset ('log' or 'ln' means '0.0').
     May also be scipy.stats.distribution variable type to set everything else.
     """
-    self._ptype = str(float(0)) if ptype in ['log', 'ln'] else ptype
-    if self._ptype is float and self._ptype < 0.:
-      self._ptype = str(self._ptype)
+    self._ptype = eval_ptype(ptype)
 
     # Probe pset to set functions based on ptype setting
     if self.__pset:
       assert self._prob is None, "Cannot use scipy.stats.dist while also setting prob"
-      if not isinstance(self._ptype, str):
+      if not np.complex(self._ptype):
         if hasattr(self.__pset, 'pdf'):
           self._prob = self.__pset.pdf
         elif hasattr(self.__pset, 'pmf'):
@@ -180,9 +110,8 @@ class _Prob (ABC):
         warnings.warn("Cannot find cdf and ppf functions for {}"\
                       .format(self._ptype))
         self.set_pfun()
-    else:
-      if self._ptype is not None:
-        assert self._prob is not None, "Cannot specify ptype without setting prob"
+    elif self._ptype != 1.:
+      assert self._prob is not None, "Cannot specify ptype without setting prob"
       self.set_pfun()
 
     return self._ptype

@@ -4,8 +4,9 @@
 import collections
 import numpy as np
 from prob.vals import _Vals
-from prob.prob import _Prob, NEARLY_POSITIVE_INF
+from prob.prob import _Prob
 from prob.dist import Dist
+from prob.ptypes import NEARLY_POSITIVE_INF
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
