@@ -7,7 +7,8 @@ import warnings
 import collections
 import numpy as np
 from prob.rv import RV, io_use_vfun
-from prob.dist import Dist, prod_dist
+from prob.dist import Dist
+from prob.dist_ops import prod_dist
 from prob.ptypes import prod_ptype, prod_prob
 
 #-------------------------------------------------------------------------------
@@ -143,8 +144,8 @@ class SJ:
 #-------------------------------------------------------------------------------
   def fuse_dict(self, val_dict=None, def_val=None):
     if not val_dict:
-      return {key: def_val for key in self._keys}
-    fused = dict(val_dict)
+      return collections.OrderedDict({key: def_val for key in self._keys})
+    fused = collections.OrderedDict(val_dict)
     keys = []
     for key in fused.keys():
       if ',' in key:
@@ -172,15 +173,16 @@ class SJ:
       else:
         assert len(args) == self._nrvs, \
             "Number of positional arguments must match number of RVs"
-        values = {key: arg for key, arg in zip(self._keys, args)}
+        values = collections.OrderedDict({key: arg \
+                   for key, arg in zip(self._keys, args)})
     
     # Don't reshape if all scalars (and therefore by definition no joint keys)
     if all([np.isscalar(value) for value in values.values()]):
       return values
 
     # Reduce dimensionality based on joint variables and scalars
-    dimensionality = {key: i for i, key in enumerate(self._keys)}
-    values_ref = {key: [key, None] for key in self._keys}
+    dimensionality = collections.OrderedDict({key: i for i, key in enumerate(self._keys)})
+    values_ref = collections.OrderedDict({key: [key, None] for key in self._keys})
     seen_keys = []
     for i, key in enumerate(self._keys):
       rem_keys = self._keys[(i+1):]
@@ -210,7 +212,7 @@ class SJ:
     # Reshape
     ndims = max(dimensionality.values()) + 1
     ones_ndims = np.ones(ndims, dtype=int)
-    vals = {}
+    vals = collections.OrderedDict()
     rvs = self.ret_rvs(aslist=True)
     for i, rv in enumerate(rvs):
       key = rv.ret_name()
@@ -306,10 +308,10 @@ class SJ:
     if self._rvs is None:
       return None
     if values is None and len(kwds):
-      values = dict(kwds)
+      values = collections.OrderedDict(kwds)
     dist_dict = self.dist_dict(values)
     if not isinstance(values, dict):
-      values = {key: values for key in self._keys}
+      values = collections.OrderedDict({key: values for key in self._keys})
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])

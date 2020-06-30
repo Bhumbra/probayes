@@ -186,7 +186,8 @@ class RV (_Vals, _Prob):
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])
     dist_name = ','.join(dist_dict.values())
-    return Dist(dist_name, {self._name: vals}, prob, self._ptype)
+    vals_dict = collections.OrderedDict({self._name: vals})
+    return Dist(dist_name, vals_dict, prob, self._ptype)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

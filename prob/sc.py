@@ -80,6 +80,7 @@ class SC (SJ):
     assert self._marg, "No marginal stochastic random variables defined"
     return super().eval_values(values, self._marg.ret_nrvs()-1)
 
+
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):
     if isinstance(key, str):
