@@ -11,11 +11,17 @@ import scipy.stats
 from prob.ptypes import eval_ptype, rescale
 
 #-------------------------------------------------------------------------------
-SCIPY_STATS_DISTS = (scipy.stats.rv_continuous, scipy.stats.rv_discrete)
+SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
+SCIPY_STATS_DISC = {scipy.stats.rv_discrete}
+SCIPY_STATS_DIST = SCIPY_STATS_CONT.union(SCIPY_STATS_DISC)
 
 #-------------------------------------------------------------------------------
-def is_scipy_stats_dist(arg, scipy_stats_dists=SCIPY_STATS_DISTS):
-  return isinstance(arg, scipy_stats_dists)
+def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):
+  return isinstance(arg, tuple(scipy_stats_cont))
+
+#-------------------------------------------------------------------------------
+def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
+  return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
 class _Prob (ABC):
@@ -115,6 +121,10 @@ class _Prob (ABC):
       self.set_pfun()
 
     return self._ptype
+
+#-------------------------------------------------------------------------------
+  def ret_pset(self):
+    return self.__pset
 
 #-------------------------------------------------------------------------------
   def set_pfun(self, pfun=None, *args, **kwds):

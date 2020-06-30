@@ -118,7 +118,7 @@ def prod_ptype(ptypes, use_logp=None):
     else:
       rtype *= prob_coef(ptype)
   if use_logp:
-    if abs(rtype) < NEARLY_ZERO:
+    if abs(rtype) < NEARLY_POSITIVE_ZERO:
       return 0.j
     elif rtype > 0:
       return complex(np.log(rtype), 0.)
@@ -128,10 +128,10 @@ def prod_ptype(ptypes, use_logp=None):
 
 #-------------------------------------------------------------------------------
 def prod_prob(*args, **kwds):
+  """ Returns prod, ptype. Reshaping is the responsibility of Dist. """
   kwds = dict(kwds)
   ptypes = kwds.get('ptypes', None)
   use_logp = kwds.get('use_logp', None)
-  """ Returns prod,ptype """
   n_args = len(args)
   if ptypes is None:
     ptypes = [None] * n_args

@@ -5,7 +5,7 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import prob
 
-norm_range = {-3, 3}
+norm_range = {-3., 3.}
 set_size_0 = {20}
 set_size_1 = {30}
 rv_0 = prob.RV("norm_0", norm_range, prob=scipy.stats.norm, 

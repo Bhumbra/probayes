@@ -6,18 +6,10 @@ invertible transformations.
 #-------------------------------------------------------------------------------
 from abc import ABC, abstractmethod
 import numpy as np
+from prob.vtypes import eval_vtype
 
 #-------------------------------------------------------------------------------
-NOMINAL_VSET = np.array([False, True], dtype=bool)
-NUMPY_DTYPES = {
-                 np.dtype('bool'): bool,
-                 np.dtype('int'): int,
-                 np.dtype('int32'): int,
-                 np.dtype('int64'): int,
-                 np.dtype('float'): float,
-                 np.dtype('float32'): float,
-                 np.dtype('float64'): float,
-               }
+DEFAULT_VSET = {False, True}
 
 #-------------------------------------------------------------------------------
 class _Vals (ABC):
@@ -42,36 +34,22 @@ class _Vals (ABC):
   def set_vset(self, vset=None, vtype=None):
 
     # Default vset to nominal
-    if vset is None: vset = NOMINAL_VSET
+    if vset is None: 
+      vset = list(DEFAULT_VSET)
+    elif isinstance(vset, (set, range)):
+      vset = list(vset)
+    elif np.iscalar(self._vset):
+      vset = [self._vset]
 
-    # Support floating range limits as tuple, otherwise use numpy array
-    self._vset = vset
-    if isinstance(self._vset, (list, np.ndarray, bool, int, float)):
-      if not isinstance(self._vset, np.ndarray) or self._vset.ndim < 1:
-        not_sort = not isinstance(self._vset, set)
-        self._vset = np.atleast_1d(self._vset) if not_sort \
-                     else np.sort(np.atleast_1d(self._vset))
-    elif isinstance(self._vset, range):
-      self._vset = np.arange(self._vset.start, self._vset,stop, self._vset.step,
-                             dtype=int)
-    elif isinstance(self._vset, set): # Convert elements to float
-      assert len(self._vset) == 2, \
-          "Tuple vset must be of length 2, not {}".format(len(self._vset))
-      self._vset = {float(min(self._vset)), float(max(self._vset))}
+    # At this point, self._vset should be a list, tuple, or np.ndarray
+    if vtype is None:
+      vset = np.array(vset)
+      vtype = eval_vtype(vset)
     else:
-      raise TypeError("Unrecognised variable set type: {}".format(
-                      type(self._vset)))
-
-    # Detect vtype if not specified (custom types are permitted)
-    self._vtype = vtype
-    if self._vtype is None:
-      if isinstance(self._vset, set):
-        self._vtype = float
-      elif isinstance(self._vset, np.ndarray):
-        self._vtype = NUMPY_DTYPES.get(self._vset.dtype, None)
-      else:
-        self._vtype = type(self._vset)
-    return self.ret_vtype()
+      vset = np.array(vset, dtype=vtype)
+    self._vset = set(vset)
+    self._vtype = eval_vtype(vtype)
+    return self._vtype
 
 #-------------------------------------------------------------------------------
   def set_vfun(self, vfun=None, *args, **kwds):
@@ -110,9 +88,8 @@ class _Vals (ABC):
   def get_bounds(self, use_vfun=False):
     if self._vset is None:
       return None
-    vset = list(self._vset) if isinstance(self._vset, set) else self._vset
-    lo = self.vfun_0(np.min(vset), use_vfun)
-    hi = self.vfun_0(np.max(vset), use_vfun)
+    lo = self.vfun_0(min(self._vset), use_vfun)
+    hi = self.vfun_0(max(self._vset), use_vfun)
     if use_vfun and self._vfun is not None:
       lo, hi = float(lo), float(hi)
     return lo, hi
@@ -120,37 +97,36 @@ class _Vals (ABC):
 #-------------------------------------------------------------------------------
   def eval_vals(self, values=None, use_vfun=True):
 
-    # Default to complete sets
+    # Default to arrays of complete sets
     if values is None:
-      values = self._vset
-      if isinstance(values, set):
-        values = sum(values) / len(values)
+      values = np.array(list(self._vset), dtype=self._vtype)
 
     # Sets may be used to sample from support sets
     elif isinstance(values, set):
       assert len(values) == 1, "Set values must contain one integer"
-      val = int(list(values)[0])
+      number = int(list(values)[0])
+      values = np.array(list(self._vset), dtype=self._vtype)
 
       # Non-continuous
-      if not isinstance(self._vset, set):
+      if self._vtype not in [float, np.dtype('float32'), np.dtype('float64')]:
         divisor = len(self._vset)
-        if val >= 0:
-          indices = np.arange(val, dtype=int) % divisor
+        if number >= 0:
+          indices = np.arange(number, dtype=int) % divisor
         else:
-          indices = np.random.permutation(-val, dtype=int) % divisor
-        values = self._vset[indices]
+          indices = np.random.permutation(-number, dtype=int) % divisor
+        values = values[indices]
        
       # Continuous
       else:
         lo, hi = self.get_bounds(use_vfun=False)
         assert np.all(np.isfinite([lo, hi])), \
             "Cannot evaluate {} values for bounds: {}".format(values, vset)
-        if val == 1:
+        if number == 1:
           values = np.atleast_1d(0.5 * (lo+hi))
-        elif val >= 0:
-          values = np.linspace(lo, hi, val)
+        elif number >= 0:
+          values = np.linspace(lo, hi, number)
         else:
-          values = np.sort(np.random.uniform(lo, hi, size=-val))
+          values = np.random.uniform(lo, hi, size=-number)
 
     return self.vfun_0(values, use_vfun)
    

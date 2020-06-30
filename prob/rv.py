@@ -4,8 +4,9 @@
 import collections
 import numpy as np
 from prob.vals import _Vals
-from prob.prob import _Prob
+from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
+from prob.vtypes import eval_vtype
 from prob.ptypes import NEARLY_POSITIVE_INF
 
 """
@@ -20,12 +21,13 @@ def nominal_uniform(vals=None, prob=1., vset=None):
   # Default to prob if no values
   if vals is None:
     return prob
+  vtype = eval_vtype(vset)
 
   # If scalar, check within variable set
   if np.isscalar(vals):
-    if isinstance(vset, np.ndarray):
+    if vtype in [bool, int]:
       prob = prob if vals in vset else 0.
-    elif isinstance(vset, set):
+    else:
       prob = 0. if vals < min(vset) or vals > max(vset) else prob
     return prob
 
@@ -34,19 +36,19 @@ def nominal_uniform(vals=None, prob=1., vset=None):
   prob = np.tile(prob, vals.shape)
 
   # Handle nominal probabilities
-  if isinstance(vset, np.ndarray) and vset.dtype is np.dtype('bool'):
+  if vtype is bool:
     isfalse = np.logical_not(vals)
     prob[isfalse] = 1. - prob[isfalse]
     return prob
 
   # Otherwise treat as uniform within range
-  if isinstance(vset, np.ndarray):
+  if vtype in [int, np.dtype('int32'), np.dtype('int64')]:
     outside = np.array([val not in vset for val in vals], dtype=bool)
     prob[outside] = 0.
-  elif isinstance(vset, tuple) and len(vset) == 2:
-    lo, hi = min(vset), max(vset)
-    outside = np.logical_or(vals < lo, vals > hi)
+  else:
+    outside = np.logical_or(vals < min(vset), vals > max(vset))
     prob[outside] = 0.
+
   return prob
 
 #-------------------------------------------------------------------------------
@@ -114,13 +116,13 @@ class RV (_Vals, _Prob):
         return self.ret_callable()
       else:
         prob = 1.
-        if isinstance(self._vset, np.ndarray):
+        if self._vtype in (bool, int):
           nvset = len(self._vset)
           prob = NEARLY_POSITIVE_INF if not nvset else 1. / float(nvset)
-        elif isinstance(self._vset, set) and len(self._vset) == 2:
-          vset = np.array(list(self._vset), dtype=float)
-          prob = float(1. / (np.max(vset) - np.min(vset)))
-        if self._ptype is not None and self._ptype != 1.:
+        elif self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
+          lo, hi = self.get_bounds(use_vfun=False)
+          prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
+        if self._ptype != 1.:
           prob = rescale(prob, self._ptype)
         super().set_prob(prob, self._ptype)
 
@@ -129,6 +131,10 @@ class RV (_Vals, _Prob):
       assert len(self._prob) == len(self._vset), \
           "Probability of length {} incommensurate with Vset of length {}".format(
               len(self._prob), len(self._vset))
+    pset = self.ret_pset()
+    if is_scipy_stats_cont(pset):
+      if self._vtype not in [float, np.dtype('float32'), np.dtype('float64')]:
+        self.set_vset(self._vset, vtype=float)
     return self.ret_callable()
    
 #-------------------------------------------------------------------------------
