@@ -7,7 +7,7 @@ import warnings
 import collections
 import numpy as np
 from prob.rv import RV, io_use_vfun
-from prob.dist import Dist, marg_prod
+from prob.dist import Dist, prod_dist
 from prob.ptypes import prod_ptype, prod_prob
 
 #-------------------------------------------------------------------------------
@@ -239,7 +239,7 @@ class SJ:
         values.keys(), self._keys())
     if self._prob is None:
       dists = tuple([rv(values[rv.ret_name()]) for rv in self.ret_rvs(aslist=True)])
-      return marg_prod(*dists, check=False).prob
+      return prod_dist(*dists).prob
     if self.__callable:
       args = list(self._prob_args)
       kwds = dict(self._prob_kwds)
@@ -325,7 +325,8 @@ class SJ:
     if type(key) is int:
       key = self._keys[key]
     if isinstance(key, str):
-      return self._rvs[key]
-    raise TypeError("Unexpected key type: {}".format(key))
+      if key not in self._keys:
+        return None
+    return self._rvs[key]
 
 #-------------------------------------------------------------------------------

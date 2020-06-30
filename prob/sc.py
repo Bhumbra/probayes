@@ -83,6 +83,8 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):
     if isinstance(key, str):
+      if key not in self._keys:
+        return None
       key = self._keys.index(key)
     return self._rvs[key]
 

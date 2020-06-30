@@ -1,2 +1,3 @@
-Make vset always a set (defaulting to (0,1)) and make vtype useful.
-
+Support chain rule
+Support sum rule
+Support conditionalisation

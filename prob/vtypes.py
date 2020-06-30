@@ -31,3 +31,10 @@ def eval_vtype(vtype):
   return vtype
 
 #-------------------------------------------------------------------------------
+def isscalar(var):
+  if isinstance(var, set):
+    if len(var) == 1:
+      return True
+  return np.isscalar(var)
+
+#-------------------------------------------------------------------------------

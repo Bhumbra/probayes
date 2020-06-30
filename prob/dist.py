@@ -3,8 +3,8 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.ptypes import eval_ptype, rescale, prod_prob
-
+from prob.vtypes import isscalar
+from prob.ptypes import eval_ptype, rescale, prod_ptype, prod_prob, iscomplex
 
 #-------------------------------------------------------------------------------
 class Dist:
@@ -56,7 +56,7 @@ class Dist:
           format(self.vals)
       self._isscalar = True
       for val in self.vals.values():
-        if not np.isscalar(val):
+        if not isscalar(val):
           self._isscalar = False
         break
     return self._isscalar
@@ -65,7 +65,7 @@ class Dist:
   def set_prob(self, prob=None, ptype=None):
     self.prob = prob
     self._ptype = eval_ptype(ptype)
-    if not np.isscalar(self.prob) and self._isscalar:
+    if not isscalar(self.prob) and self._isscalar:
       self.prob = float(self.prob)
     return self._ptype
 
@@ -96,11 +96,11 @@ class Dist:
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    return dist_prod(*tuple([self, other]))
+    return prod_dist(*tuple([self, other]))
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
-    prefix = 'logp' if np.iscomplex(self._ptype) else 'p'
+    prefix = 'logp' if iscomplex(self._ptype) else 'p'
     return super().__repr__() + ": " + prefix + "(" + self._name + ") [vals,prob]"
 
 #-------------------------------------------------------------------------------
@@ -115,97 +115,131 @@ def str2key(string):
   return [str2key(element) for element in string]
 
 #-------------------------------------------------------------------------------
-def marg_prod(*args, **kwds):
-  """ 
-  Returns the marginal product of single-variable distributions with identical 
-  ptypes. Assert checks cans be bypassed if set to zero
-  """
-  kwds = dict(kwds)
-  check = kwds.get('check', True)
-  ptype = kwds.get('ptype', None)
-  ptypes = [arg.ret_ptype() for arg in args]
-  if ptype is None:
-    ptype = args[0].ret_ptype()
-  track_ptype = True
-  if ptype == 0.j:
-    track_ptype = False
-    for _ptype in ptypes[1:]:
-      if _ptype != 0.j:
-        track_ptype = True
-        break
-  elif ptype == 1.:
-    track_ptype = False
-    for _ptype in ptypes[1:]:
-      if _ptype != 1:
-        track_ptype = True
-        break
-  cond_names = [arg.ret_cond_names() for arg in args]
-  if check:
-    if any(cond_names):
-      assert len(cond_names) == len(set(cond_names)),\
-        "Not all conditional variables are identical"
-  cond_names = cond_names[0]
-  marg_names = []
-  for arg in args:
-    marg_names.extend(arg.ret_marg_names())
-  if check:
-    assert len(marg_names) == len(set(marg_names)),\
-      "Non-unique marginal variable name found in {}".format(marg_names)
-    if len(cond_names):
-       for marg_name in marg_names:
-         assert marg_name not in cond_names,\
-           "Overlap between variable {} found within condition {}".format(
-               marg_name, cond_names)
-    assert_msg = "Variable ptypes incompatible with ptype {}".format(ptype)
-    if np.iscomplex(ptype):
-      assert all([np.iscomplex(_ptype) for _ptype in ptypes]), assert_msg
-    else:
-      assert all([not np.iscomplex(_ptype) for _ptype in ptypes]), assert_msg
-  prod_vals = collections.OrderedDict()
-  [prod_vals.update(arg.vals) for arg in args]
-  prod_marg_name = ','.join(marg_names)
-  prod_cond_name = ','.join(cond_names)
-  prod_name = '|'.join([prod_marg_name, prod_cond_name])
-  prod_keys = str2key(marg_names) + str2key(cond_names)
-  arg_isscalars = [arg.ret_isscalar() for arg in args]
-
-  # Bypass comprehensive approach for scalars
-  if not check and not track_ptype and all(arg_isscalars):
-    probs = [arg.prob for arg in args]
-    prob = float(sum(probs)) if np.iscomplex(ptype) \
-           else float(np.prod(probs))
-    return Dist(prod_name, prod_vals, prob, ptype)
-
-  # Reshape values and marginal probabilities
-  reshape_refs = np.cumsum(np.logical_not(arg_isscalars))
-  maybe_reshape = np.max(reshape_refs) > 0
-  nres_ones = None if not maybe_reshape else np.ones(reshape_refs[-1], dtype=int)
-  probs = [None] * len(args)
-  for i, arg in enumerate(args):
-    vals, prob, marg_names, ptype = arg.vals, arg.prob, marg_names[i], ptypes[i]
-    if maybe_reshape and not(arg_isscalars[i]):
-      reshape_prob = np.copy(nres_ones)
-      for key in vals.keys():
-        reshape_vals = np.copy(nres_ones)
-        index = prod_keys.index(key)
-        reshape_vals[reshape_refs[index]-1] = vals[key].size
-        reshape_prob[reshape_refs[index]-1] = vals[key].size
-        prod_vals.update({key: vals[key].reshape(reshape_vals)})
-      if isinstance(prob, np.ndarray):
-        prob = prob.reshape(reshape_prob)
-    probs[i] = prob
-
-  # Multiply the probabilities and output the result as a distribution
-  prob, ptype = prod_prob(*tuple(probs), ptypes=ptypes)
-  return Dist(prod_name, prod_vals, prob, ptype)
- 
-#-------------------------------------------------------------------------------
-def dist_prod(*args, **kwds):
+def prod_dist(*args, **kwds):
   """ Multiplies two or more distributions subject to the following:
-  They must not share the same marginal variables. If ptype is
-  specified as a keyword, the resulting product distribution will
-  conform to that ptype.
+  1. They must not share the same marginal variables. 
+  2. Conditional variables must be identical unless contained as marginal from
+     another distribution.
   """
-  return marg_prod(*args, **kwds)
+  # Check ptypes, scalars, possible fasttrack
+  kwds = dict(kwds)
+  ptypes = [arg.ret_ptype() for arg in args]
+  ptype = kwds.get('ptype', None) or prod_ptype(ptypes)
+  arescalars = [arg.ret_isscalar() for arg in args]
+  maybe_fasttrack = all(arescalars) and \
+                    np.all(ptype == np.array(ptypes)) and \
+                    ptype in [0, 1.]
+  vals = [arg.vals for arg in args]
+  probs = [arg.prob for arg in args]
+
+  # Extract marginal and conditional names
+  marg_names = [arg.ret_marg_names() for arg in args]
+  cond_names = [arg.ret_cond_names() for arg in args]
+  prod_marg = [name for dist_marg_names in marg_names \
+                          for name in dist_marg_names]
+  assert len(prod_marg) == len(set(prod_marg)), \
+      "Marginal RV random variable names not unique across distributions: {}".\
+      format(prod_marg)
+  prod_marg_name = ','.join(prod_marg)
+
+  # Maybe fast-track identical conditionals
+  if maybe_fasttrack:
+    if not any(cond_names) or len(set(cond_names)) == 1:
+      cond_names = cond_names[0]
+      if not cond_names or \
+          len(set(cond_names).union(prod_marg)) == len(cond_names) + len(prod_marg):
+        prod_cond_name = ','.join(cond_names)
+        prod_name = '|'.join([prod_marg_name, prod_cond_name])
+        prod_vals = collections.OrdereDict()
+        [prod_vals.update(val) for val in vals]
+        prob = float(sum(probs)) if iscomplex(ptype) else float(np.prod(probs))
+        return dist(prod_name, prod_vals, prob, ptype)
+
+   # Check cond->marg accounts for all differences between conditionals
+  flat_cond_names = [name for dist_cond_names in cond_names \
+                          for name in dist_cond_names]
+  cond2marg = [cond_name for cond_name in flat_cond_names \
+                         if cond_name in prod_marg]
+  prod_cond = [cond_name for cond_name in flat_cond_names \
+                         if cond_name not in cond2marg]
+  cond2marg_set = set(cond2marg)
+
+  # Check conditionals compatible
+  prod_cond_set = set(prod_cond)
+  cond2marg_dict = {name: None for name in prod_cond}
+  for i, arg in enumerate(args):
+    cond_set = set(cond_names[i]) - cond2marg_set
+    assert prod_cond_set == cond_set, \
+        "Incompatible conditionals {} vs {}: ".format(prod_cond_set, cond_set)
+    for name in cond2marg:
+      if name in arg.vals:
+        values = arg.vals[name]
+        if cond2marg_dict[name] is None:
+          cond2marg_dict[name] = values
+        elif not np.allclose(cond2marg_dict[name], values):
+          raise ValueError("Mismatch in values for condition {}".format(name))
+
+  # Establish product name, values, and dimensions
+  prod_keys = str2key(prod_marg + prod_cond)
+  prod_nkeys = len(prod_keys)
+  prod_arescalars = np.zeros(prod_nkeys, dtype=bool)
+  prod_cond_name = ','.join(prod_cond)
+  prod_name = '|'.join([prod_marg_name, prod_cond_name])
+  prod_vals = collections.OrderedDict()
+  for i, key in enumerate(prod_keys):
+    values = None
+    for val in vals:
+      if key in val.keys():
+        values = val[key]
+        break
+    assert values is not None, "Values for key {} not found".format(key)
+    prod_arescalars[i] = isscalar(values)
+    prod_vals.update({key: values})
+  prod_cdims = np.cumsum(np.logical_not(prod_arescalars))
+  prod_ndims = prod_cdims[-1]
+
+  # Fast-track scalar products
+  if maybe_fasttrack and prod_ndims == 0:
+     prob = float(sum(probs)) if iscomplex(ptype) else float(np.prod(probs))
+     return dist(prod_name, prod_vals, prob, ptype)
+
+  # Reshape values - they require no axes swapping
+  ones_ndims = np.ones(prod_ndims, dtype=int)
+  prod_dims = np.ones(prod_ndims, dtype=int)
+  scalarset = set()
+  dimension = collections.OrderedDict()
+  for i, key in enumerate(prod_keys):
+    if prod_arescalars[i]:
+      scalarset += {key}
+    else:
+      values = prod_vals[key]
+      re_shape = np.copy(ones_ndims)
+      dim = prod_cdims[i]-1
+      dimension.update({key: dim})
+      re_shape[dim] = values.size
+      prod_dims[dim] = values.size
+      prod_vals.update({key: values.reshape(re_shape)})
+  
+  # Match probability axes and shapes with axes swapping then reshaping
+  prod_probs = [None] * len(args)
+  for i, prob in enumerate(probs):
+    if not isscalar(prob):
+      val_names = str2key(marg_names[i] + cond_names[i])
+      nonscalars = [val_name for val_name in val_names \
+                             if val_name not in scalarset]
+      dims = np.array([dimension[name] for name in nonscalars])
+      if dims.size > 1 and np.min(np.diff(dims)) < 0:
+        swap = np.argsort(dims)
+        probs[i] = np.swapaxes(prob, list(range(dims)), swap)
+        dims = dims[swap]
+      re_shape = np.copy(ones_ndims)
+      for dim in dims:
+        re_shape[dim] = prod_dims[dim]
+      probs[i] = probs[i].reshape(re_shape)
+
+  # Multiply the probabilities and output the result as a distribution instance
+  prob, ptype = prod_prob(*tuple(probs), ptypes=ptypes, ptype=ptype)
+
+  return Dist(prod_name, prod_vals, prob, ptype)
 
 #-------------------------------------------------------------------------------

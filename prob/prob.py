@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import warnings
 import numpy as np
 import scipy.stats
-from prob.ptypes import eval_ptype, rescale
+from prob.ptypes import eval_ptype, rescale, iscomplex
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
@@ -93,7 +93,7 @@ class _Prob (ABC):
     # Probe pset to set functions based on ptype setting
     if self.__pset:
       assert self._prob is None, "Cannot use scipy.stats.dist while also setting prob"
-      if not np.complex(self._ptype):
+      if not iscomplex(self._ptype):
         if hasattr(self.__pset, 'pdf'):
           self._prob = self.__pset.pdf
         elif hasattr(self.__pset, 'pmf'):

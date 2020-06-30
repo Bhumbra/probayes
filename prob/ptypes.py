@@ -11,7 +11,7 @@ NEARLY_POSITIVE_ZERO = 1.175494e-38
 NEARLY_NEGATIVE_INF = -3.4028236e38
 NEARLY_POSITIVE_INF =  3.4028236e38
 LOG_NEARLY_POSITIVE_INF = np.log(NEARLY_POSITIVE_INF)
-COMPLEX_ZERO = complex(0., 2*np.pi)
+COMPLEX_ZERO = complex(0., 0.)
 
 #-------------------------------------------------------------------------------
 def iscomplex(ptype):
@@ -109,7 +109,7 @@ def prod_ptype(ptypes, use_logp=None):
   if not len(ptypes):
     return None
   if use_logp is None:
-    use_logp = any(iscomplex([ptype for ptype in ptypes]))
+    use_logp = any([iscomplex(ptype) for ptype in ptypes])
   rtype = 0. if use_logp else 1.
   for _ptype in ptypes:
     ptype = eval_ptype(_ptype)
@@ -119,7 +119,7 @@ def prod_ptype(ptypes, use_logp=None):
       rtype *= prob_coef(ptype)
   if use_logp:
     if abs(rtype) < NEARLY_POSITIVE_ZERO:
-      return 0.j
+      return COMPLEX_ZERO
     elif rtype > 0:
       return complex(np.log(rtype), 0.)
     else:
