@@ -3,94 +3,158 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.dist_ops import prod_dist
+from prob.dist_ops import str_margcond, margcond_str, prod_dist
 from prob.vtypes import isscalar
-from prob.ptypes import eval_ptype, rescale, prod_ptype, prod_prob, iscomplex
+from prob.ptypes import eval_ptype, rescale, prod_ptype, prod_rule, iscomplex
+from prob.ptypes import NEARLY_POSITIVE_ZERO
 from prob.manifold import Manifold
 
 #-------------------------------------------------------------------------------
 class Dist (Manifold):
 
   # Public
-  prob = None          # Numpy array
+  prob = None   # Numpy array
+  name = None   # Name of distribution
+  marg = None   # Ordered dictionary of marginals: {key: name}
+  cond = None   # Ordered dictionary of conditionals: key: name}
 
   # Protected
-  _name = None         # Name of distribution
-  _marg_names = None   # List of marginal RV names
-  _cond_names = None   # List of conditional RV names 
-  _ptype = None        # Same convention as _Prob
+  _keyset = None # Keys as set according to name
+  _ptype = None  # Same convention as _Prob
 
 #-------------------------------------------------------------------------------
-  def __init__(self, name=None, vals=None, prob=None, ptype=None):
+  def __init__(self, name=None, vals=None, dims=None, prob=None, ptype=None):
     self.set_name(name)
-    self.set_vals(vals)
+    self.set_vals(vals, dims)
     self.set_prob(prob, ptype)
 
 #-------------------------------------------------------------------------------
   def set_name(self, name=None):
-    self._name = name
+    self.name = name
+    self.marg, self.cond = str_margcond(self.name)
+    self._keyset = set(self.marg).union(set(self.cond))
+    return self._keyset
 
-    # Parse name
-    marg_str = self._name
-    cond_str = ''
-    if '|' in marg_str:
-      split_str = self._name.split('|')
-      assert len(split_str) == 2, "Ambiguous name: {}".format(self._name)
-      marg_str, cond_str = split_str
-    marg = []
-    cond = []
-    if len(marg_str):
-      marg = marg_str.split(',') if ',' in marg_str else [marg_str]
-    if len(cond_str):
-      cond = cond_str.split(',') if ',' in cond_str else [cond_str]
-    self._marg_names = marg
-    self._cond_names = cond
+#-------------------------------------------------------------------------------
+  def set_vals(self, vals=None, dims=None):
+    argout = super().set_vals(vals, dims)
+    if not self._keys:
+      return argout
+    for key in self._keys:
+      assert key in self._keyset, \
+          "Value key {} not found among name keys {}".format(key, self._keyset)
+    return argout
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, ptype=None):
     self.prob = prob
     self._ptype = eval_ptype(ptype)
-    if self._iscalar:
-      if not isscalar(self.prob):
-        self.prob = float(self.prob)
+    if self._isscalar:
+      assert isscalar(self.prob), "Scalar vals with non-scalar prob"
     else:
+      assert not isscalar(self.prob), "Non scalar values with scalar prob"
       assert self.ndim == self.prob.ndim, \
-        "Dimensionality mismatch between values {} and probabilities {}".\
+        "Mismatch in dimensionality between values {} and probabilities {}".\
         format(self.ndim, self.prob.ndim)
+      assert np.all(np.array(self.shape) == np.array(self.prob.shape)), \
+        "Mismatch in dimensions between values {} and probabilities {}".\
+        format(self.shape, self.prob.shape)
     return self._ptype
 
 #-------------------------------------------------------------------------------
-  def conditionalise(self, keys):
-    # if P(A, key | B), returns P(A | B, key)
+  def marginalise(self, keys):
+    # from p(A, key | B), returns P(A | B)
     if isinstance(keys, str):
       keys = [keys]
-    keys = set(keys)
     for key in keys:
-      assert key in self._keys, \
-          "Key {} not found among {}".format(key, self._keys)
-      assert not self.ret_isscalar(key),\
-          format("Conditionalising along scalar value {}".format(key))
-    cond_inds = []
-    cond_dims = []
+      assert key in self.marg.keys(), \
+        "Key {} not marginal in distribution {}".format(key, self.name)
+    keys  = set(keys)
+    marg = collections.OrderedDict(self.marg)
+    cond = collections.OrderedDict(self.cond)
+    vals = collections.OrderedDict()
+    dims = collections.OrderedDict()
+    dim_delta = 0
+    sum_axes = []
     for i, key in enumerate(self._keys):
+      new_dim = None
       if key in keys:
-        cond_inds.append(i)
-        cond_dims.append(self.dimension[key])
-
-
-
+        assert not self._arescalars[i], \
+            "Cannot marginalise along scalar for key {}".format(key)
+        sum_axes.append(self.dims[key])
+        marg.pop(key)
+        dim_delta += 1
+      else:
+        if not self._arescalars[i]:
+          dims.update({key: self.dims[key] - dim_delta})
+        vals.update({key:self.vals[key]})
+    marg_name = margcond_str(marg, cond)
+    prob = rescale(self.prob, self._ptype, 1.)
+    sum_prob = np.sum(prob, axis=tuple(sum_axes), keepdims=False)
+    prob = rescale(sum_prob, 1., self._ptype)
+    return Dist(name=marg_name, 
+                vals=vals, 
+                dims=dims, 
+                prob=prob, 
+                ptype=self._ptype)
 
 #-------------------------------------------------------------------------------
-  def ret_name(self):
-    return self.name
+  def conditionalise(self, keys):
+    # from P(A, key | B), returns P(A | B, key)
+    if isinstance(keys, str):
+      keys = [keys]
+    for key in keys:
+      assert key in self.marg.keys(), \
+        "Key {} not marginal in distribution {}".format(key, self.name)
+    keys  = set(keys)
+    swap = [None] * self.ndim
+    marg = collections.OrderedDict(self.marg)
+    cond = collections.OrderedDict(self.cond)
+    dims = collections.OrderedDict()
+    cond_dims = collections.OrderedDict()
+    cond_dim0 = self.ndim - len(keys)
+    dim_delta = 0
+    for i, key in enumerate(self._keys):
+      new_dim = None
+      if key in keys:
+        assert not self._arescalars[i], \
+            "Cannot conditionalised along scalar for key {}".format(key)
+        cond.update({key:marg.pop(key)})
+        old_dim = self.dims[key]
+        new_dim = cond_dim0 + dim_delta
+        cond_dims.update({key: new_dim})
+        dim_delta += 1
+      elif not self._arescalars[i]:
+        old_dim = self.dims[key]
+        new_dim = old_dim - dim_delta
+        dims.update({key: new_dim})
+      swap[old_dim] = new_dim
+    dims.update(cond_dims)
+    cond_name = margcond_str(marg, cond)
+    redim = self.redim(dims)
+    prob = rescale(self.prob, self._ptype, 1.)
+    prob = np.moveaxis(prob, [*range(self.ndim)], swap)
+    sum_axes = tuple(cond_dims.values())
+    sum_prob = np.maximum(NEARLY_POSITIVE_ZERO, 
+                      np.sum(prob, axis=sum_axes, keepdims=True))
+    prob = rescale(prob / sum_prob, 1., self._ptype)
+    return Dist(name=cond_name, 
+                vals=redim.vals, 
+                dims=dims, 
+                prob=prob, 
+                ptype=self._ptype)
+
+#-------------------------------------------------------------------------------
+  def ret_keyset(self):
+    return self._keyset
 
 #-------------------------------------------------------------------------------
   def ret_marg_names(self):
-    return self._marg_names
+    return list(self.marg.keys())
 
 #-------------------------------------------------------------------------------
   def ret_cond_names(self):
-    return self._cond_names
+    return list(self.cond.keys())
 
 #-------------------------------------------------------------------------------
   def ret_ptype(self):
@@ -117,6 +181,6 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     prefix = 'logp' if iscomplex(self._ptype) else 'p'
-    return super().__repr__() + ": " + prefix + "(" + self._name + ") [vals,prob]"
+    return super().__repr__() + ": " + prefix + "(" + self.name + ") [vals,prob]"
 
 #-------------------------------------------------------------------------------

@@ -5,7 +5,7 @@
 import collections
 import numpy as np
 from prob.vtypes import isscalar
-from prob.ptypes import rescale, prod_ptype, prod_prob, iscomplex
+from prob.ptypes import rescale, prod_ptype, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
 def str2key(string):
@@ -15,6 +15,46 @@ def str2key(string):
       return string[:k]
     return string
   return [str2key(element) for element in string]
+
+#-------------------------------------------------------------------------------
+def str_margcond(name=None):
+  """ Returns (marg,cond) tuple of OrderedDicts from a name """
+  marg_str = name
+  marg = collections.OrderedDict()
+  cond = collections.OrderedDict()
+  if not marg_str:
+    return marg, cond
+  lt_paren = marg_str.find('(')
+  rt_paren = marg_str.find(')')
+  if lt_paren >= 0 or rt_paren >= 0:
+    assert lt_paren >= 0 and rt_paren > lt_paren, \
+      "Unmatched parenthesis in name"
+    marg_str = marg_str[lt_paren:1:rt_paren]
+  cond_str = ''
+  if '|' in marg_str:
+    split_str = name.split('|')
+    assert len(split_str) == 2, "Ambiguous name: {}".format(name)
+    marg_str, cond_str = split_str
+  marg_strs = []
+  cond_strs = []
+  if len(marg_str):
+    marg_strs = marg_str.split(',') if ',' in marg_str else [marg_str]
+  if len(cond_str):
+    cond_strs = cond_str.split(',') if ',' in cond_str else [cond_str]
+  for string in marg_strs:
+    marg.update({str2key(string): string})
+  for string in cond_strs:
+    cond.update({str2key(string): string})
+  return marg, cond
+
+#-------------------------------------------------------------------------------
+def margcond_str(marg, cond):
+  """ Returns a name from OrderedDict values in marg and cond """
+  marg = list(marg.values()) if isinstance(marg, dict) else list(marg)
+  cond = list(cond.values()) if isinstance(cond, dict) else list(cond)
+  marg_str = ','.join(marg)
+  cond_str = ','.join(cond)
+  return '|'.join([marg_str, cond_str]) if cond_str else marg_str
 
 #-------------------------------------------------------------------------------
 def prod_dist(*args, **kwds):
@@ -110,7 +150,7 @@ def prod_dist(*args, **kwds):
 
   # Exclude shared dimensions
   for arg in args:
-    dims = [dim for dim in arg.ret_dimension().values() if dim is not None]
+    dims = [dim for dim in arg.dims.values() if dim is not None]
     assert len(dims) == len(set(dims)), \
         "Shared dimensionality not yet supported for prod_dist :("
 
@@ -149,9 +189,10 @@ def prod_dist(*args, **kwds):
       probs[i] = probs[i].reshape(re_shape)
 
   # Multiply the probabilities and output the result as a distribution instance
-  prob, ptype = prod_prob(*tuple(probs), ptypes=ptypes, ptype=ptype)
+  prob, ptype = prod_rule(*tuple(probs), ptypes=ptypes, ptype=ptype)
 
   return dist_obj(prod_name, prod_vals, prob, ptype)
+
 
 #-------------------------------------------------------------------------------
 def sum_dist(*args):

@@ -8,8 +8,8 @@ import collections
 import numpy as np
 from prob.rv import RV, io_use_vfun
 from prob.dist import Dist
-from prob.dist_ops import prod_dist
-from prob.ptypes import prod_ptype, prod_prob
+from prob.vtypes import isscalar
+from prob.ptypes import prod_ptype, prod_rule
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -27,6 +27,7 @@ class SJ:
   _prob = None
   _prob_args = None
   _prob_kwds = None
+  _ptype = None
 
   # Private
   __callable = None
@@ -70,6 +71,7 @@ class SJ:
     self._keys = list(self._rvs.keys())
     self._keyset = set(self._keys)
     self._name = ','.join(self._keys)
+    self.set_ptype()
     return self._nrvs
   
 #-------------------------------------------------------------------------------
@@ -93,12 +95,12 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def set_ptype(self, ptype=None):
-    if ptype is not None or not self._nvrs:
+    if ptype is not None or not self._nrvs:
       self._ptype = eval_ptype(ptype)
       return self._ptype
     rvs = self.ret_rvs(aslist=True)
     ptypes = [rv.ret_ptype() for rv in rvs]
-    self._ptype = prod_ptypes(ptypes)
+    self._ptype = prod_ptype(ptypes)
     return self._ptype
 
 #-------------------------------------------------------------------------------
@@ -163,6 +165,7 @@ class SJ:
   def eval_vals(self, *args, **kwds):
     """ This ignores self._prob and self._arg_order """
     values = None
+    dims = {}
     if not len(args):
       if len(kwds):
         values = self.fuse_dict(kwds)
@@ -177,11 +180,11 @@ class SJ:
                    for key, arg in zip(self._keys, args)})
     
     # Don't reshape if all scalars (and therefore by definition no joint keys)
-    if all([np.isscalar(value) for value in values.values()]):
-      return values
+    if all([np.isscalar(value) for value in values.values()]): # use np.scalar
+      return values, dims
 
-    # Reduce dimensionality based on joint variables and scalars
-    dimensionality = collections.OrderedDict({key: i for i, key in enumerate(self._keys)})
+    # Share dimensions for joint variables and do not dimension scalars
+    dims = collections.OrderedDict({key: i for i, key in enumerate(self._keys)})
     values_ref = collections.OrderedDict({key: [key, None] for key in self._keys})
     seen_keys = []
     for i, key in enumerate(self._keys):
@@ -190,7 +193,7 @@ class SJ:
         seen_keys.append(key)
         if np.isscalar(values[key]):
           for rem_key in rem_keys:
-            dimensionality[rem_keys] -= 1
+            dims[rem_keys] -= 1
       elif key not in seen_keys:
         seen_keys.append(key)
         for val_key in value.keys():
@@ -205,12 +208,12 @@ class SJ:
                   seen_keys.append(key)
                   values_ref[rem_key] = [val_key, j] 
                   matches += 1
-                  dimensionality[rem_key] = dimensionality[key]
+                  dims[rem_key] = dims[key]
                 else:
-                  dimensionality[rem_key] -= matches
+                  dims[rem_key] -= matches
 
     # Reshape
-    ndims = max(dimensionality.values()) + 1
+    ndims = max(dims.values()) + 1
     ones_ndims = np.ones(ndims, dtype=int)
     vals = collections.OrderedDict()
     rvs = self.ret_rvs(aslist=True)
@@ -228,10 +231,15 @@ class SJ:
         dist_dict.update({key: key + "={}"})
       if reshape:
         re_shape = np.copy(ones_ndims)
-        re_dim = dimensionality[key]
+        re_dim = dims[key]
         re_shape[re_dim] = vals[key].size
         vals[key] = vals[key].reshape(re_shape)
-    return vals
+    
+    # Remove dimensionality for scalars
+    for key in self._keys:
+      if isscalar(vals[key]):
+        dims[key] = None
+    return vals, dims
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values):
@@ -240,8 +248,11 @@ class SJ:
       "Sample dictionary keys {} mismatch with RV names {}".format(
         values.keys(), self._keys())
     if self._prob is None:
-      dists = tuple([rv(values[rv.ret_name()]) for rv in self.ret_rvs(aslist=True)])
-      return prod_dist(*dists).prob
+      rvs = self.ret_rvs(aslist=True)
+      ptypes = np.array([rv.ret_ptype() for rv in rvs])
+      probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
+      prob, ptype = prod_rule(*tuple(probs), ptypes=ptypes, ptype=self._ptype)
+      return prob
     if self.__callable:
       args = list(self._prob_args)
       kwds = dict(self._prob_kwds)
@@ -312,11 +323,11 @@ class SJ:
     dist_dict = self.dist_dict(values)
     if not isinstance(values, dict):
       values = collections.OrderedDict({key: values for key in self._keys})
-    vals = self.eval_vals(values)
+    vals, dims = self.eval_vals(values)
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])
     dist_name = ','.join(dist_dict.values())
-    return Dist(dist_name, vals, prob, self._ptype)
+    return Dist(dist_name, vals, dims, prob, self._ptype)
 
 #-------------------------------------------------------------------------------
   def __len__(self):

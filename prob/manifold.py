@@ -10,69 +10,106 @@ from prob.vtypes import isscalar
 class Manifold:
 
   # Public
-  vals = None
-  ndim = None
+  vals = None        # Ordered dictionary with values
+  dims = None        # Ordered dictionary specifying dimension index of vals
+  ndim = None        # Number of dimensions
+  shape = None       # Dimension shape
 
-  # Private:
-  _keys = None       # Keys of vals
+  # Protected
+  _keys = None       # Keys of vals as list
   _dimension = None  # Dimension of vals
   _arescalars = None # Whether vals are scalars
   _isscalar = None   # all(_arescalars)
 
 #-------------------------------------------------------------------------------
-  def __init__(self, vals=None):
-    self.set_vals(vals)
+  def __init__(self, vals=None, dims=None):
+    self.set_vals(vals, dims)
   
 #-------------------------------------------------------------------------------
-  def set_vals(self, vals=None):
+  def set_vals(self, vals=None, dims=None):
     self.vals = vals
-    self.ndim = None
-    self._dimension = collections.OrderedDict()
-    self._keys = list(self.vals.keys())
-    self._arescalars = None
+    self.dims = dims
+    self.shape = []
+    self._keys = []
+    self._shape = []
+    self._arescalars = []
     self._isscalar = None
+    eval_dims = self.dims is None
+    if eval_dims:
+      self.dims = collections.OrderedDict()
     if self.vals is None:
-      return self._dimension
-    else:
-      assert isinstance(self.vals, dict), \
-          "Dist vals must be a dictionary but given: {}".format(self.vals)
+      return self.dims
+    assert isinstance(self.vals, dict), \
+        "Dist vals must be a dictionary but given: {}".format(self.vals)
+    if eval_dims:
       if not isinstance(self.vals, collections.OrderedDict):
-        warnings.warn("Ordered dictionary of values expected, not {}".\
+        warnings.warn("Determining dimensions {} rather than OrderedDict".\
                        format(type(self.vals)))
+
+    # Count number of non-scalar dimensions
     self._keys = list(self.vals.keys())
-    self._arescalars = [None] * len(self._keys)
-    ndim = 0
+    self._arescalars = [isscalar(val) for val in self.vals.values()]
+    self.ndim = sum(np.logical_not(self._arescalars))
+    self._isscalar = self.ndim == 0
+
+    # Corroborate vals and dims
+    ones_ndim = np.ones(self.ndim, dtype=int)
+    run_dim = -1
     for i, key in enumerate(self._keys):
       values = self.vals[key]
-      self._arescalars[i] = isscalar(values)
+
+      # Scalars are dimensionless and therefore shapeless
       if self._arescalars[i]:
-        self._dimension.update({key:None})
+        if eval_dims:
+          self.dims.update({key:None})
+        elif key in self.dims:
+          assert self.dims[key] == None,\
+            "Dimension index for scalar value {} must be None, not {}".\
+            format(key, self.dims[key])
+        else:
+          self.dims.update({key: None})
+
+      # Non-scalars require correct dimensionality
       else:
+        run_dim += 1
         assert isinstance(values, np.ndarray), \
             "Dictionary of numpy arrays expected for nonscalars but found" + \
             "type {} for key {}".format(type(values), key)
         val_size = values.size
-        val_shape = values.shape
-        assert val_size == np.max(val_shape), \
+        assert val_size == np.max(values.shape), \
             "Values must have one non-singleton dimension but found" + \
-            "shape {} for key {}".format(val_shape, key)
-        if val_size == 1:
-          val_dim = max(0, ndim - 1)
+            "shape {} for key {}".format(values.shape, key)
+        self.shape.append(val_size)
+        if eval_dims:
+          self.dims.update({key: run_dim})
         else:
-          val_dim = np.argmax(val_shape)
-          ndim = max(val_dim+1, ndim)
-        self._dimension.update({key: val_dim})
-    self.ndim = ndim
-    self._iscalar = all(self._arescalars)
-    return self._dimension
+          assert key in self.dims, "Missing key {} in dims specification {}".\
+              format(key, self.dims)
+        vals_shape = np.copy(ones_ndim)
+        vals_shape[self.dims[key]] = val_size
+        re_shape = self.ndim != values.ndim or \
+                   any(np.array(values.shape) != vals_shape)
+        if re_shape:
+          self.vals[key] = values.reshape(vals_shape)
+
+    return self.dims
 
 #-------------------------------------------------------------------------------
-  def ret_dimension(self, key=None):
-    if key is None:
-      return self._dimension
-    if type(key) is int:
-      key = self._keys[key]
-    return self._dimension[key]
+  def redim(self, dims):
+    """ 
+    Returns a manifold according to redimensionised values in dims, index-
+    ordered by the order in dims
+    """
+    for key in self._keys:
+      if self.dims[key] is not None:
+        assert key in dims, \
+            "Missing key for nonscalar {} in dim".format(key, dims)
+      elif key in dims:
+        assert dims[key] is None, \
+            "Dimension {} requested for scalar with key {}".\
+            format(dims[key], key)
+    vals = {key: self.vals[key] for key in dims.keys()}
+    return Manifold(vals, dims)
 
 #-------------------------------------------------------------------------------
   def ret_arescalars(self):

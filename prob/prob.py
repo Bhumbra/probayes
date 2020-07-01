@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 import warnings
 import numpy as np
 import scipy.stats
+from prob.vtypes import isscalar
 from prob.ptypes import eval_ptype, rescale, iscomplex
 
 #-------------------------------------------------------------------------------
@@ -71,7 +72,7 @@ class _Prob (ABC):
     if self.__callable:
       self.__scalar = False
     elif self._prob is not None:
-      self.__scalar = np.isscalar(self._prob)
+      self.__scalar = isscalar(self._prob)
       assert not len(self._prob_args), "Optional arguments requires callable prob"
       assert not len(self._prob_kwds), "Optional keywords requires callable prob"
 
@@ -143,7 +144,7 @@ class _Prob (ABC):
     return self.__callable
 
 #-------------------------------------------------------------------------------
-  def ret_scalar(self):
+  def ret_isscalar(self):
     return self.__scalar
 
 #-------------------------------------------------------------------------------

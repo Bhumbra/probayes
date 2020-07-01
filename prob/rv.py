@@ -6,7 +6,7 @@ import numpy as np
 from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
-from prob.vtypes import eval_vtype
+from prob.vtypes import eval_vtype, isscalar
 from prob.ptypes import NEARLY_POSITIVE_INF
 
 """
@@ -24,7 +24,7 @@ def nominal_uniform(vals=None, prob=1., vset=None):
   vtype = eval_vtype(vset)
 
   # If scalar, check within variable set
-  if np.isscalar(vals):
+  if isscalar(vals):
     if vtype in [bool, int]:
       prob = prob if vals in vset else 0.
     else:
@@ -127,7 +127,7 @@ class RV (_Vals, _Prob):
         super().set_prob(prob, self._ptype)
 
     # Otherwise check uncallable probabilities commensurate with self._vset
-    elif not self.ret_callable() and not self.ret_scalar():
+    elif not self.ret_callable() and not self.ret_isscalar():
       assert len(self._prob) == len(self._vset), \
           "Probability of length {} incommensurate with Vset of length {}".format(
               len(self._prob), len(self._vset))
@@ -158,7 +158,7 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
-    if not self.ret_scalar():
+    if not self.ret_isscalar():
       return super().eval_prob(values)
     return nominal_uniform(values, self._prob, self._vset)
 
@@ -166,7 +166,7 @@ class RV (_Vals, _Prob):
   def dist_dict(self, values):
     if values is None:
       dist_str = self._name
-    elif np.isscalar(values):
+    elif isscalar(values):
       dist_str = "{}={}".format(self._name, values)
     else:
       dist_str = self._name + "=[]"
@@ -187,7 +187,8 @@ class RV (_Vals, _Prob):
     vals = self.vfun_1(vals, self._use_vfun[1])
     dist_name = ','.join(dist_dict.values())
     vals_dict = collections.OrderedDict({self._name: vals})
-    return Dist(dist_name, vals_dict, prob, self._ptype)
+    dims = {self._name: None} if isscalar(vals) else {self._name: 0}
+    return Dist(dist_name, vals_dict, dims, prob, self._ptype)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

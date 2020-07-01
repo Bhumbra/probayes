@@ -127,20 +127,27 @@ def prod_ptype(ptypes, use_logp=None):
   return rtype
 
 #-------------------------------------------------------------------------------
-def prod_prob(*args, **kwds):
+def prod_rule(*args, **kwds):
   """ Returns prod, ptype. Reshaping is the responsibility of Dist. """
   kwds = dict(kwds)
-  ptypes = kwds.get('ptypes', None)
-  use_logp = kwds.get('use_logp', None)
+  ptypes = kwds.get('ptypes', [1.] * len(args))
+  use_logp = kwds.get('use_logp', any([iscomplex(_ptype) for _ptype in ptypes]))
+  pptype = prod_ptype(ptypes, use_logp)
+  ptype = kwds.get('ptype', pptype)
   n_args = len(args)
-  if ptypes is None:
-    ptypes = [None] * n_args
-  else:
-    assert len(ptypes) == n_args, \
-        "Input ptypes length {} incommensurate with number of arguments {}".\
-        format(len(ptypes), n_args)
-  ptypes = [eval_ptype(ptype) for ptype in ptypes]
-  use_logp = use_logp or np.any([iscomplex(ptype) for ptype in ptypes])
+  assert len(ptypes) == n_args, \
+      "Input ptypes length {} incommensurate with number of arguments {}".\
+      format(len(ptypes), n_args)
+  
+  # Possibly fast-track
+  if use_logp != iscomplex(pptype):
+    pptype = complex(np.log(pptype), 0.) if use_logp else float(np.exp(pptype))
+  elif use_logp == iscomplex(ptype) and pptype == ptype and \
+      len(set([iscomplex(_ptype) for _ptype in ptypes])) == 1:
+    prob = np.sum(list(args)) if use_logp else np.prod(list(args))
+    return prob, ptype
+
+  # Otherwise exp/log before evaluating product
   probs = [None] * n_args
   for i, arg in enumerate(args):
     p_log = iscomplex(ptypes[i])
@@ -151,14 +158,10 @@ def prod_prob(*args, **kwds):
     else:
       if p_log:
         probs[i] = exp_logp(probs[i])
-  prob = None
-  for i in range(n_args):
-    if prob is None:
-      prob = probs[i]
-    elif use_logp:
-      prob = prob + probs[i]
-    else:
-      prob = prob * probs[i]
-  return prob, prod_ptype(ptypes, use_logp)
+  prob = np.sum(probs) if use_logp else np.prod(probs)
+  if use_logp != iscomplex(ptype):
+    prob = rescale(prob, pptype, ptypes)
+
+  return prob, ptype
 
 #-------------------------------------------------------------------------------

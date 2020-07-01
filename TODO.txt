@@ -1,4 +1,2 @@
-Support chain rule
-Support sum rule
 Support conditionalisation
 Support distribution calling
