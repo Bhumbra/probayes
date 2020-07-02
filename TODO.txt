@@ -1,1 +1,1 @@
-Commence stochastic process code
+Support iid_prod() for dist.
