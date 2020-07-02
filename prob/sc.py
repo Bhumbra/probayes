@@ -18,6 +18,8 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
+    self.set_prob()
+    self.set_use_vfun()
     assert len(args) < 3, "Maximum of two initialisation arguments"
     arg0 = None if len(args) < 1 else args[0]
     arg1 = None if len(args) < 2 else args[1]
@@ -47,21 +49,44 @@ class SC (SJ):
     self._rvs = []
     self._keys = []
     if self._marg:
-      marg_name, marg_id = self._marg.ret_name(), self._marg.ret_id()
+      marg_name = self._marg.ret_name()
       marg_rvs = [rv for rv in self._marg.ret_rvs()]
       self._rvs.extend([rv for rv in self._marg.ret_rvs()])
     if self._cond:
-      cond_name, cond_id = self._cond.ret_name(), self._cond.ret_id()
+      cond_name = self._cond.ret_name()
       cond_rvs = [rv for rv in self._cond.ret_rvs()]
       self._rvs.extend([rv for rv in self._cond.ret_rvs()])
     if self._marg is None or self._cond is None:
       return
     self._nrvs = len(self._rvs)
-    self._keys = [rv.name for rv in self._rvs]
+    self._keys = [rv.ret_name() for rv in self._rvs]
     self._keyset = set(self._keys)
     names = [name for name in [marg_name, cond_name] if name]
-    rvids = [rvid for rvid in [marg_rvid, cond_rvid] if rvid]
     self._name = '|'.join(names)
+
+#-------------------------------------------------------------------------------
+  def eval_dist_name(self, values=None):
+    keys = self._keys 
+    vals = values
+    if isinstance(vals, dict):
+      keys = vals.keys()
+      assert set(keys) == self._keyset, "Missing keys in {}".format(vals.keys())
+    else:
+      vals = {key: vals for key in keys}
+    marg_vals = collections.OrderedDict()
+    for key in self._marg.ret_keys():
+      if key in keys:
+        marg_vals.update({key: vals[key]})
+    cond_vals = collections.OrderedDict()
+    for key in self._cond.ret_keys():
+      if key in keys:
+        cond_vals.update({key: vals[key]})
+    marg_dist_name = self._marg.eval_dist_name(marg_vals)
+    cond_dist_name = self._cond.eval_dist_name(cond_vals)
+    dist_name = marg_dist_name
+    if len(cond_dist_name):
+      dist_name += "|{}".format(cond_dist_name)
+    return dist_name
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -78,8 +103,7 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def eval_vals(self, values):
     assert self._marg, "No marginal stochastic random variables defined"
-    return super().eval_values(values, self._marg.ret_nrvs()-1)
-
+    return super().eval_vals(values)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

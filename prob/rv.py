@@ -163,14 +163,14 @@ class RV (_Vals, _Prob):
     return nominal_uniform(values, self._prob, self._vset)
 
 #-------------------------------------------------------------------------------
-  def dist_dict(self, values):
+  def eval_dist_name(self, values):
     if values is None:
       dist_str = self._name
-    elif isscalar(values):
+    elif np.isscalar(values):
       dist_str = "{}={}".format(self._name, values)
     else:
       dist_str = self._name + "=[]"
-    return {self._name: dist_str}
+    return dist_str
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
@@ -181,11 +181,10 @@ class RV (_Vals, _Prob):
       if isinstance(self._vset, set):
         assert self.ret_callable() is False, \
           "Values required for callable prob over continuous variable sets" 
-    dist_dict = self.dist_dict(values)
+    dist_name = self.eval_dist_name(values)
     vals = self.eval_vals(values, self._use_vfun[0])
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])
-    dist_name = ','.join(dist_dict.values())
     vals_dict = collections.OrderedDict({self._name: vals})
     dims = {self._name: None} if isscalar(vals) else {self._name: 0}
     return Dist(dist_name, vals_dict, dims, prob, self._ptype)

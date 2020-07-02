@@ -139,12 +139,27 @@ def prod_rule(*args, **kwds):
       "Input ptypes length {} incommensurate with number of arguments {}".\
       format(len(ptypes), n_args)
   
+  def _apply_prod(probs):
+    # For some reason NumPy sometimes has issues broadcasting within lists
+    try:
+      prob = np.sum(probs) if use_logp else np.prod(probs)
+    except ValueError:
+      prob = None
+      for _prob in probs:
+        if prob is None:
+          prob = np.copy(_prob)
+        elif use_logp:
+          prob = prob + _prob
+        else:
+          prob = prob * _prob
+    return prob
+
   # Possibly fast-track
   if use_logp != iscomplex(pptype):
     pptype = complex(np.log(pptype), 0.) if use_logp else float(np.exp(pptype))
   elif use_logp == iscomplex(ptype) and pptype == ptype and \
       len(set([iscomplex(_ptype) for _ptype in ptypes])) == 1:
-    prob = np.sum(list(args)) if use_logp else np.prod(list(args))
+    prob = _apply_prod(args)
     return prob, ptype
 
   # Otherwise exp/log before evaluating product
@@ -158,7 +173,7 @@ def prod_rule(*args, **kwds):
     else:
       if p_log:
         probs[i] = exp_logp(probs[i])
-  prob = np.sum(probs) if use_logp else np.prod(probs)
+  prob = _apply_prod(probs)
   if use_logp != iscomplex(ptype):
     prob = rescale(prob, pptype, ptypes)
 

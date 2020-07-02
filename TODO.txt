@@ -1,2 +1,1 @@
-Support conditionalisation
-Support distribution calling
+Commence stochastic process code

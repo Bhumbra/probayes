@@ -9,7 +9,7 @@ import numpy as np
 from prob.rv import RV, io_use_vfun
 from prob.dist import Dist
 from prob.vtypes import isscalar
-from prob.ptypes import prod_ptype, prod_rule
+from prob.ptypes import eval_ptype, prod_ptype, prod_rule
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -94,6 +94,10 @@ class SJ:
     return self._nrvs
 
 #-------------------------------------------------------------------------------
+  def ret_keys(self):
+    return self._keys
+
+#-------------------------------------------------------------------------------
   def set_ptype(self, ptype=None):
     if ptype is not None or not self._nrvs:
       self._ptype = eval_ptype(ptype)
@@ -113,7 +117,8 @@ class SJ:
     self._prob_args = tuple(args)
     self._prob_kwds = dict(kwds)
     self._arg_order = None
-    if 'order' not in self._prob_kwds:
+    self.__callable = callable(self._prob)
+    if not self.__callable or 'order' not in self._prob_kwds:
       return 
     assert self._prob is not None, "No order without specifying prob"
     self._arg_order = self._prob_kwds.pop(self._prob_kwds)
@@ -133,14 +138,14 @@ class SJ:
       keys.append(key)
       if type(ind) is int:
         inds.append(ind)
-      else:
+      elif not instance(ind, str):
         raise TypeError("Cannot interpret order value: {}".ind)
     keyset = set(keys)
     assert keyset == self._keyset, \
         "RV name {} mismatch with order keys {}".format(keyset, self._keyset)
     indset = set(inds)
-    assert indset == set(range(self._nvrs)), \
-        "Index specification insuffient: {}".format(indset)
+    assert indset == set(range(len(indset))), \
+        "Index specification non_sequitur: {}".format(indset)
     return keyset, indset
 
 #-------------------------------------------------------------------------------
@@ -257,30 +262,34 @@ class SJ:
       args = list(self._prob_args)
       kwds = dict(self._prob_kwds)
       if self._arg_order:
-        vals = [None] * self._nrvs
+        n_vals = sum([type(val) is int for val in self._arg_order.values()])
+        vals = [None] * n_vals
         for key, val in self._arg_order.items():
-          vals[val] = values[key]
+          if type(val) is int:
+            vals[val] = values[key]
+          else:
+            kwds.update({vals[val]: values[key]})
         args = vals + args
+        return self._prob(*tuple(args), **kwds)
+      elif isinstance(values, dict):
+        kwds.update(values)
         return self._prob(*tuple(args), **kwds)
       return self._prob(values, *tuple(args), **kwds)
     return self._prob
 
 #-------------------------------------------------------------------------------
-  def dist_dict(self, values=None):
-    dist_dict = collections.OrderedDict()
-    for key in self._keys:
-      dist_str = None
-      if values is None or not isinstance(values, dict):
-        dist_str = key
-      elif key not in values:
-        dist_str = key
-      else:
-        if np.isscalar(values[key]):
-          dics_str = "{}={}".format(key, values[key])
-      if dist_str is None:
-        dist_str = key + "=[]"
-      dist_dict.update({key: dist_str})
-    return dist_dict
+  def eval_dist_name(self, values=None):
+    keys = self._keys 
+    vals = values
+    if isinstance(vals, dict):
+      keys = vals.keys()
+      assert set(keys) == self._keyset, "Missing keys in {}".format(vals.keys())
+    else:
+      vals = {key: vals for key in keys}
+    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()]) \
+                     for rv in self._rvs.values()]
+    dist_name = ','.join(rv_dist_names)
+    return dist_name
 
 #-------------------------------------------------------------------------------
   def set_use_vfun(self, use_vfun=True):
@@ -320,13 +329,12 @@ class SJ:
       return None
     if values is None and len(kwds):
       values = collections.OrderedDict(kwds)
-    dist_dict = self.dist_dict(values)
+    dist_name = self.eval_dist_name(values)
     if not isinstance(values, dict):
       values = collections.OrderedDict({key: values for key in self._keys})
     vals, dims = self.eval_vals(values)
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])
-    dist_name = ','.join(dist_dict.values())
     return Dist(dist_name, vals, dims, prob, self._ptype)
 
 #-------------------------------------------------------------------------------

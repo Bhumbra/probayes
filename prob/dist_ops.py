@@ -111,7 +111,7 @@ def prod_dist(*args, **kwds):
 
   # Check conditionals compatible
   prod_cond_set = set(prod_cond)
-  cond2marg_dict = {name: None for name in prod_cond}
+  cond2marg_dict = {name: None for name in cond2marg}
   for i, arg in enumerate(args):
     cond_set = set(cond_names[i]) - cond2marg_set
     assert prod_cond_set == cond_set, \
@@ -179,10 +179,11 @@ def prod_dist(*args, **kwds):
       nonscalars = [val_name for val_name in val_names \
                              if val_name not in scalarset]
       dims = np.array([dimension[name] for name in nonscalars])
-      if dims.size > 1 and np.min(np.diff(dims)) < 0:
+      if dims.size > 0 :
         swap = np.argsort(dims)
-        probs[i] = np.swapaxes(prob, list(range(dims)), swap)
-        dims = dims[swap]
+        if not np.all(swap == dims):
+          probs[i] = np.moveaxis(prob, list(range(len(dims))), list(swap))
+          dims = dims[swap]
       re_shape = np.copy(ones_ndims)
       for dim in dims:
         re_shape[dim] = prod_dims[dim]
@@ -191,7 +192,7 @@ def prod_dist(*args, **kwds):
   # Multiply the probabilities and output the result as a distribution instance
   prob, ptype = prod_rule(*tuple(probs), ptypes=ptypes, ptype=ptype)
 
-  return dist_obj(prod_name, prod_vals, prob, ptype)
+  return dist_obj(prod_name, prod_vals, dimension, prob, ptype)
 
 
 #-------------------------------------------------------------------------------

@@ -1,4 +1,5 @@
-# A distribution is triple comprising variable names, their values (vals), and respective probabilities.
+# A module for realised probability distributions, a triple comprising 
+# variable names, their values (vals), and respective probabilities (prob).
 
 #-------------------------------------------------------------------------------
 import collections
@@ -30,6 +31,7 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def set_name(self, name=None):
+    # Only the name is sensitive to what are marginal and conditional variables
     self.name = name
     self.marg, self.cond = str_margcond(self.name)
     self._keyset = set(self.marg).union(set(self.cond))
@@ -40,15 +42,29 @@ class Dist (Manifold):
     argout = super().set_vals(vals, dims)
     if not self._keys:
       return argout
-    for key in self._keys:
+    for i, key in enumerate(self._keys):
       assert key in self._keyset, \
           "Value key {} not found among name keys {}".format(key, self._keyset)
+      change_name = False
+      if self._arescalars[i]:
+        if key in self.marg.keys():
+          if '=' not in self.marg[key]:
+            change_name = True
+            self.marg[key] = "{}={}".format(key, self.vals[key])
+        else:
+          if '=' not in self.cond[key]:
+            change_name = True
+            self.cond[key] = "{}={}".format(key, self.vals[key])
+    if change_name:
+      self.name = margcond_str(self.marg, self.cond)
     return argout
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, ptype=None):
     self.prob = prob
     self._ptype = eval_ptype(ptype)
+    if self.prob is None:
+      return self._ptype
     if self._isscalar:
       assert isscalar(self.prob), "Scalar vals with non-scalar prob"
     else:
@@ -88,16 +104,37 @@ class Dist (Manifold):
         if not self._arescalars[i]:
           dims.update({key: self.dims[key] - dim_delta})
         vals.update({key:self.vals[key]})
-    marg_name = margcond_str(marg, cond)
+    name = margcond_str(marg, cond)
     prob = rescale(self.prob, self._ptype, 1.)
     sum_prob = np.sum(prob, axis=tuple(sum_axes), keepdims=False)
     prob = rescale(sum_prob, 1., self._ptype)
-    return Dist(name=marg_name, 
+    return Dist(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
                 ptype=self._ptype)
 
+#-------------------------------------------------------------------------------
+  def marginal(self, keys):
+    # from p(A, key | B), returns P(key | B)
+    if isinstance(keys, str):
+      keys = [keys]
+    for key in keys:
+      assert key in self.marg.keys(), \
+        "Key {} not marginal in distribution {}".format(key, self.name)
+    keys  = set(keys)
+    marginalise_keys = set()
+    for i, key in enumerate(self._keys):
+      isscalar = self._arescalars[i]
+      marginal = key in keys
+      if marginal:
+        assert not self._arescalars[i], \
+              "Cannot marginalise along scalar for key {}".format(key)
+      if key in self.marg.keys():
+        if not isscalar and not marginal:
+          marginalise_keys.add(key)
+    return self.marginalise(marginalise_keys)
+        
 #-------------------------------------------------------------------------------
   def conditionalise(self, keys):
     # from P(A, key | B), returns P(A | B, key)
@@ -113,6 +150,7 @@ class Dist (Manifold):
     dims = collections.OrderedDict()
     cond_dims = collections.OrderedDict()
     cond_dim0 = self.ndim - len(keys)
+    sum_axes = []
     dim_delta = 0
     for i, key in enumerate(self._keys):
       new_dim = None
@@ -128,17 +166,19 @@ class Dist (Manifold):
         old_dim = self.dims[key]
         new_dim = old_dim - dim_delta
         dims.update({key: new_dim})
+        # Axes to return key's marginal distribution not its marginalisation
+        if key in self.marg.keys():
+          sum_axes.append(new_dim)
       swap[old_dim] = new_dim
     dims.update(cond_dims)
-    cond_name = margcond_str(marg, cond)
+    name = margcond_str(marg, cond)
     redim = self.redim(dims)
     prob = rescale(self.prob, self._ptype, 1.)
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
-    sum_axes = tuple(cond_dims.values())
     sum_prob = np.maximum(NEARLY_POSITIVE_ZERO, 
-                      np.sum(prob, axis=sum_axes, keepdims=True))
+                      np.sum(prob, axis=tuple(sum_axes), keepdims=True))
     prob = rescale(prob / sum_prob, 1., self._ptype)
-    return Dist(name=cond_name, 
+    return Dist(name=name, 
                 vals=redim.vals, 
                 dims=dims, 
                 prob=prob, 
@@ -167,8 +207,56 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def __call__(self, values):
-    # Slices distribution according to dictionary in values
-    pass
+    # Slices distribution according to scalar values given as a dictionary
+
+    assert isinstance(values, dict),\
+        "Values must be dict type, not {}".format(type(values))
+    keys = values.keys()
+    keyset = set(values.keys())
+    assert len(keyset.union(self._keyset)) == len(self._keyset),\
+        "Unrecognised key among values keys: {}".format(keys())
+    marg = collections.OrderedDict(self.marg)
+    cond = collections.OrderedDict(self.cond)
+    dims = collections.OrderedDict(self.dims)
+    inds = collections.OrderedDict()
+    vals = collections.OrderedDict(self.vals)
+    slices = [None] * self.ndim
+    dim_delta = 0
+    for i, key in enumerate(self._keys):
+      isscalar = self._arescalars[i]
+      dimension = self.dims[key]
+      if key in keyset:
+        inds.update({key: None})
+        assert np.isscalar(values[key]), \
+            "Values must contain scalars but found {} for {}".\
+            format(values[key], key)
+        vals[key] = values[key]
+        if isscalar:
+          if self.vals[key] == values[key]:
+            inds[key] = 0
+        else:
+          dim_delta += 1
+          dims[key] = None
+          index = np.nonzero(np.ravel(self.vals[key]) == values[key])[0]
+          if len(index):
+            inds[key] = index[0]
+            slices[dimension] = index[0]
+        if key in marg.keys():
+          marg[key] = "{}={}".format(key, values[key])
+        elif key in cond.keys():
+          cond[key] = "{}={}".format(key, values[key])
+      elif not isscalar:
+        dims[key] = dims[key] - dim_delta
+        slices[dimension] = slice(self.shape[dimension])
+    name = margcond_str(marg, cond)
+    prob = None
+    if not any(idx is None for idx in inds.values()):
+      prob = self.prob[tuple(slices)]
+    return Dist(name=name, 
+                vals=vals, 
+                dims=dims, 
+                prob=prob, 
+                ptype=self._ptype)
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
@@ -181,6 +269,7 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     prefix = 'logp' if iscomplex(self._ptype) else 'p'
-    return super().__repr__() + ": " + prefix + "(" + self.name + ") [vals,prob]"
+    suffix = '' if not self._isscalar else '={}'.format(self.prob)
+    return super().__repr__() + ": " + prefix + "(" + self.name + ")" + suffix
 
 #-------------------------------------------------------------------------------
