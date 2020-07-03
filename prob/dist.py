@@ -7,8 +7,10 @@ import numpy as np
 from prob.dist_ops import str_margcond, margcond_str, prod_dist
 from prob.vtypes import isscalar
 from prob.ptypes import eval_ptype, rescale, prod_ptype, prod_rule, iscomplex
-from prob.ptypes import NEARLY_POSITIVE_ZERO
 from prob.manifold import Manifold
+
+#-------------------------------------------------------------------------------
+DIVISOR_MINIMUM = 1e-300
 
 #-------------------------------------------------------------------------------
 class Dist (Manifold):
@@ -163,10 +165,11 @@ class Dist (Manifold):
         cond.update({key:marg.pop(key)})
         if self._arescalars[i]:\
           normalise = True
-        old_dim = self.dims[key]
-        new_dim = cond_dim0 + dim_delta
-        cond_dims.update({key: new_dim})
-        dim_delta += 1
+        else:
+          old_dim = self.dims[key]
+          new_dim = cond_dim0 + dim_delta
+          cond_dims.update({key: new_dim})
+          dim_delta += 1
       elif not self._arescalars[i]:
         old_dim = self.dims[key]
         new_dim = old_dim - dim_delta
@@ -174,17 +177,18 @@ class Dist (Manifold):
         # Axes to return key's marginal distribution not its marginalisation
         if key in self.marg.keys():
           sum_axes.append(new_dim)
-      swap[old_dim] = new_dim
+      if not self._arescalars[i]:
+        swap[old_dim] = new_dim
     dims.update(cond_dims)
     name = margcond_str(marg, cond)
     vals = self.redim(dims).vals
     prob = rescale(self.prob, self._ptype, 1.)
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
     if len(sum_axes):
-      prob = prob / np.maximum(NEARLY_POSITIVE_ZERO, 
+      prob = prob / np.maximum(DIVISOR_MINIMUM,
                         np.sum(prob, axis=tuple(sum_axes), keepdims=True))
     if normalise:
-      prob = prob / np.maximum(NEARLY_POSITIVE_ZERO, np.sum(prob))
+      prob = prob / np.maximum(DIVISOR_MINIMUM, np.sum(prob))
     prob = rescale(prob, 1., self._ptype)
     return Dist(name=name, 
                 vals=vals, 

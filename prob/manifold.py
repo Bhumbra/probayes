@@ -40,11 +40,12 @@ class Manifold:
     if self.vals is None:
       return self.dims
     assert isinstance(self.vals, dict), \
-        "Dist vals must be a dictionary but given: {}".format(self.vals)
-    if eval_dims:
+        "Dist vals must be a dictionary but given: {}".format(type(self.vals))
+    if eval_dims and len(self.vals) > 1:
       if not isinstance(self.vals, collections.OrderedDict):
-        warnings.warn("Determining dimensions {} rather than OrderedDict".\
-                       format(type(self.vals)))
+        warnings.warn(\
+            "Determining dimensions from multi-key {} rather than OrderedDict".\
+            format(type(self.vals)))
     self._keys = list(self.vals.keys())
 
     # Tranform {None} to {0} to play nicely with isunitsetint
@@ -52,14 +53,11 @@ class Manifold:
       if isinstance(self.vals[key], set):
         if len(self.vals[key]) == 1:
           element = list(self.vals[key])[0]
-          import pdb; pdb.set_trace()
           if element is None:
             self.vals.update({key: {0}})
 
     # Count number of non-scalar dimensions
-    print(self.vals)
     self._arescalars = [isscalar(val) for val in self.vals.values()]
-    print(self._arescalars)
     self.ndim = sum(np.logical_not(self._arescalars))
     self._isscalar = self.ndim == 0
 
@@ -68,7 +66,6 @@ class Manifold:
     run_dim = -1
     for i, key in enumerate(self._keys):
       values = self.vals[key]
-
 
       # Scalars are dimensionless and therefore shapeless
       if self._arescalars[i]:
@@ -106,6 +103,18 @@ class Manifold:
 
     return self.dims
 
+#-------------------------------------------------------------------------------
+  def ret_vals(self, keys):
+    for key in keys:
+      assert key in self._keys, "Key {} not found among {}".\
+          format(key, self._keys)
+    keys = set(keys)
+    vals = collections.OrderedDict()
+    for key in self._keys:
+      if key in keys:
+        vals.update({key: self.vals[key]})
+    return vals
+    
 #-------------------------------------------------------------------------------
   def redim(self, dims):
     """ 

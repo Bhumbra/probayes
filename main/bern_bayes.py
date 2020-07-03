@@ -19,14 +19,14 @@ sym = prob.RV('sym', vtype=bool)
 
 # SET UP STOCHASTIC CONDITION AND CONDITIONAL PROBABILITY
 sym_given_dis = prob.SC(sym, dis)
-conditional_prob = np.array([1-sym_if_undis, sym_if_undis, \
-                             1-sym_if_dis,   sym_if_dis]).reshape((2,2))
-sym_given_dis.set_prob(conditional_prob)
+c_sum_given_dis = np.array([1-sym_if_undis, sym_if_undis, \
+                            1-sym_if_dis,   sym_if_dis]).reshape((2,2))
+sym_given_dis.set_prob(c_sum_given_dis)
 
 # CALL THE PROBABILITIES
 p_dis = dis()
 p_sym_given_dis = sym_given_dis()
 p_sym_and_dis = p_dis * p_sym_given_dis
 p_dis_given_sym = p_sym_and_dis.conditionalise('sym')
-p_dis_true_given_symptom_true = p_dis_given_sym({'dis': True, 'sym': True})
-print(p_dis_true_given_symptom_true)
+p_dis_true_given_sym_true = p_dis_given_sym({'dis': True, 'sym': True})
+print(p_dis_true_given_sym_true)

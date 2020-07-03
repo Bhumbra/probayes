@@ -108,7 +108,7 @@ def prod_dist(*args, **kwds):
                 "Mismatch in variables: {} vs {}".format(prod_vals, val)
             for j, key in enumerate(prod_vals.keys()):
               if prod_val_isunitsetint[j]:
-                prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key][0])}})
+                prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
         prob = float(sum(probs)) if iscomplex(ptype) else float(np.prod(probs))
         return dist_obj(prod_name, prod_vals, prob, ptype)
 
@@ -142,7 +142,8 @@ def prod_dist(*args, **kwds):
   prod_arescalars = np.zeros(prod_nkeys, dtype=bool)
   prod_areunitsetints = np.zeros(prod_nkeys, dtype=bool)
   prod_cond_name = ','.join(prod_cond)
-  prod_name = '|'.join([prod_marg_name, prod_cond_name])
+  prod_name = prod_marg_name if not len(prod_cond_name) \
+              else '|'.join([prod_marg_name, prod_cond_name])
   prod_vals = collections.OrderedDict()
   for i, key in enumerate(prod_keys):
     values = None
@@ -160,9 +161,10 @@ def prod_dist(*args, **kwds):
     for i, key in enumerate(prod_keys):
       if prod_areunitsetints[i]:
         for val in vals:
-          assert isunitsetint(val[key]), "Mismatch in variables {} vs {}".\
-              format(prod_vals, val)
-          prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key][0])}})
+          if key in val:
+            assert isunitsetint(val[key]), "Mismatch in variables {} vs {}".\
+                format(prod_vals, val)
+            prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
   prod_cdims = np.cumsum(np.logical_not(prod_arescalars))
   prod_ndims = prod_cdims[-1]
 
@@ -184,7 +186,7 @@ def prod_dist(*args, **kwds):
   dimension = collections.OrderedDict()
   for i, key in enumerate(prod_keys):
     if prod_arescalars[i]:
-      scalarset += {key}
+      scalarset.add(key)
     else:
       values = prod_vals[key]
       re_shape = np.copy(ones_ndims)

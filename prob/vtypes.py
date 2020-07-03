@@ -41,7 +41,7 @@ def isunitsetint(var):
 
 #-------------------------------------------------------------------------------
 def isscalar(var):
-  # We use integer singleton sets to denote unspecified scalars
+  # Integer singleton sets denote unspecified scalars
   if isunitsetint(var):
     return True
   return np.isscalar(var)

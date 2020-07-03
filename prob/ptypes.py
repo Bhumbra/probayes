@@ -140,19 +140,16 @@ def prod_rule(*args, **kwds):
       format(len(ptypes), n_args)
   
   def _apply_prod(probs):
-    # For some reason NumPy sometimes has issues broadcasting within lists
-    try:
-      prob = np.sum(probs) if use_logp else np.prod(probs)
-    except ValueError:
-      if len(probs) == 1:
-        prob = np.copy(probs[0])
-      else:
-        prob = probs[0] + probs[1] if use_logp else probs[0] * probs[1]
-        for _prob in probs[2:]:
-          if use_logp:
-            prob = prob + _prob
-          else:
-            prob = prob * _prob
+    # Numpy sum() and prod() produce inconsistent results with lists
+    if len(probs) == 1:
+      prob = np.copy(probs[0])
+    else:
+      prob = probs[0] + probs[1] if use_logp else probs[0] * probs[1]
+      for _prob in probs[2:]:
+        if use_logp:
+          prob = prob + _prob
+        else:
+          prob = prob * _prob
     return prob
 
   # Possibly fast-track
@@ -160,7 +157,7 @@ def prod_rule(*args, **kwds):
     pptype = complex(np.log(pptype), 0.) if use_logp else float(np.exp(pptype))
   elif use_logp == iscomplex(ptype) and pptype == ptype and \
       len(set([iscomplex(_ptype) for _ptype in ptypes])) == 1:
-    prob = _apply_prod(args)
+    prob = _apply_prod(list(args))
     return prob, ptype
 
   # Otherwise exp/log before evaluating product

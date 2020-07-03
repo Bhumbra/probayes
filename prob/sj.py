@@ -119,15 +119,19 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):
+    kwds = dict(kwds)
+    if 'ptype' in kwds:
+      ptype = kwds.pop(kwds)
+      self.set_ptype(ptype)
     self._prob = prob
     self._prob_args = tuple(args)
-    self._prob_kwds = dict(kwds)
+    self._prob_kwds = kwds
     self._arg_order = None
     self.__callable = callable(self._prob)
     if not self.__callable or 'order' not in self._prob_kwds:
       return 
     assert self._prob is not None, "No order without specifying prob"
-    self._arg_order = self._prob_kwds.pop(self._prob_kwds)
+    self._arg_order = self._prob_kwds.pop('order')
     if self._arg_order is None:
       return
     assert isinstance(self._arg_order, dict), "Keyword order must be a dict"
@@ -135,8 +139,6 @@ class SJ:
     # Sanity check the order dictionary
     key_list = list(self._arg_order.keys())
     ind_list = list(self._arg_order.values())
-    self.check_keys(key_list, ind_list)
-
     assert isinstance(ind_list, list), "Input ind_list must be a list"
     keys = []
     inds = []
@@ -144,7 +146,7 @@ class SJ:
       keys.append(key)
       if type(ind) is int:
         inds.append(ind)
-      elif not instance(ind, str):
+      elif not isinstance(ind, str):
         raise TypeError("Cannot interpret order value: {}".ind)
     keyset = set(keys)
     assert keyset == self._keyset, \
@@ -204,7 +206,7 @@ class SJ:
         seen_keys.append(key)
         if np.isscalar(values[key]):
           for rem_key in rem_keys:
-            dims[rem_keys] -= 1
+            dims[rem_key] -= 1
       elif key not in seen_keys:
         seen_keys.append(key)
         for val_key in value.keys():
@@ -274,7 +276,7 @@ class SJ:
           if type(val) is int:
             vals[val] = values[key]
           else:
-            kwds.update({vals[val]: values[key]})
+            kwds.update({val: values[key]})
         args = vals + args
         return self._prob(*tuple(args), **kwds)
       elif isinstance(values, dict):
