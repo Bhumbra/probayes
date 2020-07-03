@@ -8,10 +8,10 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 # Settings
-rand_size = 20
+rand_size = 50
 rand_mean = 50.
 rand_stdv = 10.
-mu_lims = {30, 70}
+mu_lims = {40, 60}
 sigma_lims = {5, 20.}
 resolution = {'mu': {100}, 'sigma': {200}}
 
@@ -31,20 +31,24 @@ sigma.set_prob(lambda x: 1./x)
 params = prob.SJ(mu, sigma)
 #params.set_use_vfun(False)
 model = prob.SC(x, params)
-model.set_prob(scipy.stats.norm.pdf,
-               order={'x':0, 'mu':'loc', 'sigma':'scale'})
+model.set_prob(scipy.stats.norm.logpdf,
+               order={'x':0, 'mu':'loc', 'sigma':'scale'},
+               ptype='log')
 
-# Evaluate probabilities
+# Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
 prior = params(likelihood.ret_vals(params.ret_keys()))
-joint = prior * likelihood
-posterior = joint.conditionalise('x')
+posterior = (prior * likelihood).conditionalise('x')
+
+# Exponentialise log probabilities
+post_prob = posterior.rescale()
 
 # Plot posterior
+figure()
 pcolor(
        np.ravel(posterior.vals['sigma']), 
        np.ravel(posterior.vals['mu']), 
-       posterior.prob[:-1, :-1]
+       post_prob[:-1, :-1]
       )
 xlabel(r'$\sigma$')
 ylabel(r'$\mu$')

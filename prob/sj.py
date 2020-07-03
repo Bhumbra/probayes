@@ -121,7 +121,7 @@ class SJ:
   def set_prob(self, prob=None, *args, **kwds):
     kwds = dict(kwds)
     if 'ptype' in kwds:
-      ptype = kwds.pop(kwds)
+      ptype = kwds.pop('ptype')
       self.set_ptype(ptype)
     self._prob = prob
     self._prob_args = tuple(args)
