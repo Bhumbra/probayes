@@ -10,23 +10,23 @@ Answer: \approx 9%
 
 # PARAMETERS
 prevalence = 0.01
-symptoms_if_diseased = 0.98
-symptoms_if_undiseased = 0.1
+sym_if_dis = 0.98
+sym_if_undis = 0.1
 
 # SET UP RANDOM VARIABLES
-diseased = prob.RV('diseased', prob=prevalence)
-symptoms = prob.RV('symptoms', vtype=bool)
+dis = prob.RV('dis', prob=prevalence)
+sym = prob.RV('sym', vtype=bool)
 
-# SET UP CONDITIONAL PROBABILITY AND STOCHASTIC CONDITION
-conditional_prob = np.array([1-symptoms_if_undiseased, symptoms_if_undiseased, \
-                             1-symptoms_if_diseased,   symptoms_if_diseased]).reshape((2,2))
-symptoms_given_disease = prob.SC(symptoms, diseased)
-symptoms_given_disease.set_prob(conditional_prob)
+# SET UP STOCHASTIC CONDITION AND CONDITIONAL PROBABILITY
+sym_given_dis = prob.SC(sym, dis)
+conditional_prob = np.array([1-sym_if_undis, sym_if_undis, \
+                             1-sym_if_dis,   sym_if_dis]).reshape((2,2))
+sym_given_dis.set_prob(conditional_prob)
 
 # CALL THE PROBABILITIES
-p_diseased = diseased()
-p_symptoms_given_diseased = symptoms_given_disease()
-p_symptoms_and_diseased = p_diseased * p_symptoms_given_diseased
-p_diseased_given_symptoms = p_symptoms_and_diseased.conditionalise('symptoms')
-p_diseased_true_given_symptom_true = p_diseased_given_symptoms({'diseased': True, 'symptoms': True})
-print(p_diseased_true_given_symptom_true)
+p_dis = dis()
+p_sym_given_dis = sym_given_dis()
+p_sym_and_dis = p_dis * p_sym_given_dis
+p_dis_given_sym = p_sym_and_dis.conditionalise('sym')
+p_dis_true_given_symptom_true = p_dis_given_sym({'dis': True, 'sym': True})
+print(p_dis_true_given_symptom_true)

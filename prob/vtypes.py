@@ -34,7 +34,8 @@ def eval_vtype(vtype):
 def isunitsetint(var):
   if isinstance(var, set):
     if len(var) == 1:
-      if type(var) is int:
+      element = list(var)[0]
+      if type(element) is int:
         return True
   return False
 

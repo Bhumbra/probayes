@@ -45,10 +45,21 @@ class Manifold:
       if not isinstance(self.vals, collections.OrderedDict):
         warnings.warn("Determining dimensions {} rather than OrderedDict".\
                        format(type(self.vals)))
+    self._keys = list(self.vals.keys())
+
+    # Tranform {None} to {0} to play nicely with isunitsetint
+    for key in self._keys:
+      if isinstance(self.vals[key], set):
+        if len(self.vals[key]) == 1:
+          element = list(self.vals[key])[0]
+          import pdb; pdb.set_trace()
+          if element is None:
+            self.vals.update({key: {0}})
 
     # Count number of non-scalar dimensions
-    self._keys = list(self.vals.keys())
+    print(self.vals)
     self._arescalars = [isscalar(val) for val in self.vals.values()]
+    print(self._arescalars)
     self.ndim = sum(np.logical_not(self._arescalars))
     self._isscalar = self.ndim == 0
 
@@ -57,6 +68,7 @@ class Manifold:
     run_dim = -1
     for i, key in enumerate(self._keys):
       values = self.vals[key]
+
 
       # Scalars are dimensionless and therefore shapeless
       if self._arescalars[i]:
