@@ -8,7 +8,7 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 # Settings
-rand_size = 50
+rand_size = 60
 rand_mean = 50.
 rand_stdv = 10.
 mu_lims = {40, 60}

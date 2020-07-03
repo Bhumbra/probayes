@@ -1,1 +1,3 @@
-Support iid_prod() for dist.
+Correct vfun usage
+Support OMC
+Support MCMC
