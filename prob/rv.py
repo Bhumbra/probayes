@@ -25,10 +25,10 @@ def nominal_uniform(vals=None, prob=1., vset=None):
 
   # If scalar, check within variable set
   if isscalar(vals):
-    if vtype in [bool, int]:
-      prob = prob if vals in vset else 0.
-    else:
+    if vtype in [float, np.dtype('float32'), np.dtype('float64') ]:
       prob = 0. if vals < min(vset) or vals > max(vset) else prob
+    else:
+      prob = prob if vals in vset else 0.
     return prob
 
   # Otherwise treat as arrays
@@ -42,11 +42,11 @@ def nominal_uniform(vals=None, prob=1., vset=None):
     return prob
 
   # Otherwise treat as uniform within range
-  if vtype in [int, np.dtype('int32'), np.dtype('int64')]:
-    outside = np.array([val not in vset for val in vals], dtype=bool)
+  if vtype in [float, np.dtype('float32'), np.dtype('float64')]:
+    outside = np.logical_or(vals < min(vset), vals > max(vset))
     prob[outside] = 0.
   else:
-    outside = np.logical_or(vals < min(vset), vals > max(vset))
+    outside = np.array([val not in vset for val in vals], dtype=bool)
     prob[outside] = 0.
 
   return prob

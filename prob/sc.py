@@ -55,6 +55,7 @@ class SC (SJ):
     self._nrvs = len(self._rvs)
     self._keys = [rv.ret_name() for rv in self._rvs]
     self._keyset = set(self._keys)
+    self._defiid = self._marg.ret_keyset()
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
 

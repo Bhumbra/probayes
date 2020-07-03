@@ -31,10 +31,18 @@ def eval_vtype(vtype):
   return vtype
 
 #-------------------------------------------------------------------------------
-def isscalar(var):
+def isunitsetint(var):
   if isinstance(var, set):
     if len(var) == 1:
-      return True
+      if type(var) is int:
+        return True
+  return False
+
+#-------------------------------------------------------------------------------
+def isscalar(var):
+  # We use integer singleton sets to denote unspecified scalars
+  if isunitsetint(var):
+    return True
   return np.isscalar(var)
 
 #-------------------------------------------------------------------------------

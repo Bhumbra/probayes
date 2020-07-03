@@ -145,7 +145,7 @@ def prod_rule(*args, **kwds):
       prob = np.sum(probs) if use_logp else np.prod(probs)
     except ValueError:
       if len(probs) == 1:
-        prob = probs[0]
+        prob = np.copy(probs[0])
       else:
         prob = probs[0] + probs[1] if use_logp else probs[0] * probs[1]
         for _prob in probs[2:]:

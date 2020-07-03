@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.vtypes import isscalar
+from prob.vtypes import isscalar, isunitsetint
 from prob.ptypes import rescale, prod_ptype, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
@@ -95,8 +95,20 @@ def prod_dist(*args, **kwds):
           len(set(cond_names).union(prod_marg)) == len(cond_names) + len(prod_marg):
         prod_cond_name = ','.join(cond_names)
         prod_name = '|'.join([prod_marg_name, prod_cond_name])
-        prod_vals = collections.OrdereDict()
-        [prod_vals.update(val) for val in vals]
+        prod_vals = collections.OrderedDict()
+        for i, val in enumerate(vals):
+          prod_val_isunitsetint = np.array([isunitsetint(prod_val) 
+                                            for prod_val in prod_vals.values()])
+          if not np.any(prod_val_isunitset):
+            prod_vals.update(val)
+          else:
+            val_isunitsetint = np.array([isunitsetint(_val) 
+                                for _val in val.values()])
+            assert np.all(prod_val_isunitsetint == val_isunitsetint),\
+                "Mismatch in variables: {} vs {}".format(prod_vals, val)
+            for j, key in enumerate(prod_vals.keys()):
+              if prod_val_isunitsetint[j]:
+                prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key][0])}})
         prob = float(sum(probs)) if iscomplex(ptype) else float(np.prod(probs))
         return dist_obj(prod_name, prod_vals, prob, ptype)
 
@@ -128,6 +140,7 @@ def prod_dist(*args, **kwds):
   prod_keys = str2key(prod_marg + prod_cond)
   prod_nkeys = len(prod_keys)
   prod_arescalars = np.zeros(prod_nkeys, dtype=bool)
+  prod_areunitsetints = np.zeros(prod_nkeys, dtype=bool)
   prod_cond_name = ','.join(prod_cond)
   prod_name = '|'.join([prod_marg_name, prod_cond_name])
   prod_vals = collections.OrderedDict()
@@ -136,10 +149,20 @@ def prod_dist(*args, **kwds):
     for val in vals:
       if key in val.keys():
         values = val[key]
+        prod_areunitsetints[i] = isunitsetint(val[key])
+        if prod_areunitsetints[i]:
+          values = {0}
         break
     assert values is not None, "Values for key {} not found".format(key)
     prod_arescalars[i] = isscalar(values)
     prod_vals.update({key: values})
+  if np.any(prod_areunitsetints):
+    for i, key in enumerate(prod_keys):
+      if prod_areunitsetints[i]:
+        for val in vals:
+          assert isunitsetint(val[key]), "Mismatch in variables {} vs {}".\
+              format(prod_vals, val)
+          prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key][0])}})
   prod_cdims = np.cumsum(np.logical_not(prod_arescalars))
   prod_ndims = prod_cdims[-1]
 

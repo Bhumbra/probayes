@@ -20,6 +20,7 @@ class SJ:
   _nrvs = None
   _keys = None
   _keyset = None
+  _defiid = None
   _ptype = None
   _use_vfun = None
   _arg_order = None
@@ -70,6 +71,7 @@ class SJ:
     self._nrvs = len(self._rvs)
     self._keys = list(self._rvs.keys())
     self._keyset = set(self._keys)
+    self._defiid = self._keyset
     self._name = ','.join(self._keys)
     self.set_ptype()
     return self._nrvs
@@ -96,6 +98,10 @@ class SJ:
 #-------------------------------------------------------------------------------
   def ret_keys(self):
     return self._keys
+
+#-------------------------------------------------------------------------------
+  def ret_keyset(self):
+    return self._keyset
 
 #-------------------------------------------------------------------------------
   def set_ptype(self, ptype=None):
@@ -325,6 +331,10 @@ class SJ:
     ''' 
     Returns a namedtuple of the rvs.
     '''
+    kwds = dict(kwds)
+    iid = False if 'iid' not in kwds else kwds.pop('iid')
+    if type(iid) is bool and iid:
+      iid = self._defiid
     if self._rvs is None:
       return None
     if values is None and len(kwds):
@@ -335,7 +345,9 @@ class SJ:
     vals, dims = self.eval_vals(values)
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])
-    return Dist(dist_name, vals, dims, prob, self._ptype)
+    if not iid: 
+      return Dist(dist_name, vals, dims, prob, self._ptype)
+    return Dist(dist_name, vals, dims, prob, self._ptype).prod(iid)
 
 #-------------------------------------------------------------------------------
   def __len__(self):

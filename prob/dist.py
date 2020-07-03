@@ -51,10 +51,13 @@ class Dist (Manifold):
           if '=' not in self.marg[key]:
             change_name = True
             self.marg[key] = "{}={}".format(key, self.vals[key])
-        else:
+        elif key in self.cond.keys():
           if '=' not in self.cond[key]:
             change_name = True
             self.cond[key] = "{}={}".format(key, self.vals[key])
+        else:
+          raise ValueError("Variable {} not accounted for in name {}".format(
+                            key, self.name))
     if change_name:
       self.name = margcond_str(self.marg, self.cond)
     return argout
@@ -137,7 +140,8 @@ class Dist (Manifold):
         
 #-------------------------------------------------------------------------------
   def conditionalise(self, keys):
-    # from P(A, key | B), returns P(A | B, key)
+    # from P(A, key | B), returns P(A | B, key).
+    # if vals[key] is a scalar, this effectively normalises prob
     if isinstance(keys, str):
       keys = [keys]
     for key in keys:
@@ -152,12 +156,13 @@ class Dist (Manifold):
     cond_dim0 = self.ndim - len(keys)
     sum_axes = []
     dim_delta = 0
+    normalise = False
     for i, key in enumerate(self._keys):
       new_dim = None
       if key in keys:
-        assert not self._arescalars[i], \
-            "Cannot conditionalised along scalar for key {}".format(key)
         cond.update({key:marg.pop(key)})
+        if self._arescalars[i]:\
+          normalise = True
         old_dim = self.dims[key]
         new_dim = cond_dim0 + dim_delta
         cond_dims.update({key: new_dim})
@@ -172,17 +177,65 @@ class Dist (Manifold):
       swap[old_dim] = new_dim
     dims.update(cond_dims)
     name = margcond_str(marg, cond)
-    redim = self.redim(dims)
+    vals = self.redim(dims).vals
     prob = rescale(self.prob, self._ptype, 1.)
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
-    sum_prob = np.maximum(NEARLY_POSITIVE_ZERO, 
-                      np.sum(prob, axis=tuple(sum_axes), keepdims=True))
-    prob = rescale(prob / sum_prob, 1., self._ptype)
+    if len(sum_axes):
+      prob = prob / np.maximum(NEARLY_POSITIVE_ZERO, 
+                        np.sum(prob, axis=tuple(sum_axes), keepdims=True))
+    if normalise:
+      prob = prob / np.maximum(NEARLY_POSITIVE_ZERO, np.sum(prob))
+    prob = rescale(prob, 1., self._ptype)
     return Dist(name=name, 
-                vals=redim.vals, 
+                vals=vals, 
                 dims=dims, 
                 prob=prob, 
                 ptype=self._ptype)
+
+#-------------------------------------------------------------------------------
+  def prod(self, keys):
+    # from P(A, key | B), returns P(A, {} | B)
+    if isinstance(keys, str):
+      keys = [keys]
+    for key in keys:
+      assert key in self.marg.keys(), \
+        "Key {} not marginal in distribution {}".format(key, self.name)
+    keys  = set(keys)
+    marg = collections.OrderedDict(self.marg)
+    cond = collections.OrderedDict(self.cond)
+    vals = collections.OrderedDict()
+    dims = collections.OrderedDict()
+    dim_delta = 0
+    prod_axes = []
+    for i, key in enumerate(self._keys):
+      new_dim = None
+      if key in keys:
+        assert not self._arescalars[i], \
+            "Cannot apply product along scalar for key {}".format(key)
+        prod_axes.append(self.dims[key])
+        marg.update({key: key+"={}"})
+        vals.update({key: {self.vals[key].size}})
+        dim_delta += 1
+      else:
+        if not self._arescalars[i]:
+          dims.update({key: self.dims[key] - dim_delta})
+        vals.update({key:self.vals[key]})
+    name = margcond_str(marg, cond)
+    ptype = self._ptype
+    ptype_product = ptype
+    if ptype_product not in [0., 1.]:
+      ptype_scaling = np.prod(np.array(self.shape)[prod_axes])
+      if iscomplex(ptype):
+        ptype_product += ptype*ptype_scaling 
+      else:
+        ptype_product *= ptype**ptype_scaling 
+    prob = np.sum(self.prob, axis=tuple(prod_axes)) if iscomplex(ptype) \
+           else np.prod(self.prob, axis=tuple(prod_axes))
+    return Dist(name=name, 
+                vals=vals, 
+                dims=dims, 
+                prob=prob, 
+                ptype=ptype_product)
 
 #-------------------------------------------------------------------------------
   def ret_keyset(self):
