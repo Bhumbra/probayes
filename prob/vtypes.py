@@ -41,9 +41,13 @@ def isunitsetint(var):
 
 #-------------------------------------------------------------------------------
 def isscalar(var):
-  # Integer singleton sets denote unspecified scalars
+  # Integer singleton sets denote unspecified scalars 
+  # as well as undimensioned Numpy arrays
   if isunitsetint(var):
     return True
+  if isinstance(var, np.ndarray):
+    if var.ndim == 0 and var.size == 1:
+      return True
   return np.isscalar(var)
 
 #-------------------------------------------------------------------------------

@@ -22,8 +22,9 @@ class Dist (Manifold):
   cond = None   # Ordered dictionary of conditionals: key: name}
 
   # Protected
-  _keyset = None # Keys as set according to name
-  _ptype = None  # Same convention as _Prob
+  _keyset = None        # Keys as set according to name
+  _marg_scalarset = None # Set of marginal scalar keys
+  _ptype = None         # Same convention as _Prob
 
 #-------------------------------------------------------------------------------
   def __init__(self, name=None, vals=None, dims=None, prob=None, ptype=None):
@@ -42,6 +43,7 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def set_vals(self, vals=None, dims=None):
     argout = super().set_vals(vals, dims)
+    self._marg_scalarset = set()
     if not self._keys:
       return argout
     for i, key in enumerate(self._keys):
@@ -50,6 +52,7 @@ class Dist (Manifold):
       change_name = False
       if self._arescalars[i]:
         if key in self.marg.keys():
+          self._marg_scalarset.add(key)
           if '=' not in self.marg[key]:
             change_name = True
             self.marg[key] = "{}={}".format(key, self.vals[key])
@@ -124,20 +127,26 @@ class Dist (Manifold):
     # from p(A, key | B), returns P(key | B)
     if isinstance(keys, str):
       keys = [keys]
+    keys = set(keys)
     for key in keys:
       assert key in self.marg.keys(), \
         "Key {} not marginal in distribution {}".format(key, self.name)
-    keys  = set(keys)
     marginalise_keys = set()
+    arescalars = []
     for i, key in enumerate(self._keys):
       isscalar = self._arescalars[i]
       marginal = key in keys
-      if marginal:
-        assert not self._arescalars[i], \
-              "Cannot marginalise along scalar for key {}".format(key)
       if key in self.marg.keys():
+        arescalars.append(isscalar)
         if not isscalar and not marginal:
           marginalise_keys.add(key)
+
+    # If including any marginal scalars, must include all scalars
+    if any(arescalars):
+      assert self._marg_scalarset.issubset(keys), \
+        "If evaluating marginal for key {}".format(key) + "," + \
+        "must include all marginal scalars in {}".format(self._marg_scalarset)
+
     return self.marginalise(marginalise_keys)
         
 #-------------------------------------------------------------------------------
@@ -146,10 +155,10 @@ class Dist (Manifold):
     # if vals[key] is a scalar, this effectively normalises prob
     if isinstance(keys, str):
       keys = [keys]
+    keys = set(keys)
     for key in keys:
       assert key in self.marg.keys(), \
         "Key {} not marginal in distribution {}".format(key, self.name)
-    keys  = set(keys)
     swap = [None] * self.ndim
     marg = collections.OrderedDict(self.marg)
     cond = collections.OrderedDict(self.cond)
@@ -158,14 +167,13 @@ class Dist (Manifold):
     cond_dim0 = self.ndim - len(keys)
     sum_axes = []
     dim_delta = 0
-    normalise = False
+    arescalars = []
     for i, key in enumerate(self._keys):
       new_dim = None
       if key in keys:
         cond.update({key:marg.pop(key)})
-        if self._arescalars[i]:\
-          normalise = True
-        else:
+        arescalars.append(self._arescalars[i])
+        if not arescalars[-1]:
           old_dim = self.dims[key]
           new_dim = cond_dim0 + dim_delta
           cond_dims.update({key: new_dim})
@@ -179,16 +187,25 @@ class Dist (Manifold):
           sum_axes.append(new_dim)
       if not self._arescalars[i]:
         swap[old_dim] = new_dim
+
+    # If including any marginal scalars, normalising must include all scalars
+    normalise = any(arescalars)
+    if normalise:
+      assert self._marg_scalarset.issubset(set(keys)), \
+        "If conditionalising for key {}".format(key) + "," + \
+        "must include all marginal scalars in {}".format(self._marg_scalarset)
+
+    # Setup vals dimensions and evaluate probabilities
     dims.update(cond_dims)
     name = margcond_str(marg, cond)
     vals = self.redim(dims).vals
     prob = rescale(self.prob, self._ptype, 1.)
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
+    if normalise:
+      prob = prob / np.maximum(DIVISOR_MINIMUM, np.sum(prob))
     if len(sum_axes):
       prob = prob / np.maximum(DIVISOR_MINIMUM,
                         np.sum(prob, axis=tuple(sum_axes), keepdims=True))
-    if normalise:
-      prob = prob / np.maximum(DIVISOR_MINIMUM, np.sum(prob))
     prob = rescale(prob, 1., self._ptype)
     return Dist(name=name, 
                 vals=vals, 
