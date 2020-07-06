@@ -7,7 +7,7 @@ import numpy as np
 from prob.dist_ops import str_margcond, margcond_str, prod_dist
 from prob.vtypes import isscalar
 from prob.pscales import eval_pscale, rescale, iscomplex
-from prob.pscales import prod_pscale, prod_rule, prob_divide
+from prob.pscales import prod_pscale, prod_rule, div_prob
 from prob.manifold import Manifold
 
 #-------------------------------------------------------------------------------
@@ -44,28 +44,24 @@ class Dist (Manifold):
     argout = super().set_vals(vals, dims)
     self._marg_scalarset = set()
     self._cond_scalarset = set()
-    if not self._keys:
+    if not self._keys or not any(self._arescalars):
       return argout
+
+    # Override name entries for scalar values
     for i, key in enumerate(self._keys):
       assert key in self._keyset, \
           "Value key {} not found among name keys {}".format(key, self._keyset)
-      change_name = False
       if self._arescalars[i]:
         if key in self.marg.keys():
           self._marg_scalarset.add(key)
-          if '=' not in self.marg[key]:
-            change_name = True
-            self.marg[key] = "{}={}".format(key, self.vals[key])
+          self.marg[key] = "{}={}".format(key, self.vals[key])
         elif key in self.cond.keys():
           self._cond_scalarset.add(key)
-          if '=' not in self.cond[key]:
-            change_name = True
-            self.cond[key] = "{}={}".format(key, self.vals[key])
+          self.cond[key] = "{}={}".format(key, self.vals[key])
         else:
           raise ValueError("Variable {} not accounted for in name {}".format(
                             key, self.name))
-    if change_name:
-      self.name = margcond_str(self.marg, self.cond)
+    self.name = margcond_str(self.marg, self.cond)
     return argout
 
 #-------------------------------------------------------------------------------
@@ -204,9 +200,9 @@ class Dist (Manifold):
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
     prob = prob
     if normalise:
-      prob = prob_divide(prob, np.sum(prob))
+      prob = div_prob(prob, np.sum(prob))
     if len(sum_axes):
-      prob = prob_divide(prob, \
+      prob = div_prob(prob, \
                          np.sum(prob, axis=tuple(sum_axes), keepdims=True))
     prob = rescale(prob, 1., self._pscale)
     return Dist(name=name, 
@@ -263,14 +259,6 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def ret_keyset(self):
     return self._keyset
-
-#-------------------------------------------------------------------------------
-  def ret_marg_names(self):
-    return list(self.marg.keys())
-
-#-------------------------------------------------------------------------------
-  def ret_cond_names(self):
-    return list(self.cond.keys())
 
 #-------------------------------------------------------------------------------
   def ret_pscale(self):
@@ -386,7 +374,7 @@ class Dist (Manifold):
 
     # Evaluate probabilities
     name = margcond_str(marg, cond)
-    prob = prob_divide(self.prob, other.prob, self._pscale, other.ret_pscale())
+    prob = div_prob(self.prob, other.prob, self._pscale, other.ret_pscale())
     return Dist(name=name, 
                 vals=vals, 
                 dims=self.dims, 

@@ -77,14 +77,18 @@ def prod_dist(*args, **kwds):
   vals = [arg.vals for arg in args]
   probs = [arg.prob for arg in args]
 
+  # Check for uniqueness in marginal keys
+  marg_keys = []
+  for arg in args:
+    marg_keys.extend(list(arg.marg.keys()))
+  assert len(marg_keys) == len(set(marg_keys)), \
+      "Non-unique marginal variables currently not supported: {}".format(marg_keys)
+
   # Extract marginal and conditional names
-  marg_names = [arg.ret_marg_names() for arg in args]
-  cond_names = [arg.ret_cond_names() for arg in args]
+  marg_names = [list(arg.marg.values()) for arg in args]
+  cond_names = [list(arg.cond.values()) for arg in args]
   prod_marg = [name for dist_marg_names in marg_names \
                           for name in dist_marg_names]
-  assert len(prod_marg) == len(set(prod_marg)), \
-      "Marginal variable names not unique across distributions: {}".\
-      format(prod_marg)
   prod_marg_name = ','.join(prod_marg)
 
   # Maybe fast-track identical conditionals
@@ -177,7 +181,7 @@ def prod_dist(*args, **kwds):
   for arg in args:
     dims = [dim for dim in arg.dims.values() if dim is not None]
     assert len(dims) == len(set(dims)), \
-        "Shared dimensionality not yet supported for prod_dist :("
+        "Shared dimensionality across marginals currently not supported ."
 
   # Reshape values - they require no axes swapping
   ones_ndims = np.ones(prod_ndims, dtype=int)

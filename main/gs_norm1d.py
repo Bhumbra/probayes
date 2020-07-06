@@ -13,12 +13,12 @@ rand_mean = 50.
 rand_stdv = 10.
 mu_lims = {40, 60}
 sigma_lims = {5, 20.}
-resolution = {'mu': {100}, 'sigma': {200}}
+resolution = {'mu': {192}, 'sigma': {256}}
 
 # Generate data
 data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 
-# RVs
+# Declare RVs
 mu = prob.RV('mu', mu_lims, vtype=float)
 sigma = prob.RV('sigma', sigma_lims, vtype=float)
 x = prob.RV('x', {-np.inf, np.inf}, vtype=float)
@@ -29,11 +29,14 @@ sigma.set_prob(lambda x: 1./x)
 
 # Set up params and models
 params = prob.SJ(mu, sigma)
-#params.set_use_vfun(False)
 model = prob.SC(x, params)
+model.set_prob(scipy.stats.norm.pdf,
+               order={'x':0, 'mu':'loc', 'sigma':'scale'})
+"""
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')
+"""
 
 # Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)

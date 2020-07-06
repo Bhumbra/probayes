@@ -6,7 +6,7 @@ import numpy as np
 from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
-from prob.vtypes import eval_vtype, isscalar
+from prob.vtypes import eval_vtype, isscalar, isunitsetint
 from prob.pscales import NEARLY_POSITIVE_INF
 
 """

@@ -200,7 +200,7 @@ def prod_rule(*args, **kwds):
   return prob, pscale
 
 #-------------------------------------------------------------------------------
-def prob_divide(dividend, divisor, *args):
+def div_prob(dividend, divisor, *args):
   pscales = [1., 1]
   if len(args):
     assert len(args) == 2, "Both pscales must be specified if at all"

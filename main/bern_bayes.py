@@ -15,18 +15,16 @@ sym_if_undis = 0.1
 
 # SET UP RANDOM VARIABLES
 dis = prob.RV('dis', prob=prevalence)
-sym = prob.RV('sym', vtype=bool)
+sym = prob.RV('sym')
 
 # SET UP STOCHASTIC CONDITION AND CONDITIONAL PROBABILITY
 sym_given_dis = prob.SC(sym, dis)
-c_sum_given_dis = np.array([1-sym_if_undis, sym_if_undis, \
-                            1-sym_if_dis,   sym_if_dis]).reshape((2,2))
-sym_given_dis.set_prob(c_sum_given_dis)
+sym_given_dis.set_prob(np.array([1-sym_if_undis, sym_if_undis, \
+                                 1-sym_if_dis,   sym_if_dis]).reshape((2,2)))
 
 # CALL THE PROBABILITIES
-p_dis = dis()
-p_sym_given_dis = sym_given_dis()
-p_sym_and_dis = p_dis * p_sym_given_dis
-p_dis_given_sym = p_sym_and_dis.conditionalise('sym')
-p_dis_true_given_sym_true = p_dis_given_sym({'dis': True, 'sym': True})
-print(p_dis_true_given_sym_true)
+prior = dis()
+likelihood = sym_given_dis()
+posterior = (prior * likelihood).conditionalise('sym')
+inference = posterior({'dis': True, 'sym': True})
+print(inference)
