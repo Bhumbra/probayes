@@ -5,7 +5,7 @@
 import collections
 import numpy as np
 from prob.vtypes import isscalar, isunitsetint
-from prob.ptypes import rescale, prod_ptype, prod_rule, iscomplex
+from prob.pscales import rescale, prod_pscale, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
 def str2key(string):
@@ -63,17 +63,17 @@ def prod_dist(*args, **kwds):
   2. Conditional variables must be identical unless contained as marginal from
      another distribution.
   """
-  # Check ptypes, scalars, possible fasttrack
+  # Check pscales, scalars, possible fasttrack
   if not len(args):
     return None
   dist_obj = type(args[0])
   kwds = dict(kwds)
-  ptypes = [arg.ret_ptype() for arg in args]
-  ptype = kwds.get('ptype', None) or prod_ptype(ptypes)
+  pscales = [arg.ret_pscale() for arg in args]
+  pscale = kwds.get('pscale', None) or prod_pscale(pscales)
   arescalars = [arg.ret_isscalar() for arg in args]
   maybe_fasttrack = all(arescalars) and \
-                    np.all(ptype == np.array(ptypes)) and \
-                    ptype in [0, 1.]
+                    np.all(pscale == np.array(pscales)) and \
+                    pscale in [0, 1.]
   vals = [arg.vals for arg in args]
   probs = [arg.prob for arg in args]
 
@@ -109,8 +109,8 @@ def prod_dist(*args, **kwds):
             for j, key in enumerate(prod_vals.keys()):
               if prod_val_isunitsetint[j]:
                 prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
-        prob = float(sum(probs)) if iscomplex(ptype) else float(np.prod(probs))
-        return dist_obj(prod_name, prod_vals, prob, ptype)
+        prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
+        return dist_obj(prod_name, prod_vals, prob, pscale)
 
    # Check cond->marg accounts for all differences between conditionals
   flat_cond_names = [name for dist_cond_names in cond_names \
@@ -170,8 +170,8 @@ def prod_dist(*args, **kwds):
 
   # Fast-track scalar products
   if maybe_fasttrack and prod_ndims == 0:
-     prob = float(sum(probs)) if iscomplex(ptype) else float(np.prod(probs))
-     return dist(prod_name, prod_vals, prob, ptype)
+     prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
+     return dist(prod_name, prod_vals, prob, pscale)
 
   # Exclude shared dimensions
   for arg in args:
@@ -215,9 +215,9 @@ def prod_dist(*args, **kwds):
       probs[i] = probs[i].reshape(re_shape)
 
   # Multiply the probabilities and output the result as a distribution instance
-  prob, ptype = prod_rule(*tuple(probs), ptypes=ptypes, ptype=ptype)
+  prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
 
-  return dist_obj(prod_name, prod_vals, dimension, prob, ptype)
+  return dist_obj(prod_name, prod_vals, dimension, prob, pscale)
 
 
 #-------------------------------------------------------------------------------
@@ -226,7 +226,7 @@ def sum_dist(*args):
   if not len(args):
     return None
   dist_obj = type(args[0])
-  ptypes = [arg.ret_ptype() for arg in args]
+  pscales = [arg.ret_pscale() for arg in args]
   vals = [arg.vals for arg in args]
   probs = [arg.prob for arg in args]
 
@@ -247,7 +247,7 @@ def sum_dist(*args):
 
   # Find concatenation dimension
   sum_name = args[0].ret_name()
-  sum_ptype = args.ret_ptype[0]
+  sum_pscale = args.ret_pscale[0]
   sum_vals = collections.OrderedDict(vals[0])
   sum_dim = [None] * (len(args) - 1)
   for i, arg in enumerate(args):
@@ -273,6 +273,6 @@ def sum_dist(*args):
     sum_vals[key] = np.concatenate([sum_vals[key], val[key]], axis=sum_dim)
     sub_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
 
-  return dist_obj(sum_name, sum_vals, sum_prob, sum_ptype)
+  return dist_obj(sum_name, sum_vals, sum_prob, sum_pscale)
 
 #-------------------------------------------------------------------------------

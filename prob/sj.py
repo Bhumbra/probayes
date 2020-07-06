@@ -9,7 +9,7 @@ import numpy as np
 from prob.rv import RV, io_use_vfun
 from prob.dist import Dist
 from prob.vtypes import isscalar
-from prob.ptypes import eval_ptype, prod_ptype, prod_rule
+from prob.pscales import eval_pscale, prod_pscale, prod_rule
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -21,14 +21,14 @@ class SJ:
   _keys = None
   _keyset = None
   _defiid = None
-  _ptype = None
+  _pscale = None
   _use_vfun = None
   _arg_order = None
   _as_scalar = None # dictionary of bools
   _prob = None
   _prob_args = None
   _prob_kwds = None
-  _ptype = None
+  _pscale = None
 
   # Private
   __callable = None
@@ -73,7 +73,7 @@ class SJ:
     self._keyset = set(self._keys)
     self._defiid = self._keyset
     self._name = ','.join(self._keys)
-    self.set_ptype()
+    self.set_pscale()
     return self._nrvs
   
 #-------------------------------------------------------------------------------
@@ -104,25 +104,25 @@ class SJ:
     return self._keyset
 
 #-------------------------------------------------------------------------------
-  def set_ptype(self, ptype=None):
-    if ptype is not None or not self._nrvs:
-      self._ptype = eval_ptype(ptype)
-      return self._ptype
+  def set_pscale(self, pscale=None):
+    if pscale is not None or not self._nrvs:
+      self._pscale = eval_pscale(pscale)
+      return self._pscale
     rvs = self.ret_rvs(aslist=True)
-    ptypes = [rv.ret_ptype() for rv in rvs]
-    self._ptype = prod_ptype(ptypes)
-    return self._ptype
+    pscales = [rv.ret_pscale() for rv in rvs]
+    self._pscale = prod_pscale(pscales)
+    return self._pscale
 
 #-------------------------------------------------------------------------------
-  def ret_ptype(self):
-    return self._ptype
+  def ret_pscale(self):
+    return self._pscale
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):
     kwds = dict(kwds)
-    if 'ptype' in kwds:
-      ptype = kwds.pop('ptype')
-      self.set_ptype(ptype)
+    if 'pscale' in kwds:
+      pscale = kwds.pop('pscale')
+      self.set_pscale(pscale)
     self._prob = prob
     self._prob_args = tuple(args)
     self._prob_kwds = kwds
@@ -262,9 +262,9 @@ class SJ:
         values.keys(), self._keys())
     if self._prob is None:
       rvs = self.ret_rvs(aslist=True)
-      ptypes = np.array([rv.ret_ptype() for rv in rvs])
+      pscales = np.array([rv.ret_pscale() for rv in rvs])
       probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
-      prob, ptype = prod_rule(*tuple(probs), ptypes=ptypes, ptype=self._ptype)
+      prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=self._pscale)
       return prob
     if self.__callable:
       args = list(self._prob_args)
@@ -348,8 +348,8 @@ class SJ:
     prob = self.eval_prob(vals)
     vals = self.vfun_1(vals, self._use_vfun[1])
     if not iid: 
-      return Dist(dist_name, vals, dims, prob, self._ptype)
-    return Dist(dist_name, vals, dims, prob, self._ptype).prod(iid)
+      return Dist(dist_name, vals, dims, prob, self._pscale)
+    return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
 
 #-------------------------------------------------------------------------------
   def __len__(self):

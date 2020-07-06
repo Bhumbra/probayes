@@ -8,7 +8,7 @@ import prob
 norm_range = {-3., 3.}
 set_size = {20}
 rv = prob.RV("norm", norm_range, prob=scipy.stats.norm, 
-             ptype='log', loc=0, scale=1)
+             pscale='log', loc=0, scale=1)
 pdf = rv(set_size)
 pdf.rescale()
 plot(pdf.vals['norm'], pdf.prob)

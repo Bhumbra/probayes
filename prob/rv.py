@@ -7,7 +7,7 @@ from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, isscalar
-from prob.ptypes import NEARLY_POSITIVE_INF
+from prob.pscales import NEARLY_POSITIVE_INF
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
@@ -85,12 +85,12 @@ class RV (_Vals, _Prob):
                      vset=None, 
                      vtype=None,
                      prob=None,
-                     ptype=None,
+                     pscale=None,
                      *args,
                      **kwds):
     self.set_name(name)
     self.set_vset(vset, vtype)
-    self.set_prob(prob, ptype, *args, **kwds)
+    self.set_prob(prob, pscale, *args, **kwds)
     self.set_vfun()
 
 #-------------------------------------------------------------------------------
@@ -107,8 +107,8 @@ class RV (_Vals, _Prob):
     return self._name
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, ptype=None, *args, **kwds):
-    super().set_prob(prob, ptype, *args, **kwds)
+  def set_prob(self, prob=None, pscale=None, *args, **kwds):
+    super().set_prob(prob, pscale, *args, **kwds)
 
     # Default unspecified probabilities to uniform over self._vset is given
     if self._prob is None:
@@ -122,9 +122,9 @@ class RV (_Vals, _Prob):
         elif self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
           lo, hi = self.get_bounds(use_vfun=False)
           prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
-        if self._ptype != 1.:
-          prob = rescale(prob, self._ptype)
-        super().set_prob(prob, self._ptype)
+        if self._pscale != 1.:
+          prob = rescale(prob, self._pscale)
+        super().set_prob(prob, self._pscale)
 
     # Otherwise check uncallable probabilities commensurate with self._vset
     elif not self.ret_callable() and not self.ret_isscalar():
@@ -187,7 +187,7 @@ class RV (_Vals, _Prob):
     vals = self.vfun_1(vals, self._use_vfun[1])
     vals_dict = collections.OrderedDict({self._name: vals})
     dims = {self._name: None} if isscalar(vals) else {self._name: 0}
-    return Dist(dist_name, vals_dict, dims, prob, self._ptype)
+    return Dist(dist_name, vals_dict, dims, prob, self._pscale)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

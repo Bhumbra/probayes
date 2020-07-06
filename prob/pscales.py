@@ -1,5 +1,5 @@
 """
-A module that handles probability calculations according different ptypes that
+A module that handles probability calculations according different pscales that
 may represent probability coefficients (positive float scalars) or log 
 probability offsets (complex float scalars).
 """
@@ -14,31 +14,31 @@ LOG_NEARLY_POSITIVE_INF = np.log(NEARLY_POSITIVE_INF)
 COMPLEX_ZERO = complex(0., 0.)
 
 #-------------------------------------------------------------------------------
-def iscomplex(ptype):
-  return isinstance(ptype, complex)
+def iscomplex(pscale):
+  return isinstance(pscale, complex)
 
 #-------------------------------------------------------------------------------
-def eval_ptype(ptype=None):
-  """ Returns a float or complex ptype with the following conventions:
-  if ptype is None, returns 1.
-  if ptype is 'log' or 'ln' or 0, returns 0.j.
-  otherwise ptype must be real or complex, then it is returned
+def eval_pscale(pscale=None):
+  """ Returns a float or complex pscale with the following conventions:
+  if pscale is None, returns 1.
+  if pscale is 'log' or 'ln' or 0, returns 0.j.
+  otherwise pscale must be real or complex, then it is returned
   """
-  if ptype is None:
+  if pscale is None:
     return 1.
-  if ptype == 1:
+  if pscale == 1:
     return 1.
-  if ptype in ['log', 'ln', 0]:
+  if pscale in ['log', 'ln', 0]:
     return COMPLEX_ZERO
-  if isinstance(ptype, int):
-    return float(ptype)
-  if isinstance(ptype, float):
-    if ptype == 0.:
+  if isinstance(pscale, int):
+    return float(pscale)
+  if isinstance(pscale, float):
+    if pscale == 0.:
       return COMPLEX_ZERO
-    return ptype
-  if iscomplex(ptype):
-    return ptype
-  raise ValueError("Cannot evaluate ptype={}".format(ptype))
+    return pscale
+  if iscomplex(pscale):
+    return pscale
+  raise ValueError("Cannot evaluate pscale={}".format(pscale))
 
 #-------------------------------------------------------------------------------
 def log_prob(prob):
@@ -55,42 +55,42 @@ def exp_logp(logp):
   return prob
 
 #-------------------------------------------------------------------------------
-def logp_offs(ptype=None):
-  ptype = eval_ptype(ptype)
-  if not iscomplex(ptype):
-    return float(np.log(ptype))
-  if np.abs(np.imag(ptype)) < NEARLY_POSITIVE_ZERO:
-    return float(np.real(ptype))
-  return -float(np.real(ptype))
+def logp_offs(pscale=None):
+  pscale = eval_pscale(pscale)
+  if not iscomplex(pscale):
+    return float(np.log(pscale))
+  if np.abs(np.imag(pscale)) < NEARLY_POSITIVE_ZERO:
+    return float(np.real(pscale))
+  return -float(np.real(pscale))
 
 #-------------------------------------------------------------------------------
-def prob_coef(ptype=None):
-  ptype = eval_ptype(ptype)
-  if not iscomplex(ptype):
-    return float(ptype)
-  if np.abs(np.imag(ptype)) < NEARLY_POSITIVE_ZERO:
-    return np.exp(float(np.real(ptype)))
-  return np.exp(-float(np.real(ptype)))
+def prob_coef(pscale=None):
+  pscale = eval_pscale(pscale)
+  if not iscomplex(pscale):
+    return float(pscale)
+  if np.abs(np.imag(pscale)) < NEARLY_POSITIVE_ZERO:
+    return np.exp(float(np.real(pscale)))
+  return np.exp(-float(np.real(pscale)))
 
 #-------------------------------------------------------------------------------
 def rescale(prob, *args):
-  """ Rescales prob according to ptypes given in args """
-  ptype, rtype = None, None
+  """ Rescales prob according to pscales given in args """
+  pscale, rtype = None, None
   if len(args) == 0: 
     return prob
   elif len(args) ==  1: 
     rtype = args[0]
   else: 
-    ptype, rtype = args[0], args[1]
-  ptype, rtype = eval_ptype(ptype), eval_ptype(rtype)
-  if ptype == rtype:
+    pscale, rtype = args[0], args[1]
+  pscale, rtype = eval_pscale(pscale), eval_pscale(rtype)
+  if pscale == rtype:
     return prob
   
-  p_log, r_log = iscomplex(ptype), iscomplex(rtype)
+  p_log, r_log = iscomplex(pscale), iscomplex(rtype)
 
   # Support non-logarithmic conversion (maybe used to avoid logging zeros)
   if not p_log and not r_log:
-    coef = ptype / rtype
+    coef = pscale / rtype
     if coef == 1.:
       return prob
     else:
@@ -98,25 +98,25 @@ def rescale(prob, *args):
 
   # For floating point precision, perform other operations in log-space
   if not p_log: prob = log_prob(prob)
-  d_offs = logp_offs(ptype) - logp_offs(rtype)
+  d_offs = logp_offs(pscale) - logp_offs(rtype)
   if np.abs(d_offs) >= NEARLY_POSITIVE_ZERO: prob = prob + d_offs
   if r_log:
     return prob
   return exp_logp(prob)
 
 #-------------------------------------------------------------------------------
-def prod_ptype(ptypes, use_logp=None):
-  if not len(ptypes):
+def prod_pscale(pscales, use_logp=None):
+  if not len(pscales):
     return None
   if use_logp is None:
-    use_logp = any([iscomplex(ptype) for ptype in ptypes])
+    use_logp = any([iscomplex(pscale) for pscale in pscales])
   rtype = 0. if use_logp else 1.
-  for _ptype in ptypes:
-    ptype = eval_ptype(_ptype)
+  for _pscale in pscales:
+    pscale = eval_pscale(_pscale)
     if use_logp:
-      rtype += logp_offs(ptype)
+      rtype += logp_offs(pscale)
     else:
-      rtype *= prob_coef(ptype)
+      rtype *= prob_coef(pscale)
   if use_logp:
     if abs(rtype) < NEARLY_POSITIVE_ZERO:
       return COMPLEX_ZERO
@@ -128,16 +128,16 @@ def prod_ptype(ptypes, use_logp=None):
 
 #-------------------------------------------------------------------------------
 def prod_rule(*args, **kwds):
-  """ Returns prod, ptype. Reshaping is the responsibility of Dist. """
+  """ Returns prod, pscale. Reshaping is the responsibility of Dist. """
   kwds = dict(kwds)
-  ptypes = kwds.get('ptypes', [1.] * len(args))
-  use_logp = kwds.get('use_logp', any([iscomplex(_ptype) for _ptype in ptypes]))
-  pptype = prod_ptype(ptypes, use_logp)
-  ptype = kwds.get('ptype', pptype)
+  pscales = kwds.get('pscales', [1.] * len(args))
+  use_logp = kwds.get('use_logp', any([iscomplex(_pscale) for _pscale in pscales]))
+  ppscale = prod_pscale(pscales, use_logp)
+  pscale = kwds.get('pscale', ppscale)
   n_args = len(args)
-  assert len(ptypes) == n_args, \
-      "Input ptypes length {} incommensurate with number of arguments {}".\
-      format(len(ptypes), n_args)
+  assert len(pscales) == n_args, \
+      "Input pscales length {} incommensurate with number of arguments {}".\
+      format(len(pscales), n_args)
   
   def _apply_prod(probs):
     # Numpy sum() and prod() produce inconsistent results with lists
@@ -153,17 +153,17 @@ def prod_rule(*args, **kwds):
     return prob
 
   # Possibly fast-track
-  if use_logp != iscomplex(pptype):
-    pptype = complex(np.log(pptype), 0.) if use_logp else float(np.exp(pptype))
-  elif use_logp == iscomplex(ptype) and pptype == ptype and \
-      len(set([iscomplex(_ptype) for _ptype in ptypes])) == 1:
+  if use_logp != iscomplex(ppscale):
+    ppscale = complex(np.log(ppscale), 0.) if use_logp else float(np.exp(ppscale))
+  elif use_logp == iscomplex(pscale) and ppscale == pscale and \
+      len(set([iscomplex(_pscale) for _pscale in pscales])) == 1:
     prob = _apply_prod(list(args))
-    return prob, ptype
+    return prob, pscale
 
   # Otherwise exp/log before evaluating product
   probs = [None] * n_args
   for i, arg in enumerate(args):
-    p_log = iscomplex(ptypes[i])
+    p_log = iscomplex(pscales[i])
     probs[i] = args[i]
     if use_logp:
       if not p_log:
@@ -172,9 +172,9 @@ def prod_rule(*args, **kwds):
       if p_log:
         probs[i] = exp_logp(probs[i])
   prob = _apply_prod(probs)
-  if use_logp != iscomplex(ptype):
-    prob = rescale(prob, pptype, ptypes)
+  if use_logp != iscomplex(pscale):
+    prob = rescale(prob, ppscale, pscales)
 
-  return prob, ptype
+  return prob, pscale
 
 #-------------------------------------------------------------------------------

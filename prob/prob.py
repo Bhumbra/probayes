@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 import scipy.stats
 from prob.vtypes import isscalar
-from prob.ptypes import eval_ptype, rescale, iscomplex
+from prob.pscales import eval_pscale, rescale, iscomplex
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
@@ -29,7 +29,7 @@ class _Prob (ABC):
 
   # Protected
   _prob = None      # Probability distribution function
-  _ptype = None     # Probability type (can be a scipy.stats.dist object)
+  _pscale = None     # Probability type (can be a scipy.stats.dist object)
   _prob_args = None #
   _prob_kwds = None #
   _pfun = None      # 2-length tuple of cdf/icdf
@@ -42,11 +42,11 @@ class _Prob (ABC):
   __callable = None # Flag for callable function
 
 #-------------------------------------------------------------------------------
-  def __init__(self, prob=None, ptype=None, *args, **kwds):
-    self.set_prob(prob, ptype, *args, **kwd)
+  def __init__(self, prob=None, pscale=None, *args, **kwds):
+    self.set_prob(prob, pscale, *args, **kwd)
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, ptype=None, *args, **kwds):
+  def set_prob(self, prob=None, pscale=None, *args, **kwds):
     self._prob = prob
     self._prob_args = tuple(args)
     self._prob_kwds = dict(kwds)
@@ -66,8 +66,8 @@ class _Prob (ABC):
     else:
       self._prob = prob;
 
-    # Set ptype and distinguish between non-callable and callable self._prob
-    self.set_ptype(ptype) # this defaults self._pfun
+    # Set pscale and distinguish between non-callable and callable self._prob
+    self.set_pscale(pscale) # this defaults self._pfun
     self.__callable = callable(self._prob)
     if self.__callable:
       self.__scalar = False
@@ -83,18 +83,18 @@ class _Prob (ABC):
     return self.__callable
 
 #-------------------------------------------------------------------------------
-  def set_ptype(self, ptype=None):
+  def set_pscale(self, pscale=None):
     """
     Positive denotes a normalising coefficient.
     If zero or negative, denotes log probability offset ('log' or 'ln' means '0.0').
     May also be scipy.stats.distribution variable type to set everything else.
     """
-    self._ptype = eval_ptype(ptype)
+    self._pscale = eval_pscale(pscale)
 
-    # Probe pset to set functions based on ptype setting
+    # Probe pset to set functions based on pscale setting
     if self.__pset:
       assert self._prob is None, "Cannot use scipy.stats.dist while also setting prob"
-      if not iscomplex(self._ptype):
+      if not iscomplex(self._pscale):
         if hasattr(self.__pset, 'pdf'):
           self._prob = self.__pset.pdf
         elif hasattr(self.__pset, 'pmf'):
@@ -115,13 +115,13 @@ class _Prob (ABC):
                       *self._prob_args, **self._prob_kwds)
       else:
         warnings.warn("Cannot find cdf and ppf functions for {}"\
-                      .format(self._ptype))
+                      .format(self._pscale))
         self.set_pfun()
-    elif self._ptype != 1.:
-      assert self._prob is not None, "Cannot specify ptype without setting prob"
+    elif self._pscale != 1.:
+      assert self._prob is not None, "Cannot specify pscale without setting prob"
       self.set_pfun()
 
-    return self._ptype
+    return self._pscale
 
 #-------------------------------------------------------------------------------
   def ret_pset(self):
@@ -148,8 +148,8 @@ class _Prob (ABC):
     return self.__scalar
 
 #-------------------------------------------------------------------------------
-  def ret_ptype(self):
-    return self._ptype
+  def ret_pscale(self):
+    return self._pscale
 
 #-------------------------------------------------------------------------------
   def ret_pset(self):
@@ -157,7 +157,7 @@ class _Prob (ABC):
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None, **kwds):
-    """ keys can include ptype """
+    """ keys can include pscale """
 
     # Callable and non-callable evaluations
     prob = self._prob
@@ -166,15 +166,15 @@ class _Prob (ABC):
     else:
       assert values is None, \
           "Cannot evaluate from values from an uncallable probability function"
-    if 'ptype' in kwds:
-      return self.rescale(probs, kwds['ptype'])
+    if 'pscale' in kwds:
+      return self.rescale(probs, kwds['pscale'])
     return prob
 
 #-------------------------------------------------------------------------------
   def rescale(self, probs, **kwds):
-    if 'ptype' not in kwds:
+    if 'pscale' not in kwds:
       return probs
-    return rescale(probs, self._ptype, kwds['ptype'])
+    return rescale(probs, self._pscale, kwds['pscale'])
 
 #-------------------------------------------------------------------------------
   @abstractmethod

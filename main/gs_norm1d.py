@@ -33,7 +33,7 @@ params = prob.SJ(mu, sigma)
 model = prob.SC(x, params)
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
-               ptype='log')
+               pscale='log')
 
 # Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
@@ -50,6 +50,7 @@ pcolor(
        np.ravel(posterior.vals['mu']), 
        post_prob[:-1, :-1]
       )
+colorbar()
 xlabel(r'$\sigma$')
 ylabel(r'$\mu$')
-colorbar()
+xscale('log')

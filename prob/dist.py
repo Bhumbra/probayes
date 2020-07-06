@@ -6,7 +6,7 @@ import collections
 import numpy as np
 from prob.dist_ops import str_margcond, margcond_str, prod_dist
 from prob.vtypes import isscalar
-from prob.ptypes import eval_ptype, rescale, prod_ptype, prod_rule, iscomplex
+from prob.pscales import eval_pscale, rescale, prod_pscale, prod_rule, iscomplex
 from prob.manifold import Manifold
 
 #-------------------------------------------------------------------------------
@@ -24,13 +24,13 @@ class Dist (Manifold):
   # Protected
   _keyset = None        # Keys as set according to name
   _marg_scalarset = None # Set of marginal scalar keys
-  _ptype = None         # Same convention as _Prob
+  _pscale = None         # Same convention as _Prob
 
 #-------------------------------------------------------------------------------
-  def __init__(self, name=None, vals=None, dims=None, prob=None, ptype=None):
+  def __init__(self, name=None, vals=None, dims=None, prob=None, pscale=None):
     self.set_name(name)
     self.set_vals(vals, dims)
-    self.set_prob(prob, ptype)
+    self.set_prob(prob, pscale)
 
 #-------------------------------------------------------------------------------
   def set_name(self, name=None):
@@ -68,11 +68,11 @@ class Dist (Manifold):
     return argout
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, ptype=None):
+  def set_prob(self, prob=None, pscale=None):
     self.prob = prob
-    self._ptype = eval_ptype(ptype)
+    self._pscale = eval_pscale(pscale)
     if self.prob is None:
-      return self._ptype
+      return self._pscale
     if self._isscalar:
       assert isscalar(self.prob), "Scalar vals with non-scalar prob"
     else:
@@ -83,7 +83,7 @@ class Dist (Manifold):
       assert np.all(np.array(self.shape) == np.array(self.prob.shape)), \
         "Mismatch in dimensions between values {} and probabilities {}".\
         format(self.shape, self.prob.shape)
-    return self._ptype
+    return self._pscale
 
 #-------------------------------------------------------------------------------
   def marginalise(self, keys):
@@ -113,14 +113,14 @@ class Dist (Manifold):
           dims.update({key: self.dims[key] - dim_delta})
         vals.update({key:self.vals[key]})
     name = margcond_str(marg, cond)
-    prob = rescale(self.prob, self._ptype, 1.)
+    prob = rescale(self.prob, self._pscale, 1.)
     sum_prob = np.sum(prob, axis=tuple(sum_axes), keepdims=False)
-    prob = rescale(sum_prob, 1., self._ptype)
+    prob = rescale(sum_prob, 1., self._pscale)
     return Dist(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
-                ptype=self._ptype)
+                pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def marginal(self, keys):
@@ -199,19 +199,19 @@ class Dist (Manifold):
     dims.update(cond_dims)
     name = margcond_str(marg, cond)
     vals = self.redim(dims).vals
-    prob = rescale(self.prob, self._ptype, 1.)
+    prob = rescale(self.prob, self._pscale, 1.)
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
     if normalise:
       prob = prob / np.maximum(DIVISOR_MINIMUM, np.sum(prob))
     if len(sum_axes):
       prob = prob / np.maximum(DIVISOR_MINIMUM,
                         np.sum(prob, axis=tuple(sum_axes), keepdims=True))
-    prob = rescale(prob, 1., self._ptype)
+    prob = rescale(prob, 1., self._pscale)
     return Dist(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
-                ptype=self._ptype)
+                pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def prod(self, keys):
@@ -242,21 +242,21 @@ class Dist (Manifold):
           dims.update({key: self.dims[key] - dim_delta})
         vals.update({key:self.vals[key]})
     name = margcond_str(marg, cond)
-    ptype = self._ptype
-    ptype_product = ptype
-    if ptype_product not in [0., 1.]:
-      ptype_scaling = np.prod(np.array(self.shape)[prod_axes])
-      if iscomplex(ptype):
-        ptype_product += ptype*ptype_scaling 
+    pscale = self._pscale
+    pscale_product = pscale
+    if pscale_product not in [0., 1.]:
+      pscale_scaling = np.prod(np.array(self.shape)[prod_axes])
+      if iscomplex(pscale):
+        pscale_product += pscale*pscale_scaling 
       else:
-        ptype_product *= ptype**ptype_scaling 
-    prob = np.sum(self.prob, axis=tuple(prod_axes)) if iscomplex(ptype) \
+        pscale_product *= pscale**pscale_scaling 
+    prob = np.sum(self.prob, axis=tuple(prod_axes)) if iscomplex(pscale) \
            else np.prod(self.prob, axis=tuple(prod_axes))
     return Dist(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
-                ptype=ptype_product)
+                pscale=pscale_product)
 
 #-------------------------------------------------------------------------------
   def ret_keyset(self):
@@ -271,12 +271,12 @@ class Dist (Manifold):
     return list(self.cond.keys())
 
 #-------------------------------------------------------------------------------
-  def ret_ptype(self):
-    return self._ptype
+  def ret_pscale(self):
+    return self._pscale
 
 #-------------------------------------------------------------------------------
-  def rescale(self, ptype=None):
-    self.set_prob(rescale(self.prob, self._ptype, ptype), ptype)
+  def rescale(self, pscale=None):
+    self.set_prob(rescale(self.prob, self._pscale, pscale), pscale)
     return self.prob
 
 #-------------------------------------------------------------------------------
@@ -330,7 +330,7 @@ class Dist (Manifold):
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
-                ptype=self._ptype)
+                pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
@@ -342,7 +342,7 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
-    prefix = 'logp' if iscomplex(self._ptype) else 'p'
+    prefix = 'logp' if iscomplex(self._pscale) else 'p'
     suffix = '' if not self._isscalar else '={}'.format(self.prob)
     return super().__repr__() + ": " + prefix + "(" + self.name + ")" + suffix
 
