@@ -57,7 +57,7 @@ def margcond_str(marg, cond):
   return '|'.join([marg_str, cond_str]) if cond_str else marg_str
 
 #-------------------------------------------------------------------------------
-def prod_dist(*args, **kwds):
+def product(*args, **kwds):
   """ Multiplies two or more distributions subject to the following:
   1. They must not share the same marginal variables. 
   2. Conditional variables must be identical unless contained as marginal from
@@ -114,7 +114,7 @@ def prod_dist(*args, **kwds):
               if prod_val_isunitsetint[j]:
                 prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
         prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-        return dist_obj(prod_name, prod_vals, prob, pscale)
+        return dist_obj(prod_name, prod_vals, {}, prob, pscale)
 
    # Check cond->marg accounts for all differences between conditionals
   flat_cond_names = [name for dist_cond_names in cond_names \

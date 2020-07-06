@@ -24,23 +24,22 @@ sigma = prob.RV('sigma', sigma_lims, vtype=float)
 x = prob.RV('x', {-np.inf, np.inf}, vtype=float)
 
 # Set reciprocal prior for  sigma
-sigma.set_prob(lambda x: 1./x)
+sigma.set_vfun((np.log, np.exp))
 
 # Set up params and models
 params = prob.SJ(mu, sigma)
 model = prob.SC(x, params)
-model.set_prob(scipy.stats.norm.pdf,
-               order={'x':0, 'mu':'loc', 'sigma':'scale'})
+model.set_prob(scipy.stats.norm.logpdf,
+               order={'x':0, 'mu':'loc', 'sigma':'scale'},
+               pscale='log')
 
 # Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
 prior = params(likelihood.ret_vals(params.ret_keys()))
-prior_x_likelihood = prior * likelihood
-evidence = prior_x_likelihood.marginal('x')
-posterior = prior_x_likelihood / evidence
+posterior = prob.product(prior, likelihood).conditionalise('x')
 
 # Return posterior probability mass
-inference = posterior.prob
+inference = posterior.rescaled().prob
 
 # Plot posterior
 figure()
@@ -52,3 +51,4 @@ pcolor(
 colorbar()
 xlabel(r'$\sigma$')
 ylabel(r'$\mu$')
+xscale('log')

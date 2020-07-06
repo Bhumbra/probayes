@@ -17,12 +17,12 @@ sym_if_undis = 0.1
 dis = prob.RV('dis', prob=prevalence)
 sym = prob.RV('sym')
 
-# SET UP STOCHASTIC CONDITION AND CONDITIONAL PROBABILITY
+# SET UP STOCHASTIC CONDITION
 sym_given_dis = prob.SC(sym, dis)
 sym_given_dis.set_prob(np.array([1-sym_if_undis, sym_if_undis, \
                                  1-sym_if_dis,   sym_if_dis]).reshape((2,2)))
 
-# CALL THE PROBABILITIES
+# CALL PROBABILITIES
 prior = dis()
 likelihood = sym_given_dis()
 posterior = (prior * likelihood).conditionalise('sym')

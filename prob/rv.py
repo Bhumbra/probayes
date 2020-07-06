@@ -52,33 +52,10 @@ def nominal_uniform(vals=None, prob=1., vset=None):
   return prob
 
 #-------------------------------------------------------------------------------
-def io_use_vfun(use_vfun=True):
-  """ Fiddly function to interpret use_vfun for input/output purpses """
-  use_vfun = use_vfun.lower() if isinstance(use_vfun, str) else use_vfun
-  _use_vfun = None
-  if use_vfun is None or use_vfun == 'none':
-    use_vfun = False
-  if isinstance(use_vfun, (list, tuple)) and len(use_vfun) == 2:
-    _use_vfun = tuple(use_vfun)
-  elif type(use_vfun) is bool:
-    _use_vfun = (use_vfun, use_vfun)
-  elif isinstance(use_vfun, str):
-    if use_vfun == 'in':
-      _use_vfun = (True, False)
-    elif use_vfun == 'out':
-      _use_vfun = (False, True)
-    elif use_vfun == 'both':
-      _use_vfun = (True, True)
-  if _use_vfun is None:
-    raise ValueError("Unable to interpret use_vfun input {}".format(use_vfun))
-  return _use_vfun
-
-#-------------------------------------------------------------------------------
 class RV (_Vals, _Prob):
 
   # Protected
   _name = "rv"                # Name of the random variable
-  _use_vfun = None            # 'in', 'out', 'both' (or True), 'None' (or None,False)
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
@@ -120,7 +97,7 @@ class RV (_Vals, _Prob):
           nvset = len(self._vset)
           prob = NEARLY_POSITIVE_INF if not nvset else 1. / float(nvset)
         elif self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
-          lo, hi = self.get_bounds(use_vfun=False)
+          lo, hi = self.get_bounds()
           prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
         if self._pscale != 1.:
           prob = rescale(prob, self._pscale)
@@ -137,20 +114,6 @@ class RV (_Vals, _Prob):
         self.set_vset(self._vset, vtype=float)
     return self.ret_callable()
    
-#-------------------------------------------------------------------------------
-  def set_vfun(self, vfun=None, *args, **kwds):
-    super().set_vfun(vfun, *args, **kwds)
-    self.set_use_vfun()
-
-#-------------------------------------------------------------------------------
-  def set_use_vfun(self, use_vfun=True):
-    self._use_vfun = io_use_vfun(use_vfun)
-    return self._use_vfun
-
-#-------------------------------------------------------------------------------
-  def ret_use_vfun(self):
-    return self._use_vfun
-
 #-------------------------------------------------------------------------------
   def eval_dist(self, values=None):
     if values is None:
@@ -182,9 +145,8 @@ class RV (_Vals, _Prob):
         assert self.ret_callable() is False, \
           "Values required for callable prob over continuous variable sets" 
     dist_name = self.eval_dist_name(values)
-    vals = self.eval_vals(values, self._use_vfun[0])
+    vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    vals = self.vfun_1(vals, self._use_vfun[1])
     vals_dict = collections.OrderedDict({self._name: vals})
     dims = {self._name: None} if isscalar(vals) else {self._name: 0}
     return Dist(dist_name, vals_dict, dims, prob, self._pscale)

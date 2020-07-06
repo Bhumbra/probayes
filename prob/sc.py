@@ -18,7 +18,6 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
     self.set_prob()
-    self.set_use_vfun()
     assert len(args) < 3, "Maximum of two initialisation arguments"
     arg0 = None if len(args) < 1 else args[0]
     arg1 = None if len(args) < 2 else args[1]

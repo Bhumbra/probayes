@@ -58,6 +58,8 @@ class _Vals (ABC):
     self._vfun_kwds = dict(kwds)
 
     if self._vfun is not None:
+      assert self._vtype in (float, np.dtype('float32'),  np.dtype('float64')), \
+          "Values transformation function only supported for floating point"
       message = "Input vfun be a two-sized tuple of callable functions"
       assert isinstance(self._vfun, tuple), message
       assert len(self._vfun) == 2, message
@@ -95,7 +97,7 @@ class _Vals (ABC):
     return lo, hi
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, values=None, use_vfun=True):
+  def eval_vals(self, values=None):
 
     # Default to arrays of complete sets
     if values is None:
@@ -118,7 +120,7 @@ class _Vals (ABC):
        
       # Continuous
       else:
-        lo, hi = self.get_bounds(use_vfun=False)
+        lo, hi = self.get_bounds(use_vfun=True)
         assert np.all(np.isfinite([lo, hi])), \
             "Cannot evaluate {} values for bounds: {}".format(values, vset)
         if number == 1:
@@ -127,8 +129,9 @@ class _Vals (ABC):
           values = np.linspace(lo, hi, number)
         else:
           values = np.random.uniform(lo, hi, size=-number)
+        return self.vfun_1(values)
 
-    return self.vfun_0(values, use_vfun)
+    return values
    
 #-------------------------------------------------------------------------------
   @abstractmethod

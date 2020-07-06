@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.dist_ops import str_margcond, margcond_str, prod_dist
+from prob.dist_ops import str_margcond, margcond_str, product
 from prob.vtypes import isscalar
 from prob.pscales import eval_pscale, rescale, iscomplex
 from prob.pscales import prod_pscale, prod_rule, div_prob
@@ -196,9 +196,8 @@ class Dist (Manifold):
     dims.update(cond_dims)
     name = margcond_str(marg, cond)
     vals = self.redim(dims).vals
-    prob = rescale(self.prob, self._pscale, 1.)
-    prob = np.moveaxis(prob, [*range(self.ndim)], swap)
-    prob = prob
+    prob = np.moveaxis(self.prob, [*range(self.ndim)], swap)
+    prob = rescale(prob, self._pscale, 1.)
     if normalise:
       prob = div_prob(prob, np.sum(prob))
     if len(sum_axes):
@@ -273,9 +272,13 @@ class Dist (Manifold):
     return self._cond_scalarset
 
 #-------------------------------------------------------------------------------
-  def rescale(self, pscale=None):
-    self.set_prob(rescale(self.prob, self._pscale, pscale), pscale)
-    return self.prob
+  def rescaled(self, pscale=None):
+    prob = rescale(np.copy(self.prob), self._pscale, pscale)
+    return Dist(name=self.name, 
+                vals=self.vals, 
+                dims=self.dims,
+                prob=prob, 
+                pscale=pscale)
 
 #-------------------------------------------------------------------------------
   def __call__(self, values):
@@ -332,7 +335,7 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    return prod_dist(*tuple([self, other]))
+    return product(*tuple([self, other]))
 
 #-------------------------------------------------------------------------------
   def __add__(self, other):

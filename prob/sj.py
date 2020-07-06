@@ -6,7 +6,7 @@ participate in a joint probability distribution function.
 import warnings
 import collections
 import numpy as np
-from prob.rv import RV, io_use_vfun
+from prob.rv import RV
 from prob.dist import Dist
 from prob.vtypes import isscalar
 from prob.pscales import eval_pscale, prod_pscale, prod_rule
@@ -22,7 +22,6 @@ class SJ:
   _keyset = None
   _defiid = None
   _pscale = None
-  _use_vfun = None
   _arg_order = None
   _as_scalar = None # dictionary of bools
   _prob = None
@@ -37,7 +36,6 @@ class SJ:
   def __init__(self, *args):
     self.set_rvs(*args)
     self.set_prob()
-    self.set_use_vfun()
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -300,35 +298,6 @@ class SJ:
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def set_use_vfun(self, use_vfun=True):
-    self._use_vfun = io_use_vfun(use_vfun)
-    return self._use_vfun
-
-#-------------------------------------------------------------------------------
-  def ret_use_vfun(self):
-    return self._use_vfun
-
-#-------------------------------------------------------------------------------
-  def vfun_0(self, values, use_vfun=True):
-    if not use_vfun:
-      return values
-    rvs = self.ret_rvs(aslist=True)
-    for key, rv in zip(self._self._keys, rvs):
-      if key in values:
-        values[key] = rv.vfun_0(values[key], use_vfun)
-    return values
-
-#-------------------------------------------------------------------------------
-  def vfun_1(self, values, use_vfun=True):
-    if not use_vfun:
-      return values
-    rvs = self.ret_rvs(aslist=True)
-    for key, rv in zip(self._keys, rvs):
-      if key in values:
-        values[key] = rv.vfun_1(values[key], use_vfun)
-    return values
-
-#-------------------------------------------------------------------------------
   def __call__(self, values=None, **kwds):  # Let's make this args ands kwds
     ''' 
     Returns a namedtuple of the rvs.
@@ -346,7 +315,6 @@ class SJ:
       values = collections.OrderedDict({key: values for key in self._keys})
     vals, dims = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    vals = self.vfun_1(vals, self._use_vfun[1])
     if not iid: 
       return Dist(dist_name, vals, dims, prob, self._pscale)
     return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
