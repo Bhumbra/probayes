@@ -1,3 +1,2 @@
-Correct vfun usage
 Support OMC
 Support MCMC
