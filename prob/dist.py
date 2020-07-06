@@ -6,11 +6,9 @@ import collections
 import numpy as np
 from prob.dist_ops import str_margcond, margcond_str, prod_dist
 from prob.vtypes import isscalar
-from prob.pscales import eval_pscale, rescale, prod_pscale, prod_rule, iscomplex
+from prob.pscales import eval_pscale, rescale, iscomplex
+from prob.pscales import prod_pscale, prod_rule, prob_divide
 from prob.manifold import Manifold
-
-#-------------------------------------------------------------------------------
-DIVISOR_MINIMUM = 1e-300
 
 #-------------------------------------------------------------------------------
 class Dist (Manifold):
@@ -22,8 +20,9 @@ class Dist (Manifold):
   cond = None   # Ordered dictionary of conditionals: key: name}
 
   # Protected
-  _keyset = None        # Keys as set according to name
+  _keyset = None         # Keys as set according to name
   _marg_scalarset = None # Set of marginal scalar keys
+  _cond_scalarset = None # Set of condition scalar keys
   _pscale = None         # Same convention as _Prob
 
 #-------------------------------------------------------------------------------
@@ -44,6 +43,7 @@ class Dist (Manifold):
   def set_vals(self, vals=None, dims=None):
     argout = super().set_vals(vals, dims)
     self._marg_scalarset = set()
+    self._cond_scalarset = set()
     if not self._keys:
       return argout
     for i, key in enumerate(self._keys):
@@ -57,6 +57,7 @@ class Dist (Manifold):
             change_name = True
             self.marg[key] = "{}={}".format(key, self.vals[key])
         elif key in self.cond.keys():
+          self._cond_scalarset.add(key)
           if '=' not in self.cond[key]:
             change_name = True
             self.cond[key] = "{}={}".format(key, self.vals[key])
@@ -201,11 +202,12 @@ class Dist (Manifold):
     vals = self.redim(dims).vals
     prob = rescale(self.prob, self._pscale, 1.)
     prob = np.moveaxis(prob, [*range(self.ndim)], swap)
+    prob = prob
     if normalise:
-      prob = prob / np.maximum(DIVISOR_MINIMUM, np.sum(prob))
+      prob = prob_divide(prob, np.sum(prob))
     if len(sum_axes):
-      prob = prob / np.maximum(DIVISOR_MINIMUM,
-                        np.sum(prob, axis=tuple(sum_axes), keepdims=True))
+      prob = prob_divide(prob, \
+                         np.sum(prob, axis=tuple(sum_axes), keepdims=True))
     prob = rescale(prob, 1., self._pscale)
     return Dist(name=name, 
                 vals=vals, 
@@ -275,6 +277,14 @@ class Dist (Manifold):
     return self._pscale
 
 #-------------------------------------------------------------------------------
+  def ret_marg_scalarset(self):
+    return self._marg_scalarset
+
+#-------------------------------------------------------------------------------
+  def ret_cond_scalarset(self):
+    return self._cond_scalarset
+
+#-------------------------------------------------------------------------------
   def rescale(self, pscale=None):
     self.set_prob(rescale(self.prob, self._pscale, pscale), pscale)
     return self.prob
@@ -339,6 +349,49 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def __add__(self, other):
     return sum_dist(*tuple([self, other]))
+
+#-------------------------------------------------------------------------------
+  def __truediv__(self, other):
+    """ If self is P(A, B | C, D), and other is P(A | C, D), this function
+    returns P(B | C, D, A) subject to the following conditions:
+    The divisor must be a scalar.
+    The conditionals must match.
+    The scalar marginals must match.
+    """
+    # Assert scalar division and operands compatible
+    assert other.ret_isscalar(), \
+      "Divisor must a be a scalar; consider using dist.conditionalise() instead"
+
+    assert set(list(self.cond.keys())) == other.ret_cond_scalarset(), \
+      "Conditionals must match"
+
+    assert self._marg_scalarset == other.ret_marg_scalarset(), \
+      "Scalar marginals must match"
+
+    # Prepare quotient marg and cond keys
+    keys = other.ret_marg_scalarset()
+    marg = collections.OrderedDict(self.marg)
+    cond = collections.OrderedDict(self.cond)
+    vals = collections.OrderedDict(self.cond)
+    for i, key in enumerate(self._keys):
+      if key in keys:
+        cond.update({key:marg.pop(key)})
+      else:
+        vals.update({key:self.vals[key]})
+
+    # Append the marginalised variables and end of vals
+    for i, key in enumerate(self._keys):
+      if key in keys:
+        vals.update({key:self.vals[key]})
+
+    # Evaluate probabilities
+    name = margcond_str(marg, cond)
+    prob = prob_divide(self.prob, other.prob, self._pscale, other.ret_pscale())
+    return Dist(name=name, 
+                vals=vals, 
+                dims=self.dims, 
+                prob=prob, 
+                pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
