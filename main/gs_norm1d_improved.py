@@ -13,7 +13,7 @@ rand_mean = 50.
 rand_stdv = 10.
 mu_lims = {40, 60}
 sigma_lims = {5, 20.}
-resolution = {'mu': {192}, 'sigma': {256}}
+resolution = {'mu': {128}, 'sigma': {192}}
 
 # Generate data
 data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)

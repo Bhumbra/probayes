@@ -75,25 +75,22 @@ class _Vals (ABC):
     return self._vfun
 
 #-------------------------------------------------------------------------------
-  def vfun_0(self, values, use_vfun=True):
-    if self._vfun is None or not use_vfun:
+  def vfun_0(self, values):
+    if self._vfun is None:
       return values
     return self._vfun[0](values, *self._vfun_args, **self._vfun_kwds)
 
 #-------------------------------------------------------------------------------
-  def vfun_1(self, values, use_vfun=True):
-    if self._vfun is None or not use_vfun:
+  def vfun_1(self, values):
+    if self._vfun is None:
       return values
     return self._vfun[1](values, *self._vfun_args, **self._vfun_kwds)
 
 #-------------------------------------------------------------------------------
-  def get_bounds(self, use_vfun=False):
+  def get_bounds(self):
     if self._vset is None:
       return None
-    lo = self.vfun_0(min(self._vset), use_vfun)
-    hi = self.vfun_0(max(self._vset), use_vfun)
-    if use_vfun and self._vfun is not None:
-      lo, hi = float(lo), float(hi)
+    lo, hi = min(self._vset), max(self._vset)
     return lo, hi
 
 #-------------------------------------------------------------------------------
@@ -107,10 +104,10 @@ class _Vals (ABC):
     elif isinstance(values, set):
       assert len(values) == 1, "Set values must contain one integer"
       number = int(list(values)[0])
-      values = np.array(list(self._vset), dtype=self._vtype)
 
       # Non-continuous
       if self._vtype not in [float, np.dtype('float32'), np.dtype('float64')]:
+        values = np.array(list(self._vset), dtype=self._vtype)
         divisor = len(self._vset)
         if number >= 0:
           indices = np.arange(number, dtype=int) % divisor
@@ -120,17 +117,22 @@ class _Vals (ABC):
        
       # Continuous
       else:
-        lo, hi = self.get_bounds(use_vfun=True)
-        assert np.all(np.isfinite([lo, hi])), \
+        lo, hi = self.get_bounds()
+        lohi = np.atleast_1d([lo, hi])
+        assert np.all(np.isfinite(lohi)), \
             "Cannot evaluate {} values for bounds: {}".format(values, vset)
+        if self._vfun:
+          lims = self.vfun_0(lohi)
+          lo, hi = float(min(lims)), float(max(lims))
         if number == 1:
           values = np.atleast_1d(0.5 * (lo+hi))
         elif number >= 0:
           values = np.linspace(lo, hi, number)
         else:
           values = np.random.uniform(lo, hi, size=-number)
-        return self.vfun_1(values)
-
+        if self._vfun:
+          return self.vfun_1(values)
+        return values
     return values
    
 #-------------------------------------------------------------------------------

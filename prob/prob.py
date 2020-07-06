@@ -140,6 +140,18 @@ class _Prob (ABC):
       assert callable(self._pfun[1]), message
 
 #-------------------------------------------------------------------------------
+  def pfun_0(self, values):
+    if self._pfun is None:
+      return values
+    return self._pfun[0](values, *self._pfun_args, **self._pfun_kwds)
+
+#-------------------------------------------------------------------------------
+  def pfun_1(self, values):
+    if self._pfun is None:
+      return values
+    return self._pfun[1](values, *self._pfun_args, **self._pfun_kwds)
+
+#-------------------------------------------------------------------------------
   def ret_callable(self):
     return self.__callable
 

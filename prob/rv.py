@@ -3,6 +3,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
+import scipy.stats
 from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
@@ -115,9 +116,45 @@ class RV (_Vals, _Prob):
     return self.ret_callable()
    
 #-------------------------------------------------------------------------------
-  def eval_dist(self, values=None):
-    if values is None:
-      return self._name
+  def set_pfun(self, *args, **kwds):
+    super().set_pfun(*args, **kwds)
+    if self._pfun is not None:
+      if self._pfun[0] != scipy.stats.uniform.cdf or \
+          self._pfun[1] != scipy.stats.uniform.ppf:
+        assert self._vfun is None, \
+          "Cannot assign non-uniform distribution alongside " + \
+          "values transformation functions"
+
+#-------------------------------------------------------------------------------
+  def set_vfun(self, *args, **kwds):
+    super().set_vfun(*args, **kwds)
+    if self._pfun is not None:
+      if self._pfun[0] != scipy.stats.uniform.cdf or \
+          self._pfun[1] != scipy.stats.uniform.ppf:
+        assert self._vfun is None, \
+          "Cannot values tranformation function alongside " + \
+          "non-uniform distirbutions"
+
+#-------------------------------------------------------------------------------
+  def eval_vals(self, values):
+    if self._pfun is None or not isunitsetint(values):
+      return super().eval_vals(values)
+
+    # Evaluate values from inverse cdf bounded within cdf limits
+    number = list(values)[0]
+    lo, hi = self.get_bounds()
+    lohi = np.atleast_1d([lo, hi])
+    assert np.all(np.isfinite(lohi)), \
+        "Cannot evaluate {} values for bounds: {}".format(values, vset)
+    lims = self.pfun_0(lohi)
+    lo, hi = float(min(lims)), float(max(lims))
+    if number == 1:
+      values = np.atleast_1d(0.5 * (lo+hi))
+    elif number >= 0:
+      values = np.linspace(lo, hi, number)
+    else:
+      values = np.random.uniform(lo, hi, size=-number)
+    return self.pfun_1(values)
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
