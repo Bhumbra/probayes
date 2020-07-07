@@ -9,6 +9,7 @@ from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, isscalar, isunitsetint
 from prob.pscales import NEARLY_POSITIVE_INF
+from prob.func import Func
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
@@ -118,22 +119,24 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def set_pfun(self, *args, **kwds):
     super().set_pfun(*args, **kwds)
-    if self._pfun is not None:
-      if self._pfun[0] != scipy.stats.uniform.cdf or \
-          self._pfun[1] != scipy.stats.uniform.ppf:
-        assert self._vfun is None, \
-          "Cannot assign non-uniform distribution alongside " + \
-          "values transformation functions"
+    if self._pfun is None:
+      return
+    if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
+        self.ret_pfun(1) != scipy.stats.uniform.ppf:
+      assert self._vfun is None, \
+        "Cannot assign non-uniform distribution alongside " + \
+        "values transformation functions"
 
 #-------------------------------------------------------------------------------
   def set_vfun(self, *args, **kwds):
     super().set_vfun(*args, **kwds)
-    if self._pfun is not None:
-      if self._pfun[0] != scipy.stats.uniform.cdf or \
-          self._pfun[1] != scipy.stats.uniform.ppf:
-        assert self._vfun is None, \
-          "Cannot values tranformation function alongside " + \
-          "non-uniform distirbutions"
+    if self._pfun is None:
+      return
+    if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
+        self.ret_pfun(1) != scipy.stats.uniform.ppf:
+      assert self._vfun is None, \
+        "Cannot values tranformation function alongside " + \
+        "non-uniform distirbutions"
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values):
@@ -146,7 +149,7 @@ class RV (_Vals, _Prob):
     lohi = np.atleast_1d([lo, hi])
     assert np.all(np.isfinite(lohi)), \
         "Cannot evaluate {} values for bounds: {}".format(values, vset)
-    lims = self.pfun_0(lohi)
+    lims = self.ret_pfun(0)(lohi)
     lo, hi = float(min(lims)), float(max(lims))
     if number == 1:
       values = np.atleast_1d(0.5 * (lo+hi))
@@ -154,7 +157,7 @@ class RV (_Vals, _Prob):
       values = np.linspace(lo, hi, number)
     else:
       values = np.random.uniform(lo, hi, size=-number)
-    return self.pfun_1(values)
+    return self.ret_pfun(1)(values)
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):

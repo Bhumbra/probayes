@@ -10,6 +10,7 @@ from prob.rv import RV
 from prob.dist import Dist
 from prob.vtypes import isscalar
 from prob.pscales import eval_pscale, prod_pscale, prod_rule
+from prob.func import Func
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -122,37 +123,9 @@ class SJ:
       pscale = kwds.pop('pscale')
       self.set_pscale(pscale)
     self._prob = prob
-    self._prob_args = tuple(args)
-    self._prob_kwds = kwds
-    self._arg_order = None
     self.__callable = callable(self._prob)
-    if not self.__callable or 'order' not in self._prob_kwds:
-      return 
-    assert self._prob is not None, "No order without specifying prob"
-    self._arg_order = self._prob_kwds.pop('order')
-    if self._arg_order is None:
-      return
-    assert isinstance(self._arg_order, dict), "Keyword order must be a dict"
-
-    # Sanity check the order dictionary
-    key_list = list(self._arg_order.keys())
-    ind_list = list(self._arg_order.values())
-    assert isinstance(ind_list, list), "Input ind_list must be a list"
-    keys = []
-    inds = []
-    for key, ind in zip(key_list, ind_list):
-      keys.append(key)
-      if type(ind) is int:
-        inds.append(ind)
-      elif not isinstance(ind, str):
-        raise TypeError("Cannot interpret order value: {}".ind)
-    keyset = set(keys)
-    assert keyset == self._keyset, \
-        "RV name {} mismatch with order keys {}".format(keyset, self._keyset)
-    indset = set(inds)
-    assert indset == set(range(len(indset))), \
-        "Index specification non_sequitur: {}".format(indset)
-    return keyset, indset
+    if self.__callable:
+      self._prob = Func(self._prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def fuse_dict(self, val_dict=None, def_val=None):
@@ -264,24 +237,9 @@ class SJ:
       probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
       prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=self._pscale)
       return prob
-    if self.__callable:
-      args = list(self._prob_args)
-      kwds = dict(self._prob_kwds)
-      if self._arg_order:
-        n_vals = sum([type(val) is int for val in self._arg_order.values()])
-        vals = [None] * n_vals
-        for key, val in self._arg_order.items():
-          if type(val) is int:
-            vals[val] = values[key]
-          else:
-            kwds.update({val: values[key]})
-        args = vals + args
-        return self._prob(*tuple(args), **kwds)
-      elif isinstance(values, dict):
-        kwds.update(values)
-        return self._prob(*tuple(args), **kwds)
-      return self._prob(values, *tuple(args), **kwds)
-    return self._prob
+    if not self.__callable:
+      return self._prob
+    return self._prob(values)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values=None):

@@ -14,6 +14,8 @@ class SC (SJ):
   # Protected
   _marg = None
   _cond = None
+  _proxy = None # Q(x_i)
+  _trans = None # Q(x_i | x_{i-1})
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):

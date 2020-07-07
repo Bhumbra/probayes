@@ -10,6 +10,7 @@ import numpy as np
 import scipy.stats
 from prob.vtypes import isscalar
 from prob.pscales import eval_pscale, rescale, iscomplex
+from prob.func import Func
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
@@ -130,26 +131,21 @@ class _Prob (ABC):
 #-------------------------------------------------------------------------------
   def set_pfun(self, pfun=None, *args, **kwds):
     self._pfun = pfun
-    self._pfun_args = tuple(args)
-    self._pfun_kwds = dict(kwds)
-    if self._pfun is not None:
-      message = "Input pfun be a two-sized tuple of callable functions"
-      assert isinstance(self._pfun, tuple), message
-      assert len(self._pfun) == 2, message
-      assert callable(self._pfun[0]), message
-      assert callable(self._pfun[1]), message
+    if self._pfun is None:
+      return 
+    
+    message = "Input pfun be a two-sized tuple of callable functions"
+    assert isinstance(self._pfun, tuple), message
+    assert len(self._pfun) == 2, message
+    assert callable(self._pfun[0]), message
+    assert callable(self._pfun[1]), message
+    self._pfun = Func(self._pfun, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def pfun_0(self, values):
-    if self._pfun is None:
-      return values
-    return self._pfun[0](values, *self._pfun_args, **self._pfun_kwds)
-
-#-------------------------------------------------------------------------------
-  def pfun_1(self, values):
-    if self._pfun is None:
-      return values
-    return self._pfun[1](values, *self._pfun_args, **self._pfun_kwds)
+  def ret_pfun(self, index=None):
+    if self._pfun is None or index is None:
+      return self._pfun
+    return self._pfun[index]
 
 #-------------------------------------------------------------------------------
   def ret_callable(self):
