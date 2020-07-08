@@ -17,12 +17,13 @@ o = prob.RV("o")
 oxy = prob.SC(o, xy)
 oxy.set_prob(inside)
 cond_omc = oxy({'x,y': set_size})
+omc_true = cond_omc({'o': True})
 xy_vals = cond_omc.ret_cond_vals()
 marg_omc = xy(xy_vals)
 joint_omc = marg_omc * cond_omc
-omc_true = cond_omc({'o': True})
+joint_expt = joint_omc.expectation()
 square_area = 4. * radius**2
-circle_area = square_area * omc_true.prob.sum() / omc_true.size
+circle_area = square_area * joint_expt['o']
 true = np.nonzero(omc_true.prob)[0]
 false = np.nonzero(np.logical_not(omc_true.prob))[0]
 x, y = omc_true.vals['x'], omc_true.vals['y']

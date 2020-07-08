@@ -209,9 +209,9 @@ def product(*args, **kwds):
 
   # Reshape values - they require no axes swapping
   ones_ndims = np.ones(prod_ndims, dtype=int)
-  prod_dims = np.ones(prod_ndims, dtype=int)
+  prod_shape = np.ones(prod_ndims, dtype=int)
   scalarset = set()
-  dimension = collections.OrderedDict()
+  prod_dims = collections.OrderedDict()
   for i, key in enumerate(prod_keys):
     if prod_arescalars[i]:
       scalarset.add(key)
@@ -219,37 +219,36 @@ def product(*args, **kwds):
       values = prod_vals[key]
       re_shape = np.copy(ones_ndims)
       dim = prod_cdims[i]-1
-      dimension.update({key: dim})
+      prod_dims.update({key: dim})
       re_shape[dim] = values.size
-      prod_dims[dim] = values.size
+      prod_shape[dim] = values.size
       prod_vals.update({key: values.reshape(re_shape)})
   
   # Match probability axes and shapes with axes swapping then reshaping
   prod_probs = [None] * len(args)
-  seen_dims = set()
   for i, prob in enumerate(probs):
     if not isscalar(prob):
-      val_names = str2key(marg_names[i] + cond_names[i])
-      nonscalars = [val_name for val_name in val_names \
-                             if val_name not in scalarset]
-      dims = [dimension[name] for name in nonscalars]
-      if len(dims) > 0:
-        idim = np.unique(dims, return_index=True)[1]
-        dims = np.array([dims[index] for index in sorted(idim)])
-        if dims.size > 1 and np.min(np.diff(dims)) < 0:
-          swap = np.argsort(dims)
-          if not np.all(swap == dims):
-            probs[i] = np.moveaxis(prob, list(range(len(dims))), list(swap))
-            dims = dims[swap]
+      dims = collections.OrderedDict()
+      for key, val in args[i].dims.items():
+        if val is not None:
+          dims.update({val: prod_dims[key]})
+      old_dims = []
+      new_dims = []
+      for key, val in dims.items():
+        if key not in old_dims:
+          old_dims.append(key)
+          new_dims.append(val)
+      if len(old_dims) > 1 and not old_dims == new_dims:
+        probs[i] = np.moveaxis(prob, old_dims, new_dims)
       re_shape = np.copy(ones_ndims)
-      for dim in dims:
-        re_shape[dim] = prod_dims[dim]
+      for dim in new_dims:
+        re_shape[dim] = prod_shape[dim]
       probs[i] = probs[i].reshape(re_shape)
 
   # Multiply the probabilities and output the result as a distribution instance
   prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
 
-  return dist_obj(prod_name, prod_vals, dimension, prob, pscale)
+  return dist_obj(prod_name, prod_vals, prod_dims, prob, pscale)
 
 
 #-------------------------------------------------------------------------------

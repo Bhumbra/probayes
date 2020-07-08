@@ -132,13 +132,13 @@ class Dist (Manifold):
     vals = collections.OrderedDict()
     dims = collections.OrderedDict()
     dim_delta = 0
-    sum_axes = []
+    sum_axes = set()
     for i, key in enumerate(self._keys):
       new_dim = None
       if key in keys:
         assert not self._arescalars[i], \
             "Cannot marginalise along scalar for key {}".format(key)
-        sum_axes.append(self.dims[key])
+        sum_axes.add(self.dims[key])
         marg.pop(key)
         dim_delta += 1
       else:
@@ -192,53 +192,71 @@ class Dist (Manifold):
     for key in keys:
       assert key in self.marg.keys(), \
         "Key {} not marginal in distribution {}".format(key, self.name)
-    swap = [None] * self.ndim
+    dims = collections.OrderedDict()
     marg = collections.OrderedDict(self.marg)
     cond = collections.OrderedDict(self.cond)
-    dims = collections.OrderedDict()
-    cond_dims = collections.OrderedDict()
-    cond_dim0 = self.ndim - len(keys)
-    sum_axes = []
-    dim_delta = 0
-    arescalars = []
+    normalise = False
+    delta = 0
     for i, key in enumerate(self._keys):
-      new_dim = None
       if key in keys:
-        cond.update({key:marg.pop(key)})
-        arescalars.append(self._arescalars[i])
-        if not arescalars[-1]:
-          old_dim = self.dims[key]
-          new_dim = cond_dim0 + dim_delta
-          cond_dims.update({key: new_dim})
-          dim_delta += 1
-      elif not self._arescalars[i]:
-        old_dim = self.dims[key]
-        new_dim = old_dim - dim_delta
-        dims.update({key: new_dim})
-        # Axes to return key's marginal distribution not its marginalisation
-        if key in self.marg.keys():
-          sum_axes.append(new_dim)
-      if not self._arescalars[i]:
-        swap[old_dim] = new_dim
+        cond.update({key: marg.pop(key)})
+      if self._arescalars[i]:
+        dims.update({key: None})
+        if key in keys:
+          normalise = True
+      elif key in self.marg.keys():
+        if key in keys:
+          delta += 1 # Don't add to dim just yet
+        else:
+          dim = self.dims[key]
+          dims.update({key: dim})
+      else:
+        dim = self.dims[key] - delta
+        dims.update({key: dim})
 
-    # If including any marginal scalars, normalising must include all scalars
-    normalise = any(arescalars)
+    # Reduce remaining marginals to lowest dimension
+    dim_val = [val for val in dims.values() if val is not None]
+    dim_max = 0
+    if len(dim_val):
+      dim_min = min(dim_val)
+      for key in dims.keys():
+        if dims[key] is not None:
+          dim = dims[key]-dim_min
+          dims.update({key: dim})
+          dim_max = max(dim_max, dim)
+    dim_min = self.ndim
+    for key in keys:
+      dim = self.dims[key]
+      if dim is not None:
+        dim_min = min(dim_min, dim)
+    for key in keys:
+      dim = self.dims[key]
+      if dim is not None:
+        dims.update({key: dim-dim_min+dim_max+1})
     if normalise:
       assert self._marg_scalarset.issubset(set(keys)), \
         "If conditionalising for key {}".format(key) + "," + \
         "must include all marginal scalars in {}".format(self._marg_scalarset)
-
     # Setup vals dimensions and evaluate probabilities
-    dims.update(cond_dims)
     name = margcond_str(marg, cond)
     vals = self.redim(dims).vals
-    prob = np.moveaxis(self.prob, [*range(self.ndim)], swap)
+    old_dims = []
+    new_dims = []
+    sum_axes = set()
+    for key in self._keys:
+      old_dim = self.dims[key]
+      if old_dim is not None and old_dim not in old_dims:
+        old_dims.append(old_dim)
+        new_dims.append(dims[key])
+        if key not in keys and key in self.marg.keys():
+          sum_axes.add(dims[key])
+    prob = np.moveaxis(self.prob, old_dims, new_dims)
     prob = rescale(prob, self._pscale, 1.)
     if normalise:
       prob = div_prob(prob, np.sum(prob))
     if len(sum_axes):
       prob = div_prob(prob, \
-                         np.sum(prob, axis=tuple(set(sum_axes)), keepdims=True))
+                         np.sum(prob, axis=tuple(sum_axes), keepdims=True))
     prob = rescale(prob, 1., self._pscale)
     return Dist(name=name, 
                 vals=vals, 
