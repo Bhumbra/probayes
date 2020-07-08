@@ -81,8 +81,28 @@ def product(*args, **kwds):
   marg_keys = []
   for arg in args:
     marg_keys.extend(list(arg.marg.keys()))
-  assert len(marg_keys) == len(set(marg_keys)), \
-      "Non-unique marginal variables currently not supported: {}".format(marg_keys)
+  
+  if len(marg_keys) != len(set(marg_keys)):
+    marg_multi = marg_keys[:]
+    marg_keys, cond_keys = None, None
+    for arg in args:
+      if marg_keys is None:
+        marg_keys = list(arg.marg.keys())
+      elif marg_keys != list(arg.marg.keys()):
+        marg_keys, cond_keys = None, None
+        break
+      if cond_keys is None:
+        cond_keys = list(arg.cond.keys())
+      elif cond_keys != list(arg.cond.keys()):
+        marg_keys, cond_keys = None, None
+        break
+
+    assert marg_keys is not None, \
+      "Non-unique marginal variables currently not supported: {}".\
+      format(marg_multi)
+    assert False, \
+      "Non-unique marginal variables currently not supported: {}".\
+      format(marg_multi)
 
   # Extract marginal and conditional names
   marg_names = [list(arg.marg.values()) for arg in args]
