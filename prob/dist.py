@@ -83,6 +83,42 @@ class Dist (Manifold):
     return self._pscale
 
 #-------------------------------------------------------------------------------
+  def ret_vals(self, keys=None):
+    keys = keys or self._keys
+    keys = set(keys)
+    vals = collections.OrderedDict()
+    seen_keys = set()
+    for i, key in enumerate(self._keys):
+      if key in keys and key not in seen_keys:
+        if self._arescalars[i]:
+          seen_keys.add(keys)
+          vals.update({key: vals})
+        else:
+          shared_keys = [key]
+          for j, cand_key in enumerate(self._keys):
+            if j > i and cand_key in keys and not self._arescalars[j]:
+              if self.dims[key] == self.dims[cand_key]:
+                shared_keys.append(cand_key)
+          if len(shared_keys) == 1:
+            vals.update({key: np.ravel(self.vals[key])})
+            seen_keys.add(key)
+          else:
+            val = [None] * len(shared_keys)
+            for j, shared_key in enumerate(shared_keys):
+              val[j] = np.ravel(self.vals[shared_key])
+              seen_keys.add(shared_key)
+            vals.update({','.join(shared_keys): tuple(val)})
+    return vals
+
+#-------------------------------------------------------------------------------
+  def ret_marg_vals(self):
+    return self.ret_vals(self.marg.keys())
+
+#-------------------------------------------------------------------------------
+  def ret_cond_vals(self):
+    return self.ret_vals(self.cond.keys())
+
+#-------------------------------------------------------------------------------
   def marginalise(self, keys):
     # from p(A, key | B), returns P(A | B)
     if isinstance(keys, str):
@@ -202,7 +238,7 @@ class Dist (Manifold):
       prob = div_prob(prob, np.sum(prob))
     if len(sum_axes):
       prob = div_prob(prob, \
-                         np.sum(prob, axis=tuple(sum_axes), keepdims=True))
+                         np.sum(prob, axis=tuple(set(sum_axes)), keepdims=True))
     prob = rescale(prob, 1., self._pscale)
     return Dist(name=name, 
                 vals=vals, 
@@ -254,6 +290,37 @@ class Dist (Manifold):
                 dims=dims, 
                 prob=prob, 
                 pscale=pscale_product)
+
+#-------------------------------------------------------------------------------
+  def expectation(self, keys=None, exponent=None):
+    keys = keys or self.marg.keys()
+    if isinstance(keys, str):
+      keys = [keys]
+    for key in keys:
+      assert key in self.marg.keys(), \
+        "Key {} not marginal in distribution {}".format(key, self.name)
+    keys = set(keys)
+    sum_axes = []
+    dims = collections.OrderedDict(self.dims)
+    for i, key in enumerate(self._keys):
+      if key in keys:
+        sum_axes.append(self.dims[key])
+        dims[key] = None
+    prob = rescale(self.prob, self._pscale, 1.)
+    sum_prob = np.sum(prob, axis=tuple(set(sum_axes)), keepdims=False)
+    vals = collections.OrderedDict()
+    for i, key in enumerate(self._keys):
+      if key in keys:
+        val = self.vals[key] if not exponent else self.vals[key]**exponent
+        if self._arescalars[i]:
+          vals.update({key: val})
+        else:
+          expt_numerator = np.sum(prob*val, 
+                                  axis=tuple(set(sum_axes)), keepdims=False)
+          vals.update({key: div_prob(expt_numerator, sum_prob)})
+      elif key in self.cond.keys():
+        vals.update({key: self.vals[key]})
+    return vals
 
 #-------------------------------------------------------------------------------
   def ret_keyset(self):
@@ -350,23 +417,25 @@ class Dist (Manifold):
     The scalar marginals must match.
     """
     # Assert scalar division and operands compatible
-    assert other.ret_isscalar(), \
-      "Divisor must a be a scalar; consider using dist.conditionalise() instead"
-
     assert set(list(self.cond.keys())) == other.ret_cond_scalarset(), \
       "Conditionals must match"
 
-    assert self._marg_scalarset == other.ret_marg_scalarset(), \
-      "Scalar marginals must match"
+    divs = other.ret_isscalar()
+    if divs:
+      assert self._marg_scalarset == other.ret_marg_scalarset(), \
+        "For divisor scalars, scalar marginals must match"
 
     # Prepare quotient marg and cond keys
-    keys = other.ret_marg_scalarset()
+    keys = other.marg.keys()
     marg = collections.OrderedDict(self.marg)
     cond = collections.OrderedDict(self.cond)
     vals = collections.OrderedDict(self.cond)
+    re_shape = np.ones(self.ndim, dtype=int)
     for i, key in enumerate(self._keys):
       if key in keys:
         cond.update({key:marg.pop(key)})
+        if not self._arescalars[i] and not divs:
+          re_shape[self.dims[key]] = other.vals[key].size
       else:
         vals.update({key:self.vals[key]})
 
@@ -377,7 +446,8 @@ class Dist (Manifold):
 
     # Evaluate probabilities
     name = margcond_str(marg, cond)
-    prob = div_prob(self.prob, other.prob, self._pscale, other.ret_pscale())
+    divp = other.prob if divs else other.prob.reshape(re_shape)
+    prob = div_prob(self.prob, divp, self._pscale, other.ret_pscale())
     return Dist(name=name, 
                 vals=vals, 
                 dims=self.dims, 

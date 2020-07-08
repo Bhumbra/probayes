@@ -128,76 +128,90 @@ class SJ:
       self._prob = Func(self._prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def fuse_dict(self, val_dict=None, def_val=None):
-    if not val_dict:
-      return collections.OrderedDict({key: def_val for key in self._keys})
-    fused = collections.OrderedDict(val_dict)
-    keys = []
-    for key in fused.keys():
-      if ',' in key:
-        keys.extend(key_split)
+  def _parse_args(self, *args, **kwds):
+    """ Returns (values, iid) from *args and **kwds """
+    args = tuple(args)
+    kwds = dict(kwds)
+    if not args and not kwds:
+      args = (None,)
+    if args:
+      assert len(args) == 1 and not kwds, \
+        "With order specified, calls argument must be a single " + \
+              "dictionary or keywords only"
+      kwds = dict(args[0]) if isinstance(args[0], dict) else \
+             ({key: args[0] for key in self._keys})
+
+    elif kwds:
+      assert not args, \
+        "With order specified, calls argument must be a single " + \
+              "dictionary or keywords only"
+    values = dict(kwds)
+    seen_keys = []
+    for key, val in values.items():
+      count_comma = key.count(',')
+      if count_comma:
+        seen_keys.extend(key.split(','))
+        if isinstance(val, (tuple, list)):
+          assert len(val) == count_comma+1, \
+              "Mismatch in key specification {} and number of values {}".\
+              format(key, len(val))
+        else:
+          values.update({key: [val] * (count_comma+1)})
       else:
-        keys.append(key)
-    for key in keys:
-      assert key in self._keys, "Unknown key: {}".format(key)
+        seen_keys.append(key)
+      assert seen_keys[-1] in self._keys, \
+          "Unrecognised key {} among available RVs {}".format(
+              seen_keys[-1], self._keys)
     for key in self._keys:
-      if key not in keys:
-        fused.update({key: def_val})
-    return fused
+      if key not in seen_keys:
+        values.update({key: None})
+
+    return values
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, *args, **kwds):
-    """ This ignores self._prob and self._arg_order """
-    values = None
+  def eval_vals(self, *args, _skip_parsing=False, **kwds):
+    """ 
+    Keep args and kwds since could be called externally. This ignores self._prob.
+    """
+    values = self._parse_args(*args, **kwds) if not _skip_parsing else args[0]
     dims = {}
-    if not len(args):
-      if len(kwds):
-        values = self.fuse_dict(kwds)
-    else:
-      assert not len(kwds), "Please input args or kwds but no both"
-      if len(args) == 1 and isinstance(args[0], dict):
-        values = self.fuse_dict(args[0])
-      else:
-        assert len(args) == self._nrvs, \
-            "Number of positional arguments must match number of RVs"
-        values = collections.OrderedDict({key: arg \
-                   for key, arg in zip(self._keys, args)})
     
-    # Don't reshape if all scalars (and therefore by definition no joint keys)
+    # Don't reshape if all scalars (and therefore by definition no shared keys)
     if all([np.isscalar(value) for value in values.values()]): # use np.scalar
       return values, dims
 
-    # Share dimensions for joint variables and do not dimension scalars
-    dims = collections.OrderedDict({key: i for i, key in enumerate(self._keys)})
+    # Create reference mapping for shared keys across rvs
     values_ref = collections.OrderedDict({key: [key, None] for key in self._keys})
-    seen_keys = []
+    for key in values.keys():
+      if ',' in key:
+        subkeys = key.split(',')
+        for i, subkey in enumerate(subkeys):
+          values_ref[subkey] = [key, i]
+
+    # Share dimensions for joint variables and do not dimension scalars
+    ndim = 0
+    dims = collections.OrderedDict({key: None for key in self._keys})
+    seen_keys = set()
     for i, key in enumerate(self._keys):
-      rem_keys = self._keys[(i+1):]
-      if key in values.keys():
-        seen_keys.append(key)
-        if np.isscalar(values[key]):
-          for rem_key in rem_keys:
-            dims[rem_key] -= 1
+      new_dim = False
+      if values_ref[key][1] is None: # i.e. not shared
+        if not np.isscalar(values[key]): # use np.scalar here (to exclude unitsetint)
+          dims[key] = ndim
+          new_dim = True
+        seen_keys.add(key)
       elif key not in seen_keys:
-        seen_keys.append(key)
-        for val_key in value.keys():
-          subkeys = val_key.split(',')
-          matches = 0
-          for j, subkey in enumerate(subkeys):
-            for rem_key in rem_keys:
-              if rem_key == val_key:
-                values_ref[rem_key] = [val_key, j] 
-              else:
-                if rem_key in subkeys:
-                  seen_keys.append(key)
-                  values_ref[rem_key] = [val_key, j] 
-                  matches += 1
-                  dims[rem_key] = dims[key]
-                else:
-                  dims[rem_key] -= matches
+        val_ref = values_ref[key]
+        subkeys = val_ref[0].split(',')
+        for subkey in subkeys:
+          dims[subkey] = ndim
+          seen_keys.add(subkey)
+        if not np.isscalar(values[val_ref[0]][val_ref[1]]): # and here
+          new_dim = True
+      if new_dim:
+        ndim += 1
 
     # Reshape
-    ndims = max(dims.values()) + 1
+    ndims = max([dim for dim in dims.values() if dim is not None]) + 1 or 0
     ones_ndims = np.ones(ndims, dtype=int)
     vals = collections.OrderedDict()
     rvs = self.ret_rvs(aslist=True)
@@ -211,8 +225,10 @@ class SJ:
           vals[key] = rv.eval_vals(vals[key])
       else:
         val_ref = values_ref[key]
-        vals.update({key: values[val_ref[0]][val_ref[1]]})
-        dist_dict.update({key: key + "={}"})
+        vals_val = values[val_ref[0]][val_ref[1]]
+        if vals_val is None or isinstance(vals_val, set):
+          vals_val = rv.eval_vals(vals_val)
+        vals.update({key: vals_val})
       if reshape:
         re_shape = np.copy(ones_ndims)
         re_dim = dims[key]
@@ -243,35 +259,37 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values=None):
-    keys = self._keys 
-    vals = values
-    if isinstance(vals, dict):
-      keys = vals.keys()
-      assert set(keys) == self._keyset, "Missing keys in {}".format(vals.keys())
+    vals = collections.OrderedDict()
+    if isinstance(values, dict):
+      for key, val in values.items():
+        if ',' in key:
+          subkeys = key.split(',')
+          for i, subkey in enumerate(subkeys):
+            vals.update({subkey: val[i]})
+        else:
+          vals.update({key: val})
+      for key in self._keys:
+        if key not in vals.keys():
+          vals.update({key: None})
     else:
-      vals = {key: vals for key in keys}
+      vals.update({key: values for key in keys})
+    rvs = self.ret_rvs()
     rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()]) \
-                     for rv in self._rvs.values()]
+                     for rv in rvs]
     dist_name = ','.join(rv_dist_names)
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def __call__(self, values=None, **kwds):  # Let's make this args ands kwds
-    ''' 
-    Returns a namedtuple of the rvs.
-    '''
-    kwds = dict(kwds)
+  def __call__(self, *args, **kwds):
+    '''  Returns a Dist instance '''
+    if self._rvs is None:
+      return None
     iid = False if 'iid' not in kwds else kwds.pop('iid')
     if type(iid) is bool and iid:
       iid = self._defiid
-    if self._rvs is None:
-      return None
-    if values is None and len(kwds):
-      values = collections.OrderedDict(kwds)
+    values = self._parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values)
-    if not isinstance(values, dict):
-      values = collections.OrderedDict({key: values for key in self._keys})
-    vals, dims = self.eval_vals(values)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
     prob = self.eval_prob(vals)
     if not iid: 
       return Dist(dist_name, vals, dims, prob, self._pscale)

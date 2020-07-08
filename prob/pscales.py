@@ -98,6 +98,9 @@ def prob_coef(pscale=None):
 def rescale(prob, *args):
   """ Rescales prob according to pscales given in args """
   pscale, rtype = None, None
+  prob = prob if np.isscalar(prob) \
+           or prob.dtype in [float, np.dtype('float32'), np.dtype('float64')] \
+         else np.array(prob, dtype=float)
   if len(args) == 0: 
     return prob
   elif len(args) ==  1: 

@@ -34,7 +34,8 @@ model.set_prob(scipy.stats.norm.pdf,
 
 # Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
-prior = params(likelihood.ret_vals(params.ret_keys()))
+param_vals = likelihood.ret_cond_vals()
+prior = params(param_vals)
 prior_x_likelihood = prior * likelihood
 evidence = prior_x_likelihood.marginal('x')
 posterior = prior_x_likelihood / evidence

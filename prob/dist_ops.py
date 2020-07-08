@@ -169,7 +169,29 @@ def product(*args, **kwds):
             assert isunitsetint(val[key]), "Mismatch in variables {} vs {}".\
                 format(prod_vals, val)
             prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
-  prod_cdims = np.cumsum(np.logical_not(prod_arescalars))
+  prod_newdims = np.array(np.logical_not(prod_arescalars))
+  dims_shared = False
+  for arg in args:
+    argdims = [dim for dim in arg.dims.values() if dim is not None]
+    if len(argdims) != len(set(argdims)):
+      dims_shared = True
+
+  if dims_shared:
+    seen_keys = set()
+    for i, key in enumerate(prod_keys):
+      if prod_newdims[i] and key not in seen_keys:
+        for arg in args:
+          if key in arg.dims:
+            dim = arg.dims[key]
+            seen_keys.add(key)
+            for argkey, argdim in arg.dims.items():
+              seen_keys.add(argkey)
+              if argkey != key and argdim is not None:
+                if dim == argdim:
+                  index = prod_keys.index(argkey)
+                  prod_newdims[index] = False
+
+  prod_cdims = np.cumsum(prod_newdims)
   prod_ndims = prod_cdims[-1]
 
   # Fast-track scalar products
@@ -177,11 +199,13 @@ def product(*args, **kwds):
      prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
      return dist(prod_name, prod_vals, prob, pscale)
 
+  """
   # Exclude shared dimensions
   for arg in args:
     dims = [dim for dim in arg.dims.values() if dim is not None]
     assert len(dims) == len(set(dims)), \
-        "Shared dimensionality across marginals currently not supported ."
+        "Shared dimensionality within marginals currently not supported"
+  """
 
   # Reshape values - they require no axes swapping
   ones_ndims = np.ones(prod_ndims, dtype=int)
@@ -202,17 +226,21 @@ def product(*args, **kwds):
   
   # Match probability axes and shapes with axes swapping then reshaping
   prod_probs = [None] * len(args)
+  seen_dims = set()
   for i, prob in enumerate(probs):
     if not isscalar(prob):
       val_names = str2key(marg_names[i] + cond_names[i])
       nonscalars = [val_name for val_name in val_names \
                              if val_name not in scalarset]
-      dims = np.array([dimension[name] for name in nonscalars])
-      if dims.size > 0 :
-        swap = np.argsort(dims)
-        if not np.all(swap == dims):
-          probs[i] = np.moveaxis(prob, list(range(len(dims))), list(swap))
-          dims = dims[swap]
+      dims = [dimension[name] for name in nonscalars]
+      if len(dims) > 0:
+        idim = np.unique(dims, return_index=True)[1]
+        dims = np.array([dims[index] for index in sorted(idim)])
+        if dims.size > 1 and np.min(np.diff(dims)) < 0:
+          swap = np.argsort(dims)
+          if not np.all(swap == dims):
+            probs[i] = np.moveaxis(prob, list(range(len(dims))), list(swap))
+            dims = dims[swap]
       re_shape = np.copy(ones_ndims)
       for dim in dims:
         re_shape[dim] = prod_dims[dim]

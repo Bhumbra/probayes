@@ -35,7 +35,8 @@ model.set_prob(scipy.stats.norm.logpdf,
 
 # Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
-prior = params(likelihood.ret_vals(params.ret_keys()))
+param_vals = likelihood.ret_cond_vals()
+prior = params(param_vals)
 posterior = prob.product(prior, likelihood).conditionalise('x')
 
 # Return posterior probability mass

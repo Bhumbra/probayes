@@ -87,6 +87,7 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
+    # We don't wrap RV prob functions for flexibility and trivial argument sets
     super().set_prob(prob, pscale, *args, **kwds)
 
     # Default unspecified probabilities to uniform over self._vset is given
@@ -119,7 +120,7 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def set_pfun(self, *args, **kwds):
     super().set_pfun(*args, **kwds)
-    if self._pfun is None:
+    if self._vfun is None or self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
         self.ret_pfun(1) != scipy.stats.uniform.ppf:
@@ -130,13 +131,13 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def set_vfun(self, *args, **kwds):
     super().set_vfun(*args, **kwds)
-    if self._pfun is None:
+    if self._vfun is None or self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
         self.ret_pfun(1) != scipy.stats.uniform.ppf:
-      assert self._vfun is None, \
-        "Cannot values tranformation function alongside " + \
-        "non-uniform distirbutions"
+      assert self._pfun is None, \
+        "Cannot assign values tranformation function alongside " + \
+        "non-uniform distribution"
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values):
@@ -180,10 +181,6 @@ class RV (_Vals, _Prob):
     ''' 
     Returns a namedtuple of samp and prob.
     '''
-    if values is None:
-      if isinstance(self._vset, set):
-        assert self.ret_callable() is False, \
-          "Values required for callable prob over continuous variable sets" 
     dist_name = self.eval_dist_name(values)
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)

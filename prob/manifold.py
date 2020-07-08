@@ -13,7 +13,9 @@ class Manifold:
   vals = None        # Ordered dictionary with values
   dims = None        # Ordered dictionary specifying dimension index of vals
   ndim = None        # Number of dimensions
-  shape = None       # Dimension shape
+  sizes = None       # Size of dimensions including shared
+  shape = None       # Size of dimension shape excluding shared
+  size = None        # prod(size)
 
   # Protected
   _keys = None       # Keys of vals as list
@@ -29,9 +31,10 @@ class Manifold:
   def set_vals(self, vals=None, dims=None):
     self.vals = vals
     self.dims = dims
+    self.sizes = []
+    self.size = None
     self.shape = []
     self._keys = []
-    self._shape = []
     self._arescalars = []
     self._isscalar = None
     eval_dims = self.dims is None
@@ -58,12 +61,16 @@ class Manifold:
 
     # Count number of non-scalar dimensions
     self._arescalars = [isscalar(val) for val in self.vals.values()]
-    self.ndim = sum(np.logical_not(self._arescalars))
-    self._isscalar = self.ndim == 0
+    self._isscalar = np.all(self._arescalars)
+    self.ndim = 0 
+    for dim in self.dims.values():
+      if dim is not None:
+        self.ndim = max(self.ndim, dim+1)
 
     # Corroborate vals and dims
     ones_ndim = np.ones(self.ndim, dtype=int)
-    run_dim = -1
+    self.shape = [None] * self.ndim
+    nonscalar_count = -1
     for i, key in enumerate(self._keys):
       values = self.vals[key]
 
@@ -80,7 +87,7 @@ class Manifold:
 
       # Non-scalars require correct dimensionality
       else:
-        run_dim += 1
+        nonscalar_count += 1
         assert isinstance(values, np.ndarray), \
             "Dictionary of numpy arrays expected for nonscalars but found" + \
             "type {} for key {}".format(type(values), key)
@@ -88,18 +95,20 @@ class Manifold:
         assert val_size == np.max(values.shape), \
             "Values must have one non-singleton dimension but found" + \
             "shape {} for key {}".format(values.shape, key)
-        self.shape.append(val_size)
         if eval_dims:
-          self.dims.update({key: run_dim})
+          self.dims.update({key: nonscalar_count})
         else:
           assert key in self.dims, "Missing key {} in dims specification {}".\
               format(key, self.dims)
+        self.sizes.append(val_size)
+        self.shape[self.dims[key]] = val_size
         vals_shape = np.copy(ones_ndim)
         vals_shape[self.dims[key]] = val_size
         re_shape = self.ndim != values.ndim or \
                    any(np.array(values.shape) != vals_shape)
         if re_shape:
           self.vals[key] = values.reshape(vals_shape)
+    self.size = int(np.prod(self.shape))
 
     return self.dims
 

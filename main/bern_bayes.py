@@ -25,6 +25,8 @@ sym_given_dis.set_prob(np.array([1-sym_if_undis, sym_if_undis, \
 # CALL PROBABILITIES
 prior = dis()
 likelihood = sym_given_dis()
-posterior = (prior * likelihood).conditionalise('sym')
+prior_x_likelihood = prior * likelihood
+evidence = prior_x_likelihood.marginal('sym')
+posterior = prior_x_likelihood / evidence
 inference = posterior({'dis': True, 'sym': True})
 print(inference)

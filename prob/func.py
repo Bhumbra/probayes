@@ -71,18 +71,20 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def _call(self, *args, **kwds):
-    val = tuple(args)
     func, func_callable = self._func, self.__func_callable 
     if self.__index is not None:
       func = func[self.__index]
       func_callable = func_callable[self.__index]
       self.__index = None
     args = tuple(args)
+    arg0 = args[0]
     kwds = dict(kwds)
     if not func_callable:
       assert not args and not kwds, "No optional args with uncallable function"
       return func
     if not self.__order:
+      if len(args) == 1 and not kwds and isinstance(args[0], dict):
+        return func(**dict(args[0]))
       return func(*args, **kwds)
     if args:
       assert len(args) == 1 and not kwds and isinstance(args[0], dict), \
