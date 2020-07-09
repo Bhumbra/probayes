@@ -1,2 +1,3 @@
-Support OMC
-Support MCMC
+Support proposal distribution marginals independent of likelihood marginals
+Support OMC rejection sampling
+Support MCMC Metropolis Hastings sampling
