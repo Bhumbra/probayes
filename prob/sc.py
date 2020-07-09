@@ -63,7 +63,7 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
-    self._prop = None
+    self._prop = prop
     if self._prop is None:
       return
     self._prop = Func(self._prop, *args, **kwds)
@@ -116,6 +116,35 @@ class SC (SJ):
   def eval_vals(self, *args, _skip_parsing=False, **kwds):
     assert self._marg, "No marginal stochastic random variables defined"
     return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
+
+#-------------------------------------------------------------------------------
+  def eval_prop(self, values):
+    assert self._prop is not None, "Proposal function not set"
+    assert isinstance(values, dict), "Input to eval_prob() requires values dict"
+    assert set(values.keys()) == self._keyset, \
+      "Sample dictionary keys {} mismatch with RV names {}".format(
+        values.keys(), self._keys())
+    if not self._prop.ret_callable():
+      return self._prop()
+    return self._prop(values)
+
+#-------------------------------------------------------------------------------
+  def propose(self, *args, **kwds):
+    # Similar to __call__ except evaluates prob from proposal if available
+    if self._prop is None:
+      return self.__call__(*args, **kwds)
+    if self._rvs is None:
+      return None
+    iid = False if 'iid' not in kwds else kwds.pop('iid')
+    if type(iid) is bool and iid:
+      iid = self._defiid
+    values = self._parse_args(*args, **kwds)
+    dist_name = self.eval_dist_name(values)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    prop = self.eval_prop(vals)
+    if not iid: 
+      return Dist(dist_name, vals, dims, prop, self._pscale)
+    return Dist(dist_name, vals, dims, prop, self._pscale).prod(iid)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

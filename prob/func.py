@@ -16,7 +16,7 @@ class Func:
 
   # Private
   __func_tuple = None
-  __func_callable = None
+  __callable = None
   __order = None
   __index = None
 
@@ -36,18 +36,21 @@ class Func:
       assert not args and not kwds, "No optional args without a function"
     self.__func_tuple = isinstance(self._func, tuple)
     if not self.__func_tuple:
-      self.__func_callable = callable(self._func)
-      if not self.__func_callable:
+      self.__callable = callable(self._func)
+      if not self.__callable:
         assert not args and not kwds, "No optional args with uncallable function"
     else:
-      self.__func_callable = [callable(func) for func in self._func]
-      if not all(self.__func_callable):
-        assert not args and not kwds, "No optional args with uncallable function"
-      assert len(set(self.__func_callable)) < 2, \
+      self.__callable = None
+      func_callable = [callable(func) for func in self._func]
+      assert len(set(func_callable)) < 2, \
           "Cannot mix callable and uncallable functions"
+      if len(func_callable):
+        self.__callable = func_callable[0]
+      if not self.__callable:
+        assert not args and not kwds, "No optional args with uncallable function"
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
-    return self.__func_callable
+    return self.__callable
     
 #-------------------------------------------------------------------------------
   def set_order(self, order=None):
@@ -70,16 +73,19 @@ class Func:
         "Index specification non_sequitur: {}".format(indset)
 
 #-------------------------------------------------------------------------------
+  def ret_callable(self):
+    return self.__callable
+
+#-------------------------------------------------------------------------------
   def _call(self, *args, **kwds):
-    func, func_callable = self._func, self.__func_callable 
+    func = self._func
     if self.__index is not None:
       func = func[self.__index]
-      func_callable = func_callable[self.__index]
       self.__index = None
     args = tuple(args)
     arg0 = args[0]
     kwds = dict(kwds)
-    if not func_callable:
+    if not self.__callable:
       assert not args and not kwds, "No optional args with uncallable function"
       return func
     if not self.__order:

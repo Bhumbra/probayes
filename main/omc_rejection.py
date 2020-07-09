@@ -1,5 +1,6 @@
-""" Example of ordinary Monte Carlo integration """
+""" Example of ordinary Monte Carlo integration with rejection sampling """
 import numpy as np
+import scipy.stat
 import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
@@ -17,9 +18,10 @@ x = prob.RV("x", xy_range)
 y = prob.RV("y", xy_range)
 o = prob.RV("o")
 
-# DEFINE STOCHASTIC CONDITIONS
+# DEFINE STOCHASTIC CONDITION
 xy = prob.SJ(x, y)
 oxy = prob.SC(o, xy)
+oxy.set_prop(scipy.stat.norm.pdf, loc=0, scale=radius)
 oxy.set_prob(inside)
 
 # CALL PROBABILITIES AND EVALUATE EXPECTATION AND AREA
