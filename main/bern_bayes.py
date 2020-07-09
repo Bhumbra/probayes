@@ -22,7 +22,7 @@ sym_given_dis = prob.SC(sym, dis)
 sym_given_dis.set_prob(np.array([1-sym_if_undis, 1-sym_if_dis, \
                                  sym_if_undis,   sym_if_dis]).reshape((2,2)))
 
-# CALL PROBABILITIES
+# APPLY BAYES' RULE
 p_dis = dis()
 p_sym_given_dis = sym_given_dis()
 p_dis_and_sym = p_dis * p_sym_given_dis
