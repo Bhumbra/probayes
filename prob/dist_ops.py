@@ -74,69 +74,100 @@ def product(*args, **kwds):
   maybe_fasttrack = all(arescalars) and \
                     np.all(pscale == np.array(pscales)) and \
                     pscale in [0, 1.]
+
+
+  # Collate vals, probs, marg_names, and cond_names as lists
   vals = [arg.vals for arg in args]
   probs = [arg.prob for arg in args]
+  marg_names = [list(arg.marg.values()) for arg in args]
+  cond_names = [list(arg.cond.values()) for arg in args]
 
-  # Check for uniqueness in marginal keys
-  marg_keys = []
+  # Detect uniqueness in marginal keys and identical conditionals
+  all_marg_keys = []
   for arg in args:
-    marg_keys.extend(list(arg.marg.keys()))
-  
-  if len(marg_keys) != len(set(marg_keys)):
-    marg_multi = marg_keys[:]
-    marg_keys, cond_keys = None, None
+    all_marg_keys.extend(list(arg.marg.keys()))
+  marg_sets = None
+  if len(all_marg_keys) != len(set(all_marg_keys)):
+    marg_keys, cond_keys, marg_sets, = None, None, None
     for arg in args:
       if marg_keys is None:
         marg_keys = list(arg.marg.keys())
       elif marg_keys != list(arg.marg.keys()):
-        marg_keys, cond_keys = None, None
+        marg_keys = None
         break
       if cond_keys is None:
         cond_keys = list(arg.cond.keys())
       elif cond_keys != list(arg.cond.keys()):
-        marg_keys, cond_keys = None, None
+        marg_keys = None
         break
-
-    assert marg_keys is not None, \
-      "Non-unique marginal variables currently not supported: {}".\
-      format(marg_multi)
-    assert False, \
-      "Non-unique marginal variables currently not supported: {}".\
-      format(marg_multi)
-
-  # Extract marginal and conditional names
-  marg_names = [list(arg.marg.values()) for arg in args]
-  cond_names = [list(arg.cond.values()) for arg in args]
-  prod_marg = [name for dist_marg_names in marg_names \
-                          for name in dist_marg_names]
-  prod_marg_name = ','.join(prod_marg)
+      if marg_keys:  
+        are_marg_sets = np.array([isunitsetint(arg.vals[marg_key]) for
+                                  marg_key in marg_keys])
+        if marg_sets is None:
+          if np.any(are_marg_sets):
+            marg_sets = are_marg_sets
+          else:
+            marg_keys = None
+            break
+        elif not np.all(marg_sets == are_marg_sets):
+          marg_keys = None
+          break
+    assert marg_keys is not None and marg_sets is not None, \
+      "Non-unique marginal variables for currently not supported: {}".\
+      format(all_marg_keys)
+    maybe_fasttrack = True
 
   # Maybe fast-track identical conditionals
   if maybe_fasttrack:
-    if not any(cond_names) or len(set(cond_names)) == 1:
-      cond_names = cond_names[0]
-      if not cond_names or \
-          len(set(cond_names).union(prod_marg)) == len(cond_names) + len(prod_marg):
-        prod_cond_name = ','.join(cond_names)
-        prod_name = '|'.join([prod_marg_name, prod_cond_name])
-        prod_vals = collections.OrderedDict()
-        for i, val in enumerate(vals):
-          prod_val_isunitsetint = np.array([isunitsetint(prod_val) 
-                                            for prod_val in prod_vals.values()])
-          if not np.any(prod_val_isunitset):
-            prod_vals.update(val)
+    marg_same = True
+    cond_same = True
+    if marg_sets is not None: # no need to recheck
+      marg_same = True
+      for name in marg_names[1:]:
+        if marg_names[0] != name:
+          marg_same = False
+          break
+      cond_same = not any(cond_names)
+      if not cond_same:
+        cond_same = True
+        for name in cond_names[1:]:
+          if cond_names[0] != name:
+            cond_same = False
+            break
+    if marg_same and cond_same:
+      marg_names =  marg_names[0]
+      cond_names =  cond_names[0]
+      prod_marg_name = ','.join(marg_names)
+      prod_cond_name = ','.join(cond_names)
+      prod_name = '|'.join([prod_marg_name, prod_cond_name])
+      prod_vals = collections.OrderedDict()
+      for i, val in enumerate(vals):
+        areunitsetints = np.array([isunitsetint(_val) 
+                                   for _val in val.values()])
+        if not np.any(areunitsetints):
+          prod_vals.update(val)
+        else:
+          assert marg_sets is not None, "Variable mismatch"
+          assert np.all(marg_sets == areunitsetints[:len(marg_sets)]), \
+              "Variable mismatch"
+          if not len(prod_vals):
+            prod_vals.update(collections.OrderedDict(val))
           else:
-            val_isunitsetint = np.array([isunitsetint(_val) 
-                                for _val in val.values()])
-            assert np.all(prod_val_isunitsetint == val_isunitsetint),\
-                "Mismatch in variables: {} vs {}".format(prod_vals, val)
             for j, key in enumerate(prod_vals.keys()):
-              if prod_val_isunitsetint[j]:
-                prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
-        prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
+              if areunitsetints[j]:
+                prod_vals.update({key: {list(prod_vals[key])[0] + \
+                                        list(val[key])[0]}})
+      if marg_sets:
+        prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
+        return dist_obj(prod_name, prod_vals, args[0].dims, prob, pscale)
+      else:
+        prod_prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
         return dist_obj(prod_name, prod_vals, {}, prob, pscale)
 
-   # Check cond->marg accounts for all differences between conditionals
+  # Check cond->marg accounts for all differences between conditionals
+  prod_marg = [name for dist_marg_names in marg_names \
+                          for name in dist_marg_names]
+  prod_marg_name = ','.join(prod_marg)
   flat_cond_names = [name for dist_cond_names in cond_names \
                           for name in dist_cond_names]
   cond2marg = [cond_name for cond_name in flat_cond_names \
@@ -196,6 +227,7 @@ def product(*args, **kwds):
     if len(argdims) != len(set(argdims)):
       dims_shared = True
 
+  # Shared dimensions limit product dimensionality
   if dims_shared:
     seen_keys = set()
     for i, key in enumerate(prod_keys):
@@ -217,15 +249,7 @@ def product(*args, **kwds):
   # Fast-track scalar products
   if maybe_fasttrack and prod_ndims == 0:
      prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-     return dist(prod_name, prod_vals, prob, pscale)
-
-  """
-  # Exclude shared dimensions
-  for arg in args:
-    dims = [dim for dim in arg.dims.values() if dim is not None]
-    assert len(dims) == len(set(dims)), \
-        "Shared dimensionality within marginals currently not supported"
-  """
+     return dist(prod_name, prod_vals, {}, prob, pscale)
 
   # Reshape values - they require no axes swapping
   ones_ndims = np.ones(prod_ndims, dtype=int)
