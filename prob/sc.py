@@ -119,18 +119,19 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def eval_prop(self, values):
-    assert self._prop is not None, "Proposal function not set"
     assert isinstance(values, dict), "Input to eval_prob() requires values dict"
-    assert set(values.keys()) == self._keyset, \
+    assert set(values.keys()) == self._cond._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         values.keys(), self._keys())
-    if not self._prop.ret_callable():
+    if not self._prop:
+      return self._cond.eval_prob(values)
+    elif not self._prop.ret_callable():
       return self._prop()
     return self._prop(values)
 
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):
-    # Similar to __call__ except evaluates prob from proposal if available
+    # Similar to self._cond__call__ except evaluates prob from proposal if available
     if self._prop is None:
       return self.__call__(*args, **kwds)
     if self._rvs is None:
@@ -138,13 +139,13 @@ class SC (SJ):
     iid = False if 'iid' not in kwds else kwds.pop('iid')
     if type(iid) is bool and iid:
       iid = self._defiid
-    values = self._parse_args(*args, **kwds)
-    dist_name = self.eval_dist_name(values)
-    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    values = self._cond._parse_args(*args, **kwds)
+    dist_name = self._cond.eval_dist_name(values)
+    vals, dims = self._cond.eval_vals(values, _skip_parsing=True)
     prop = self.eval_prop(vals)
     if not iid: 
-      return Dist(dist_name, vals, dims, prop, self._pscale)
-    return Dist(dist_name, vals, dims, prop, self._pscale).prod(iid)
+      return Dist(dist_name, vals, dims, prop, self._marg.self._pscale)
+    return Dist(dist_name, vals, dims, prop, self._marg.self._pscale).prod(iid)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):
