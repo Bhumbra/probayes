@@ -8,6 +8,7 @@ import numpy as np
 import collections
 from prob.sj import SJ
 from prob.func import Func
+from prob.dist import Dist
 
 #-------------------------------------------------------------------------------
 class SC (SJ):
@@ -144,8 +145,8 @@ class SC (SJ):
     vals, dims = self._cond.eval_vals(values, _skip_parsing=True)
     prop = self.eval_prop(vals)
     if not iid: 
-      return Dist(dist_name, vals, dims, prop, self._marg.self._pscale)
-    return Dist(dist_name, vals, dims, prop, self._marg.self._pscale).prod(iid)
+      return Dist(dist_name, vals, dims, prop, self._cond._pscale)
+    return Dist(dist_name, vals, dims, prop, self._cond._pscale).prod(iid)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

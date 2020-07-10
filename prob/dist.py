@@ -116,6 +116,7 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def ret_cond_vals(self):
+    assert self.cond, "No conditioning variables"
     return self.ret_vals(self.cond.keys())
 
 #-------------------------------------------------------------------------------

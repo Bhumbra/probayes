@@ -22,12 +22,15 @@ o = prob.RV("o")
 # DEFINE STOCHASTIC CONDITION
 xy = prob.SJ(x, y)
 oxy = prob.SC(o, xy)
-oxy.set_prop(scipy.stats.norm.pdf, loc=0, scale=radius)
+def norm2d(x, y, loc=0., scale=radius):
+  return scipy.stats.norm.pdf(x, loc=loc, scale=scale) * \
+         scipy.stats.norm.pdf(y, loc=loc, scale=scale)
+oxy.set_prop(norm2d)
 oxy.set_prob(inside)
 
 # CALL PROBABILITIES AND EVALUATE EXPECTATION AND AREA
 prop_omc = oxy.propose({'x,y': set_size})
-xy_vals = prop_omc.ret_cond_vals()
+xy_vals = prop_omc.ret_marg_vals()
 cond_omc = oxy(xy_vals)
 """
 omc_true = cond_omc({'o': True})
