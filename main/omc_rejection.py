@@ -3,6 +3,7 @@ import numpy as np
 import scipy.stats
 import matplotlib
 matplotlib.use("Qt5Agg")
+from matplotlib.colors import Normalize
 from pylab import *; ion()
 import prob
 
@@ -42,19 +43,20 @@ xy_vals = p_prop.ret_marg_vals()
 p_oxy = oxy(xy_vals)
 p_oxy_true = p_oxy({'o': True})
 accept = p_oxy_true.prob >= thresholds
+reject = np.logical_not(accept)
 expt = np.mean(accept)
 square_area = 4. * radius**2
 circle_area = square_area * expt
 
 # PLOT DATA
-"""
 figure()
-true = np.nonzero(omc_true.prob)[0]
-false = np.nonzero(np.logical_not(omc_true.prob))[0]
-x, y = omc_true.vals['x'], omc_true.vals['y']
-plot(x[true], y[true], 'b.')
-plot(x[false], y[false], 'r.')
+x_accept, x_reject = xy_vals['x,y'][0][accept], xy_vals['x,y'][0][reject]
+y_accept, y_reject = xy_vals['x,y'][1][accept], xy_vals['x,y'][1][reject]
+c_norm = Normalize(vmin=np.min(p_prop.prob), vmax=np.max(p_prop.prob))
+c_map = cm.jet(c_norm(p_prop.prob))
+c_accept, c_reject = c_map[accept], c_map[reject]
+scatter(x_accept, y_accept, color=c_accept, marker='.', linewidths=0.5)
+scatter(x_reject, y_reject, color=c_reject, marker='x', linewidths=0.5)
 xlabel('x')
 ylabel('y')
 title('Est. circle area={}'.format(circle_area))
-"""

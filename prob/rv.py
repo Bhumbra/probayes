@@ -8,7 +8,7 @@ from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, isscalar, isunitsetint
-from prob.pscales import NEARLY_POSITIVE_INF
+from prob.pscales import rescale, NEARLY_POSITIVE_INF
 from prob.func import Func
 
 """
@@ -131,7 +131,23 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def set_vfun(self, *args, **kwds):
     super().set_vfun(*args, **kwds)
-    if self._vfun is None or self._pfun is None:
+    if self._vfun is None:
+      return
+
+    # Recalibrate scalar probabilities
+    if self.ret_isscalar() and \
+        self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
+      lo, hi = self.get_bounds()
+      lohi = np.atleast_1d([lo, hi])
+      if not np.all(np.isfinite(lohi)):
+        return
+      lims = self.ret_vfun(0)(lohi)
+      lohi = float(np.min(lims)), float(np.max(lims))
+      prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
+      if self._pscale != 1.:
+        prob = rescale(prob, self._pscale)
+      super().set_prob(prob, self._pscale)
+    if self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
         self.ret_pfun(1) != scipy.stats.uniform.ppf:

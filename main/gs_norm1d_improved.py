@@ -47,7 +47,7 @@ figure()
 pcolor(
        np.ravel(posterior.vals['sigma']), 
        np.ravel(posterior.vals['mu']), 
-       inference[:-1, :-1]
+       inference[:-1, :-1], cmap=cm.jet,
       )
 colorbar()
 xlabel(r'$\sigma$')
