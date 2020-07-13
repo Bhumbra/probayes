@@ -1,3 +1,4 @@
-Support proposal distribution marginals independent of likelihood marginals
 Support OMC rejection sampling
+Support transition functions in the form P(x' | x)
+Support Dist rekeying.
 Support MCMC Metropolis Hastings sampling

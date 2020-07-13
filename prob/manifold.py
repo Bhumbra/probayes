@@ -44,11 +44,6 @@ class Manifold:
       return self.dims
     assert isinstance(self.vals, dict), \
         "Dist vals must be a dictionary but given: {}".format(type(self.vals))
-    if eval_dims and len(self.vals) > 1:
-      if not isinstance(self.vals, collections.OrderedDict):
-        warnings.warn(\
-            "Determining dimensions from multi-key {} rather than OrderedDict".\
-            format(type(self.vals)))
     self._keys = list(self.vals.keys())
 
     # Tranform {None} to {0} to play nicely with isunitsetint
@@ -66,6 +61,13 @@ class Manifold:
     for dim in self.dims.values():
       if dim is not None:
         self.ndim = max(self.ndim, dim+1)
+
+    # If evaluating non-scalar dimensions, warn if using dict
+    if eval_dims and len(self.vals) > 1 and not self._isscalar:
+      if not isinstance(self.vals, collections.OrderedDict):
+        warnings.warn(\
+            "Determining dimensions from multi-key {} rather than OrderedDict".\
+            format(type(self.vals)))
 
     # Corroborate vals and dims
     ones_ndim = np.ones(self.ndim, dtype=int)
@@ -141,6 +143,23 @@ class Manifold:
     vals = {key: self.vals[key] for key in dims.keys()}
     return Manifold(vals, dims)
 
+#-------------------------------------------------------------------------------
+  def rekey(self, keymap):
+    assert isinstance(keymap, dict), \
+        "Input keymap must a dictionary in the form {old_key: new_key}"
+    key_map = {key: key for key in self._keys}
+    dim_map = {key: dim for key, dim in self.dims.items()}
+    for key, val in keymap.items():
+      assert key in key_map, "Unrecognised key {}".format(key)
+      assert isinstance(val, str), "Target key must be a string"
+      key_map.update({key: val})
+      if key in dim:
+        dim.update({val: dim.pop(key)})
+    vals = collections.OrderedCollection()
+    for key, val in key_map.items():
+      vals.update({val: self.vals[key]})
+    return Manifold(vals, dims)
+    
 #-------------------------------------------------------------------------------
   def ret_arescalars(self):
     return self._arescalar
