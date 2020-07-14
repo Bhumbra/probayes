@@ -7,7 +7,7 @@ import scipy.stats
 from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
-from prob.vtypes import eval_vtype, isscalar, isunitsetint
+from prob.vtypes import eval_vtype, isscalar, isunitsetint, isunitsetfloat
 from prob.pscales import rescale, NEARLY_POSITIVE_INF
 from prob.func import Func
 
@@ -57,7 +57,12 @@ def nominal_uniform(vals=None, prob=1., vset=None):
 class RV (_Vals, _Prob):
 
   # Protected
-  _name = "rv"                # Name of the random variable
+  _name = "rv"      # Name of the random variable
+  _tran = None      # Transitional prob - can be a matrix
+  _tfun = None      # Like pfun for transitional conditionals
+
+  # Private
+  __sym_tran = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
@@ -87,7 +92,6 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
-    # We don't wrap RV prob functions for flexibility and trivial argument sets
     super().set_prob(prob, pscale, *args, **kwds)
 
     # Default unspecified probabilities to uniform over self._vset is given
@@ -108,7 +112,7 @@ class RV (_Vals, _Prob):
 
     # Otherwise check uncallable probabilities commensurate with self._vset
     elif not self.ret_callable() and not self.ret_isscalar():
-      assert len(self._prob) == len(self._vset), \
+      assert len(self._prob()) == len(self._vset), \
           "Probability of length {} incommensurate with Vset of length {}".format(
               len(self._prob), len(self._vset))
     pset = self.ret_pset()
@@ -142,7 +146,7 @@ class RV (_Vals, _Prob):
       if not np.all(np.isfinite(lohi)):
         return
       lims = self.ret_vfun(0)(lohi)
-      lohi = float(np.min(lims)), float(np.max(lims))
+      lo, hi = float(np.min(lims)), float(np.max(lims))
       prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
       if self._pscale != 1.:
         prob = rescale(prob, self._pscale)
@@ -154,6 +158,37 @@ class RV (_Vals, _Prob):
       assert self._pfun is None, \
         "Cannot assign values tranformation function alongside " + \
         "non-uniform distribution"
+
+#-------------------------------------------------------------------------------
+  def set_tran(self, tran=None, *args, **kwds):
+    self._tran = tran
+    self.__sym_tran = None
+    if self._tran is None:
+      return self.__sym_tran
+    self._tran = Func(self._tran, *args, **kwds)
+    self.__sym_tran = not self._train.ret_is_tuple()
+    if self._tran.ret_callable():
+      return self.__sym_tran
+    assert self._vtype not in [float, np.dtype('float32'), np.dtype('float64')],\
+      "Callable transition function requred for floating point data types"
+    tran = self._tran() if self.__sym_tran else self._tran[0]()
+    message = "Transition matrix must a square 2D Numpy array " + \
+              "covering variable set of size {}".format(len(self._vset))
+    assert isinstance(tran, np.ndarray), message
+    assert tran.ndim == 2, message
+    assert np.all(np.array(tran.shape) == len(self._vset)), message
+    self.__sym_tran = np.allclose(tran, tran.T)
+    return self.__sym_tran
+
+#-------------------------------------------------------------------------------
+  def set_tfun(self, tfun=None, *args, **kwds):
+    # Provide cdf and inverse cdf for conditional sampling
+    self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
+    if self._tfun is None:
+      return
+    self._tfun = Func(self._tfun, *args, **kwds)
+    assert self._tfun.ret_is_tuple(), "Tuple of two functions required"
+    assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values):
@@ -168,10 +203,8 @@ class RV (_Vals, _Prob):
         "Cannot evaluate {} values for bounds: {}".format(values, vset)
     lims = self.ret_pfun(0)(lohi)
     lo, hi = float(min(lims)), float(max(lims))
-    if number == 1:
-      values = np.atleast_1d(0.5 * (lo+hi))
-    elif number >= 0:
-      values = np.linspace(lo, hi, number)
+    if number >= 0:
+      values = np.linspace(lo, hi, number + 2)[1:-1]
     else:
       values = np.random.uniform(lo, hi, size=-number)
     return self.ret_pfun(1)(values)
@@ -180,18 +213,44 @@ class RV (_Vals, _Prob):
   def eval_prob(self, values=None):
     if not self.ret_isscalar():
       return super().eval_prob(values)
-    return nominal_uniform(values, self._prob, self._vset)
+    return nominal_uniform(values, self._prob(), self._vset)
 
 #-------------------------------------------------------------------------------
-  def eval_dist_name(self, values):
+  def eval_dist_name(self, values, suffix=None):
+    name = self._name if not suffix else self._name + suffix
     if values is None:
-      dist_str = self._name
+      dist_str = name
     elif np.isscalar(values):
-      dist_str = "{}={}".format(self._name, values)
+      dist_str = "{}={}".format(name, values)
     else:
-      dist_str = self._name + "=[]"
+      dist_str = name + "=[]"
     return dist_str
 
+#-------------------------------------------------------------------------------
+  def eval_tran_vals(self, values):
+    """ Returns a tuple of (cond_vals, marg_vals) """
+    assert isinstance(values, dict) and len(values == 1), \
+        "Values must be a dictionary with a single {key:value} mapping"
+    cond_vals = list(values.keys())[0]
+    marg_vals = values[cond_vals]
+    if isunitsetint(marg_vals):
+      assert self._tfun is not None, \
+          "Continuous sampling requires specification of tfun cdf/icdf"
+    return self.eval_vals(cond_vals), self.eval_vals(marg_vals)
+
+#-------------------------------------------------------------------------------
+  def eval_tran_prob(self, cond_vals, marg_vals, reverse=False):
+    """ Returns adjusted marg_vals and probability """
+    assert self._tran is None, "No transitional function specified"
+
+#-------------------------------------------------------------------------------
+  def step(self, values=None, reverse=False):
+    if not isinstance(values, dict):
+      values = {values: None}
+    dist_name_0 = self.eval_dist_name(list(values.keys()), "'")
+    dist_name_1 = self.eval_dist_name(list(values.values()))
+    tranval = self.eval_tran_vals(values)
+    
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
     ''' 

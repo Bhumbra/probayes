@@ -113,10 +113,8 @@ class _Vals (ABC):
         if self._vfun:
           lims = self.ret_vfun(0)(lohi)
           lo, hi = float(min(lims)), float(max(lims))
-        if number == 1:
-          values = np.atleast_1d(0.5 * (lo+hi))
-        elif number >= 0:
-          values = np.linspace(lo, hi, number)
+        if number >= 0:
+          values = np.linspace(lo, hi, number + 2)[1:-1]
         else:
           values = np.random.uniform(lo, hi, size=-number)
         if self._vfun:

@@ -1,4 +1,4 @@
-# Example of a normal probability density function
+# Example of a 1D normal probability density function
 import scipy.stats
 import matplotlib
 matplotlib.use("Qt5Agg")

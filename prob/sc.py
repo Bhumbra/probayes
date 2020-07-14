@@ -16,7 +16,6 @@ class SC (SJ):
   # Protected
   _marg = None
   _cond = None
-  _prop = None # Proposition function
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -26,7 +25,6 @@ class SC (SJ):
     arg1 = None if len(args) < 2 else args[1]
     self.add_marg(arg0)
     self.add_cond(arg1)
-    self.set_prop()
 
 #-------------------------------------------------------------------------------
   def add_marg(self, *args):
@@ -61,13 +59,6 @@ class SC (SJ):
     self._defiid = self._marg.ret_keyset()
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
-
-#-------------------------------------------------------------------------------
-  def set_prop(self, prop=None, *args, **kwds):
-    self._prop = prop
-    if self._prop is None:
-      return
-    self._prop = Func(self._prop, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values=None):
@@ -117,36 +108,6 @@ class SC (SJ):
   def eval_vals(self, *args, _skip_parsing=False, **kwds):
     assert self._marg, "No marginal stochastic random variables defined"
     return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
-
-#-------------------------------------------------------------------------------
-  def eval_prop(self, values):
-    assert isinstance(values, dict), "Input to eval_prob() requires values dict"
-    assert set(values.keys()) == self._cond._keyset, \
-      "Sample dictionary keys {} mismatch with RV names {}".format(
-        values.keys(), self._keys())
-    if not self._prop:
-      return self._cond.eval_prob(values)
-    elif not self._prop.ret_callable():
-      return self._prop()
-    return self._prop(values)
-
-#-------------------------------------------------------------------------------
-  def propose(self, *args, **kwds):
-    # Similar to self._cond__call__ except evaluates prob from proposal if available
-    if self._prop is None:
-      return self.__call__(*args, **kwds)
-    if self._rvs is None:
-      return None
-    iid = False if 'iid' not in kwds else kwds.pop('iid')
-    if type(iid) is bool and iid:
-      iid = self._defiid
-    values = self._cond._parse_args(*args, **kwds)
-    dist_name = self._cond.eval_dist_name(values)
-    vals, dims = self._cond.eval_vals(values, _skip_parsing=True)
-    prop = self.eval_prop(vals)
-    if not iid: 
-      return Dist(dist_name, vals, dims, prop, self._cond._pscale)
-    return Dist(dist_name, vals, dims, prop, self._cond._pscale).prod(iid)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

@@ -1,4 +1,6 @@
-Support OMC rejection sampling
+Encapsulate prob within a Func
+Support for RVs for flat conditional transition functions
 Support transition functions in the form P(x' | x)
-Support Dist rekeying.
+Support Dist rekeying
+Support Markov chain random walks
 Support MCMC Metropolis Hastings sampling

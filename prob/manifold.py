@@ -4,24 +4,24 @@
 import numpy as np
 import collections
 import warnings
-from prob.vtypes import isscalar
+from prob.vtypes import issingleton
 
 #-------------------------------------------------------------------------------
 class Manifold:
 
   # Public
-  vals = None        # Ordered dictionary with values
-  dims = None        # Ordered dictionary specifying dimension index of vals
-  ndim = None        # Number of dimensions
-  sizes = None       # Size of dimensions including shared
-  shape = None       # Size of dimension shape excluding shared
-  size = None        # prod(size)
+  vals = None          # Ordered dictionary with values
+  dims = None          # Ordered dictionary specifying dimension index of vals
+  ndim = None          # Number of dimensions
+  sizes = None         # Size of dimensions including shared
+  shape = None         # Size of dimension shape excluding shared
+  size = None          # prod(size)
 
   # Protected
-  _keys = None       # Keys of vals as list
-  _dimension = None  # Dimension of vals
-  _arescalars = None # Whether vals are scalars
-  _isscalar = None   # all(_arescalars)
+  _keys = None         # Keys of vals as list
+  _dimension = None    # Dimension of vals
+  _aresingleton = None # Whether vals are scalars
+  _issingleton = None  # all(_aresingleton)
 
 #-------------------------------------------------------------------------------
   def __init__(self, vals=None, dims=None):
@@ -35,8 +35,8 @@ class Manifold:
     self.size = None
     self.shape = []
     self._keys = []
-    self._arescalars = []
-    self._isscalar = None
+    self._aresingleton = []
+    self._issingleton = None
     eval_dims = self.dims is None
     if eval_dims:
       self.dims = collections.OrderedDict()
@@ -54,16 +54,16 @@ class Manifold:
           if element is None:
             self.vals.update({key: {0}})
 
-    # Count number of non-scalar dimensions
-    self._arescalars = [isscalar(val) for val in self.vals.values()]
-    self._isscalar = np.all(self._arescalars)
+    # Count number of non-singleton dimensions
+    self._aresingleton = [issingleton(val) for val in self.vals.values()]
+    self._issingleton = np.all(self._aresingleton)
     self.ndim = 0 
     for dim in self.dims.values():
       if dim is not None:
         self.ndim = max(self.ndim, dim+1)
 
-    # If evaluating non-scalar dimensions, warn if using dict
-    if eval_dims and len(self.vals) > 1 and not self._isscalar:
+    # If evaluating non-singleton dimensions, warn if using dict
+    if eval_dims and len(self.vals) > 1 and not self._issingleton:
       if not isinstance(self.vals, collections.OrderedDict):
         warnings.warn(\
             "Determining dimensions from multi-key {} rather than OrderedDict".\
@@ -72,12 +72,12 @@ class Manifold:
     # Corroborate vals and dims
     ones_ndim = np.ones(self.ndim, dtype=int)
     self.shape = [None] * self.ndim
-    nonscalar_count = -1
+    nonsingleton_count = -1
     for i, key in enumerate(self._keys):
       values = self.vals[key]
 
       # Scalars are dimensionless and therefore shapeless
-      if self._arescalars[i]:
+      if self._aresingleton[i]:
         if eval_dims:
           self.dims.update({key:None})
         elif key in self.dims:
@@ -89,16 +89,16 @@ class Manifold:
 
       # Non-scalars require correct dimensionality
       else:
-        nonscalar_count += 1
+        nonsingleton_count += 1
         assert isinstance(values, np.ndarray), \
-            "Dictionary of numpy arrays expected for nonscalars but found" + \
+            "Dictionary of numpy arrays expected for nonsingletons but found" + \
             "type {} for key {}".format(type(values), key)
         val_size = values.size
         assert val_size == np.max(values.shape), \
             "Values must have one non-singleton dimension but found" + \
             "shape {} for key {}".format(values.shape, key)
         if eval_dims:
-          self.dims.update({key: nonscalar_count})
+          self.dims.update({key: nonsingleton_count})
         else:
           assert key in self.dims, "Missing key {} in dims specification {}".\
               format(key, self.dims)
@@ -135,10 +135,10 @@ class Manifold:
     for key in self._keys:
       if self.dims[key] is not None:
         assert key in dims, \
-            "Missing key for nonscalar {} in dim".format(key, dims)
+            "Missing key for nonsingleton {} in dim".format(key, dims)
       elif key in dims:
         assert dims[key] is None, \
-            "Dimension {} requested for scalar with key {}".\
+            "Dimension {} requested for singleton with key {}".\
             format(dims[key], key)
     vals = {key: self.vals[key] for key in dims.keys()}
     return Manifold(vals, dims)
@@ -161,18 +161,18 @@ class Manifold:
     return Manifold(vals, dims)
     
 #-------------------------------------------------------------------------------
-  def ret_arescalars(self):
-    return self._arescalar
+  def ret_aresingleton(self):
+    return self._aresingleton
          
 #-------------------------------------------------------------------------------
-  def ret_isscalar(self, key=None):
+  def ret_issingleton(self, key=None):
     if key is None:
-      return self._isscalar
+      return self._issingleton
     if isinstance(key, str):
       if key not in self._keys:
         return None
       key = self._keys.index(key)
-    return self._isscalar[key]
+    return self._issingleton[key]
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key=None):

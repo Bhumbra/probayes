@@ -5,7 +5,7 @@
 import collections
 import numpy as np
 from prob.dist_ops import str_margcond, margcond_str, product
-from prob.vtypes import isscalar
+from prob.vtypes import issingleton, isscalar
 from prob.pscales import eval_pscale, rescale, iscomplex
 from prob.pscales import prod_pscale, prod_rule, div_prob
 from prob.manifold import Manifold
@@ -21,8 +21,6 @@ class Dist (Manifold):
 
   # Protected
   _keyset = None         # Keys as set according to name
-  _marg_scalarset = None # Set of marginal scalar keys
-  _cond_scalarset = None # Set of condition scalar keys
   _pscale = None         # Same convention as _Prob
 
 #-------------------------------------------------------------------------------
@@ -42,21 +40,17 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def set_vals(self, vals=None, dims=None):
     argout = super().set_vals(vals, dims)
-    self._marg_scalarset = set()
-    self._cond_scalarset = set()
-    if not self._keys or not any(self._arescalars):
+    if not self._keys or not any(self._aresingleton):
       return argout
 
     # Override name entries for scalar values
     for i, key in enumerate(self._keys):
       assert key in self._keyset, \
           "Value key {} not found among name keys {}".format(key, self._keyset)
-      if self._arescalars[i]:
+      if self._aresingleton[i]:
         if key in self.marg.keys():
-          self._marg_scalarset.add(key)
           self.marg[key] = "{}={}".format(key, self.vals[key])
         elif key in self.cond.keys():
-          self._cond_scalarset.add(key)
           self.cond[key] = "{}={}".format(key, self.vals[key])
         else:
           raise ValueError("Variable {} not accounted for in name {}".format(
@@ -70,10 +64,10 @@ class Dist (Manifold):
     self._pscale = eval_pscale(pscale)
     if self.prob is None:
       return self._pscale
-    if self._isscalar:
-      assert isscalar(self.prob), "Scalar vals with non-scalar prob"
+    if self._issingleton:
+      assert isscalar(self.prob), "Singleton vals with non-scalar prob"
     else:
-      assert not isscalar(self.prob), "Non scalar values with scalar prob"
+      assert not isscalar(self.prob), "Non singleton values with scalar prob"
       assert self.ndim == self.prob.ndim, \
         "Mismatch in dimensionality between values {} and probabilities {}".\
         format(self.ndim, self.prob.ndim)
@@ -90,13 +84,13 @@ class Dist (Manifold):
     seen_keys = set()
     for i, key in enumerate(self._keys):
       if key in keys and key not in seen_keys:
-        if self._arescalars[i]:
+        if self._aresingleton[i]:
           seen_keys.add(keys)
           vals.update({key: vals})
         else:
           shared_keys = [key]
           for j, cand_key in enumerate(self._keys):
-            if j > i and cand_key in keys and not self._arescalars[j]:
+            if j > i and cand_key in keys and not self._aresingleton[j]:
               if self.dims[key] == self.dims[cand_key]:
                 shared_keys.append(cand_key)
           if len(shared_keys) == 1:
@@ -137,13 +131,13 @@ class Dist (Manifold):
     for i, key in enumerate(self._keys):
       new_dim = None
       if key in keys:
-        assert not self._arescalars[i], \
+        assert not self._aresingleton[i], \
             "Cannot marginalise along scalar for key {}".format(key)
         sum_axes.add(self.dims[key])
         marg.pop(key)
         dim_delta += 1
       else:
-        if not self._arescalars[i]:
+        if not self._aresingleton[i]:
           dims.update({key: self.dims[key] - dim_delta})
         vals.update({key:self.vals[key]})
     name = margcond_str(marg, cond)
@@ -166,20 +160,23 @@ class Dist (Manifold):
       assert key in self.marg.keys(), \
         "Key {} not marginal in distribution {}".format(key, self.name)
     marginalise_keys = set()
-    arescalars = []
+    aresingletons = []
+    marg_scalars = set()
     for i, key in enumerate(self._keys):
-      isscalar = self._arescalars[i]
+      singleton = self._aresingleton[i]
       marginal = key in keys
       if key in self.marg.keys():
-        arescalars.append(isscalar)
-        if not isscalar and not marginal:
+        aresingletons.append(singleton)
+        if singleton:
+          marg_scalars.add(key)
+        if not singleton and not marginal:
           marginalise_keys.add(key)
 
     # If including any marginal scalars, must include all scalars
-    if any(arescalars):
-      assert self._marg_scalarset.issubset(keys), \
-        "If evaluating marginal for key {}".format(key) + "," + \
-        "must include all marginal scalars in {}".format(self._marg_scalarset)
+    if any(aresingletons):
+      assert marg_scalars.issubset(keys), \
+        "If evaluating marginal for key {}".format(key) + ", " + \
+        "must include all marginal scalars in {}".format(self.marg.keys())
 
     return self.marginalise(marginalise_keys)
         
@@ -198,14 +195,17 @@ class Dist (Manifold):
     cond = collections.OrderedDict(self.cond)
     normalise = False
     delta = 0
+    marg_scalars = set()
     for i, key in enumerate(self._keys):
       if key in keys:
         cond.update({key: marg.pop(key)})
-      if self._arescalars[i]:
+      if self._aresingleton[i]:
         dims.update({key: None})
         if key in keys:
           normalise = True
       elif key in self.marg.keys():
+        if self._aresingleton[i]:
+          marg_scalars.add(key)
         if key in keys:
           delta += 1 # Don't add to dim just yet
         else:
@@ -235,9 +235,10 @@ class Dist (Manifold):
       if dim is not None:
         dims.update({key: dim-dim_min+dim_max+1})
     if normalise:
-      assert self._marg_scalarset.issubset(set(keys)), \
+      assert marg_scalars.issubset(set(keys)), \
         "If conditionalising for key {}".format(key) + "," + \
-        "must include all marginal scalars in {}".format(self._marg_scalarset)
+        "must include all marginal scalars in {}".format(self.marg.keys())
+
     # Setup vals dimensions and evaluate probabilities
     name = margcond_str(marg, cond)
     vals = self.redim(dims).vals
@@ -283,14 +284,14 @@ class Dist (Manifold):
     for i, key in enumerate(self._keys):
       new_dim = None
       if key in keys:
-        assert not self._arescalars[i], \
+        assert not self._aresingleton[i], \
             "Cannot apply product along scalar for key {}".format(key)
         prod_axes.append(self.dims[key])
         marg.update({key: key+"={}"})
         vals.update({key: {self.vals[key].size}})
         dim_delta += 1
       else:
-        if not self._arescalars[i]:
+        if not self._aresingleton[i]:
           dims.update({key: self.dims[key] - dim_delta})
         vals.update({key:self.vals[key]})
     name = margcond_str(marg, cond)
@@ -331,7 +332,7 @@ class Dist (Manifold):
     for i, key in enumerate(self._keys):
       if key in keys:
         val = self.vals[key] if not exponent else self.vals[key]**exponent
-        if self._arescalars[i]:
+        if self._aresingleton[i]:
           vals.update({key: val})
         else:
           expt_numerator = np.sum(prob*val, 
@@ -348,14 +349,6 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def ret_pscale(self):
     return self._pscale
-
-#-------------------------------------------------------------------------------
-  def ret_marg_scalarset(self):
-    return self._marg_scalarset
-
-#-------------------------------------------------------------------------------
-  def ret_cond_scalarset(self):
-    return self._cond_scalarset
 
 #-------------------------------------------------------------------------------
   def rescaled(self, pscale=None):
@@ -384,7 +377,7 @@ class Dist (Manifold):
     slices = [None] * self.ndim
     dim_delta = 0
     for i, key in enumerate(self._keys):
-      isscalar = self._arescalars[i]
+      isscalar = self._aresingleton[i]
       dimension = self.dims[key]
       if key in keyset:
         inds.update({key: None})
@@ -436,13 +429,17 @@ class Dist (Manifold):
     The scalar marginals must match.
     """
     # Assert scalar division and operands compatible
-    assert set(list(self.cond.keys())) == other.ret_cond_scalarset(), \
+    assert set(self.cond.keys())== set(other.cond.keys()),  \
       "Conditionals must match"
 
-    divs = other.ret_isscalar()
+    divs = other.ret_issingleton()
     if divs:
-      assert self._marg_scalarset == other.ret_marg_scalarset(), \
-        "For divisor scalars, scalar marginals must match"
+      marg_scalars = set()
+      for i, key in enumerate(self._keys):
+        if key in self.marg.keys() and self._aresingleton[i]:
+          marg_scalars.add(key)
+      assert marg_scalars == set(other.marg.keys()), \
+        "For divisor singletons, scalar marginals must match"
 
     # Prepare quotient marg and cond keys
     keys = other.marg.keys()
@@ -453,7 +450,7 @@ class Dist (Manifold):
     for i, key in enumerate(self._keys):
       if key in keys:
         cond.update({key:marg.pop(key)})
-        if not self._arescalars[i] and not divs:
+        if not self._aresingleton[i] and not divs:
           re_shape[self.dims[key]] = other.vals[key].size
       else:
         vals.update({key:self.vals[key]})
@@ -476,7 +473,7 @@ class Dist (Manifold):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     prefix = 'logp' if iscomplex(self._pscale) else 'p'
-    suffix = '' if not self._isscalar else '={}'.format(self.prob)
+    suffix = '' if not self._issingleton else '={}'.format(self.prob)
     return super().__repr__() + ": " + prefix + "(" + self.name + ")" + suffix
 
 #-------------------------------------------------------------------------------

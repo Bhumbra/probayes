@@ -32,22 +32,51 @@ def eval_vtype(vtype):
 
 #-------------------------------------------------------------------------------
 def isunitsetint(var):
+  """ Usage depends on class:
+  RVs, SJs, SCs: set(int) is a sample specification denoting number of samples:
+                   positive values request samples using linear interpolation
+                   negative values request samples using random generation.
+  Dist: set(int): proxies as a 'value' for a variable as a set of size int.
+  """
+
   if isinstance(var, set):
     if len(var) == 1:
-      element = list(var)[0]
-      if type(element) is int:
+      element_type = type(list(var)[0])
+      if element_type is int:
+        return True
+  return False
+
+#-------------------------------------------------------------------------------
+def isunitsetfloat(var):
+  """ Usage requests a sampling of value from a ICDF for then given P """
+  if isinstance(var, set):
+    if len(var) == 1:
+      element_type = type(list(var)[0])
+      if element_type is float:
+        return True
+  return False
+
+#-------------------------------------------------------------------------------
+def isunitset(var):
+  if isinstance(var, set):
+    if len(var) == 1:
+      element_type = type(list(var)[0])
+      if element_type in (int, float):
         return True
   return False
 
 #-------------------------------------------------------------------------------
 def isscalar(var):
-  # Integer singleton sets denote unspecified scalars 
-  # as well as undimensioned Numpy arrays
-  if isunitsetint(var):
-    return True
   if isinstance(var, np.ndarray):
     if var.ndim == 0 and var.size == 1:
       return True
   return np.isscalar(var)
+
+#-------------------------------------------------------------------------------
+def issingleton(var):
+  # Here we define singleton as a unit set or scalar
+  if isunitset(var):
+    return True
+  return isscalar(var)
 
 #-------------------------------------------------------------------------------

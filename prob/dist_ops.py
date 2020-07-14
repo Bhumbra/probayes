@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.vtypes import isscalar, isunitsetint
+from prob.vtypes import isscalar, issingleton, isunitsetint
 from prob.pscales import rescale, prod_pscale, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
@@ -70,8 +70,8 @@ def product(*args, **kwds):
   kwds = dict(kwds)
   pscales = [arg.ret_pscale() for arg in args]
   pscale = kwds.get('pscale', None) or prod_pscale(pscales)
-  arescalars = [arg.ret_isscalar() for arg in args]
-  maybe_fasttrack = all(arescalars) and \
+  aresingleton = [arg.ret_issingleton() for arg in args]
+  maybe_fasttrack = all(aresingleton) and \
                     np.all(pscale == np.array(pscales)) and \
                     pscale in [0, 1.]
 
@@ -194,7 +194,7 @@ def product(*args, **kwds):
   # Establish product name, values, and dimensions
   prod_keys = str2key(prod_marg + prod_cond)
   prod_nkeys = len(prod_keys)
-  prod_arescalars = np.zeros(prod_nkeys, dtype=bool)
+  prod_aresingleton = np.zeros(prod_nkeys, dtype=bool)
   prod_areunitsetints = np.zeros(prod_nkeys, dtype=bool)
   prod_cond_name = ','.join(prod_cond)
   prod_name = prod_marg_name if not len(prod_cond_name) \
@@ -210,7 +210,7 @@ def product(*args, **kwds):
           values = {0}
         break
     assert values is not None, "Values for key {} not found".format(key)
-    prod_arescalars[i] = isscalar(values)
+    prod_aresingleton[i] = issingleton(values)
     prod_vals.update({key: values})
   if np.any(prod_areunitsetints):
     for i, key in enumerate(prod_keys):
@@ -220,7 +220,7 @@ def product(*args, **kwds):
             assert isunitsetint(val[key]), "Mismatch in variables {} vs {}".\
                 format(prod_vals, val)
             prod_vals.update({key: {list(prod_vals[key])[0] + list(val[key])[0]}})
-  prod_newdims = np.array(np.logical_not(prod_arescalars))
+  prod_newdims = np.array(np.logical_not(prod_aresingleton))
   dims_shared = False
   for arg in args:
     argdims = [dim for dim in arg.dims.values() if dim is not None]
@@ -257,7 +257,7 @@ def product(*args, **kwds):
   scalarset = set()
   prod_dims = collections.OrderedDict()
   for i, key in enumerate(prod_keys):
-    if prod_arescalars[i]:
+    if prod_aresingleton[i]:
       scalarset.add(key)
     else:
       values = prod_vals[key]
@@ -331,7 +331,7 @@ def sum_dist(*args):
     for key in marg_names:
       if sum_dim[i-1] is not None:
         continue
-      elif not arg.ret_isscalar(key):
+      elif not arg.ret_isssingleton(key):
         key_vals = arg.vals[key]
         if key_vals.size == sum_vals[key].size:
           if np.allclose(key_vals, sum_vals[key]):

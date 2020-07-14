@@ -8,9 +8,22 @@ import collections
 import numpy as np
 from prob.rv import RV
 from prob.dist import Dist
-from prob.vtypes import isscalar
+from prob.vtypes import isscalar, issingleton
 from prob.pscales import eval_pscale, prod_pscale, prod_rule
 from prob.func import Func
+
+#-------------------------------------------------------------------------------
+def rv_prod_rule(values, rvs, pscale=None):
+  """ Returns the probability product treating all rvs as independent.
+  Values are keyed by RV name and rvs are a list of RVs.
+  """
+  pscales = [rv.ret_pscale() for rv in rvs]
+  pscale = pscale or prod_pscale(pscales)
+  probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
+  prob, pscale = prod_rule(*tuple(probs),
+                           pscales=pscales,
+                           pscale=pscale)
+  return prob, pscale
 
 #-------------------------------------------------------------------------------
 class SJ:
@@ -23,15 +36,14 @@ class SJ:
   _keyset = None
   _defiid = None
   _pscale = None
-  _arg_order = None
-  _as_scalar = None # dictionary of bools
   _prob = None
-  _prob_args = None
-  _prob_kwds = None
   _pscale = None
+  _tran = None      # Transitional prob - can be 
 
   # Private
+  __isscalar = None
   __callable = None
+  __sym_tran = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -122,10 +134,15 @@ class SJ:
     if 'pscale' in kwds:
       pscale = kwds.pop('pscale')
       self.set_pscale(pscale)
+    self.__callable = None
+    self.__isscalar = None
     self._prob = prob
-    self.__callable = callable(self._prob)
-    if self.__callable:
-      self._prob = Func(self._prob, *args, **kwds)
+    if self._prob is None:
+      return self.__callable
+    self._prob = Func(self._prob, *args, **kwds)
+    self.__callable = self._prob.ret_callable()
+    self.__isscalar = self._prob.ret_isscalar()
+    return self.__callable
 
 #-------------------------------------------------------------------------------
   def _parse_args(self, *args, **kwds):
@@ -235,26 +252,40 @@ class SJ:
         re_shape[re_dim] = vals[key].size
         vals[key] = vals[key].reshape(re_shape)
     
-    # Remove dimensionality for scalars
+    # Remove dimensionality for singletons
     for key in self._keys:
-      if isscalar(vals[key]):
+      if issingleton(vals[key]):
         dims[key] = None
     return vals, dims
 
 #-------------------------------------------------------------------------------
-  def eval_prob(self, values):
+  def set_tran(self, tran=None, *args, **kwds):
+    self._tran = tran
+    self.__sym_tran = False
+    if self._tran is None:
+      return
+    self._tran = Func(self._tran, *args, **kwds)
+    self.__sym_tran = self._train.ret_is_tuple()
+
+#-------------------------------------------------------------------------------
+  def eval_prob(self, values=None):
+    if values is None:
+      values = {}
     assert isinstance(values, dict), "Input to eval_prob() requires values dict"
     assert set(values.keys()) == self._keyset, \
       "Sample dictionary keys {} mismatch with RV names {}".format(
         values.keys(), self._keys())
+
+    # If not specified, treat as independent variables
     if self._prob is None:
-      rvs = self.ret_rvs(aslist=True)
-      pscales = np.array([rv.ret_pscale() for rv in rvs])
-      probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
-      prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=self._pscale)
+      prob, pscale = rv_prod_rule(values, 
+                                  self.ret_rvs(aslist=True),
+                                  pscale=self._pscale)
       return prob
+
+    # Otherwise distinguish between uncallable and callables
     if not self.__callable:
-      return self._prob
+      return self._prob()
     return self._prob(values)
 
 #-------------------------------------------------------------------------------
