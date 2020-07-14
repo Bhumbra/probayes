@@ -18,7 +18,10 @@ It therefore requires a name for x (id), a variable alphabet set (vset), and its
 asscociated probability distribution function (prob).
 """
 #-------------------------------------------------------------------------------
-def nominal_uniform(vals=None, prob=1., vset=None):
+def nominal_uniform(*args, prob=1., vset=None):
+
+  assert len(args) >= 1, "Minimum of a single positional argument"
+  vals = args[0]
 
   # Default to prob if no values
   if vals is None:
@@ -50,6 +53,11 @@ def nominal_uniform(vals=None, prob=1., vset=None):
   else:
     outside = np.array([val not in vset for val in vals], dtype=bool)
     prob[outside] = 0.
+
+  # Broadcast probabilities across args
+  if len(args) > 1:
+    for arg in args[1:]:
+      prob = prob * nominal_uniform(arg, vset=vset)
 
   return prob
 
@@ -109,6 +117,7 @@ class RV (_Vals, _Prob):
         if self._pscale != 1.:
           prob = rescale(prob, self._pscale)
         super().set_prob(prob, self._pscale)
+        self.set_tran(prob)
 
     # Otherwise check uncallable probabilities commensurate with self._vset
     elif not self.ret_callable() and not self.ret_isscalar():
@@ -166,11 +175,11 @@ class RV (_Vals, _Prob):
     if self._tran is None:
       return self.__sym_tran
     self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = not self._train.ret_is_tuple()
-    if self._tran.ret_callable():
+    self.__sym_tran = not self._tran.ret_istuple()
+    if self._tran.ret_callable() or self._tran.ret_isscalar():
       return self.__sym_tran
     assert self._vtype not in [float, np.dtype('float32'), np.dtype('float64')],\
-      "Callable transition function requred for floating point data types"
+      "Scalar or callable transitional required for floating point data types"
     tran = self._tran() if self.__sym_tran else self._tran[0]()
     message = "Transition matrix must a square 2D Numpy array " + \
               "covering variable set of size {}".format(len(self._vset))
@@ -187,7 +196,7 @@ class RV (_Vals, _Prob):
     if self._tfun is None:
       return
     self._tfun = Func(self._tfun, *args, **kwds)
-    assert self._tfun.ret_is_tuple(), "Tuple of two functions required"
+    assert self._tfun.ret_istuple(), "Tuple of two functions required"
     assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
@@ -213,7 +222,9 @@ class RV (_Vals, _Prob):
   def eval_prob(self, values=None):
     if not self.ret_isscalar():
       return super().eval_prob(values)
-    return nominal_uniform(values, self._prob(), self._vset)
+    prob = self._prob()
+    vset = self._vset
+    return nominal_uniform(values, prob=prob, vset=vset)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
@@ -227,29 +238,36 @@ class RV (_Vals, _Prob):
     return dist_str
 
 #-------------------------------------------------------------------------------
-  def eval_tran_vals(self, values):
-    """ Returns a tuple of (cond_vals, marg_vals) """
-    assert isinstance(values, dict) and len(values == 1), \
-        "Values must be a dictionary with a single {key:value} mapping"
-    cond_vals = list(values.keys())[0]
-    marg_vals = values[cond_vals]
-    if isunitsetint(marg_vals):
-      assert self._tfun is not None, \
-          "Continuous sampling requires specification of tfun cdf/icdf"
-    return self.eval_vals(cond_vals), self.eval_vals(marg_vals)
-
-#-------------------------------------------------------------------------------
-  def eval_tran_prob(self, cond_vals, marg_vals, reverse=False):
-    """ Returns adjusted marg_vals and probability """
+  def eval_tran(self, prev_vals, next_vals, reverse=False):
+    """ Returns adjusted next_vals and transitional probability """
     assert self._tran is None, "No transitional function specified"
+    if self._tran.ret_isscalar():
+      assert not isunitsetfloat(next_vals), \
+          "Cannot from cumulatively sample from scalar distribution"
+      prob = self._tran()
+      vset = self._vset
+      return next_vals, nominal_uniform(prev_vals, 
+                                        next_vals,
+                                        prob=prob,
+                                        vset=vset)
 
 #-------------------------------------------------------------------------------
-  def step(self, values=None, reverse=False):
-    if not isinstance(values, dict):
-      values = {values: None}
-    dist_name_0 = self.eval_dist_name(list(values.keys()), "'")
-    dist_name_1 = self.eval_dist_name(list(values.values()))
-    tranval = self.eval_tran_vals(values)
+  def step(self, *args, reverse=False):
+    prev_values, next_values = None, None 
+    if len(args) == 1:
+      if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
+        prev_values, next_values = args[0][0], args[0][1]
+      else:
+        prev_values, next_values = args[0], args[0]
+    elif len(args) == 2:
+      prev_values, next_values = args[0], args[1]
+    dist_prev_name = self.eval_dist_name(prev_values)
+    dist_next_name = self.eval_dist_name(next_values, "'")
+    dist_name = '|',join([dist_next_name, dist_prev_name])
+    prev_vals = self.eval_vals(prev_values)
+    next_vals = self.eval_vals(next_values)
+    next_vals, prob = eval_tran(prev_vals, next_vals)
+    # MORE NEEDED HERE
     
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):

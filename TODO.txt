@@ -1,4 +1,3 @@
-Encapsulate prob within a Func
 Support for RVs for flat conditional transition functions
 Support transition functions in the form P(x' | x)
 Support Dist rekeying
