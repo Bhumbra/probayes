@@ -200,8 +200,9 @@ class RV (_Vals, _Prob):
     assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, values):
-    if self._pfun is None or not isunitsetint(values):
+  def eval_vals(self, values, use_pfun=True):
+    use_pfun = use_pfun and self._pfun is not None and isunitsetint(values)
+    if not use_pfun:
       return super().eval_vals(values)
 
     # Evaluate values from inverse cdf bounded within cdf limits
@@ -241,6 +242,8 @@ class RV (_Vals, _Prob):
   def eval_tran(self, prev_vals, next_vals, reverse=False):
     """ Returns adjusted next_vals and transitional probability """
     assert self._tran is None, "No transitional function specified"
+
+    # Scalar treatment is the most trivial
     if self._tran.ret_isscalar():
       assert not isunitsetfloat(next_vals), \
           "Cannot from cumulatively sample from scalar distribution"
@@ -250,6 +253,9 @@ class RV (_Vals, _Prob):
                                         next_vals,
                                         prob=prob,
                                         vset=vset)
+    # Handle discrete non-callables
+    if not self._tran.ret_callable():
+      pass
 
 #-------------------------------------------------------------------------------
   def step(self, *args, reverse=False):
@@ -261,12 +267,17 @@ class RV (_Vals, _Prob):
         prev_values, next_values = args[0], args[0]
     elif len(args) == 2:
       prev_values, next_values = args[0], args[1]
+    if next_vals is None:
+      if self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
+        next_vals = prev_vals
+      else:
+        next_vals = np.array(list(self._vset), dtype=self._vtype)
     dist_prev_name = self.eval_dist_name(prev_values)
     dist_next_name = self.eval_dist_name(next_values, "'")
     dist_name = '|',join([dist_next_name, dist_prev_name])
     prev_vals = self.eval_vals(prev_values)
-    next_vals = self.eval_vals(next_values)
     next_vals, prob = eval_tran(prev_vals, next_vals)
+
     # MORE NEEDED HERE
     
 #-------------------------------------------------------------------------------

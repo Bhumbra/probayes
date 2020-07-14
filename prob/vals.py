@@ -6,7 +6,7 @@ invertible transformations.
 #-------------------------------------------------------------------------------
 from abc import ABC, abstractmethod
 import numpy as np
-from prob.vtypes import eval_vtype
+from prob.vtypes import eval_vtype, isunitsetint
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
@@ -90,8 +90,7 @@ class _Vals (ABC):
       values = np.array(list(self._vset), dtype=self._vtype)
 
     # Sets may be used to sample from support sets
-    elif isinstance(values, set):
-      assert len(values) == 1, "Set values must contain one integer"
+    elif isunitsetint(values):
       number = int(list(values)[0])
 
       # Non-continuous
