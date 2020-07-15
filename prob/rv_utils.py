@@ -1,6 +1,6 @@
 import numpy as np
-from prob.vtypes import isunitsetint, isunitsetfloat, isunitset, \
-                        uniform, VTYPES
+from prob.vtypes import isunitsetint, isunitsetfloat, isunitset, isscalar, \
+                        uniform, eval_vtype, VTYPES
 
 """
 A module to provide functional support to rv.py
