@@ -7,9 +7,12 @@ import scipy.stats
 from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
-from prob.vtypes import eval_vtype, isscalar, isunitsetint, isunitsetfloat
+from prob.vtypes import eval_vtype, uniform, VTYPES, \
+                        isscalar, isunitsetint, isunitsetfloat
 from prob.pscales import rescale, NEARLY_POSITIVE_INF
 from prob.func import Func
+from prob.rv_utils import nominal_uniform_prob, nominal_uniform_cond
+
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
@@ -17,49 +20,6 @@ possible realisation defined over the alphabet set A_x with probabilities P_x.
 It therefore requires a name for x (id), a variable alphabet set (vset), and its 
 asscociated probability distribution function (prob).
 """
-#-------------------------------------------------------------------------------
-def nominal_uniform(*args, prob=1., vset=None):
-
-  assert len(args) >= 1, "Minimum of a single positional argument"
-  vals = args[0]
-
-  # Default to prob if no values
-  if vals is None:
-    return prob
-  vtype = eval_vtype(vset)
-
-  # If scalar, check within variable set
-  if isscalar(vals):
-    if vtype in [float, np.dtype('float32'), np.dtype('float64') ]:
-      prob = 0. if vals < min(vset) or vals > max(vset) else prob
-    else:
-      prob = prob if vals in vset else 0.
-    return prob
-
-  # Otherwise treat as arrays
-  vals = np.atleast_1d(vals)
-  prob = np.tile(prob, vals.shape)
-
-  # Handle nominal probabilities
-  if vtype is bool:
-    isfalse = np.logical_not(vals)
-    prob[isfalse] = 1. - prob[isfalse]
-    return prob
-
-  # Otherwise treat as uniform within range
-  if vtype in [float, np.dtype('float32'), np.dtype('float64')]:
-    outside = np.logical_or(vals < min(vset), vals > max(vset))
-    prob[outside] = 0.
-  else:
-    outside = np.array([val not in vset for val in vals], dtype=bool)
-    prob[outside] = 0.
-
-  # Broadcast probabilities across args
-  if len(args) > 1:
-    for arg in args[1:]:
-      prob = prob * nominal_uniform(arg, vset=vset)
-
-  return prob
 
 #-------------------------------------------------------------------------------
 class RV (_Vals, _Prob):
@@ -111,7 +71,7 @@ class RV (_Vals, _Prob):
         if self._vtype in (bool, int):
           nvset = len(self._vset)
           prob = NEARLY_POSITIVE_INF if not nvset else 1. / float(nvset)
-        elif self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
+        elif self._vtype in VTYPES[float]:
           lo, hi = self.get_bounds()
           prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
         if self._pscale != 1.:
@@ -126,7 +86,7 @@ class RV (_Vals, _Prob):
               len(self._prob), len(self._vset))
     pset = self.ret_pset()
     if is_scipy_stats_cont(pset):
-      if self._vtype not in [float, np.dtype('float32'), np.dtype('float64')]:
+      if self._vtype not in VTYPES[float]:
         self.set_vset(self._vset, vtype=float)
     return self.ret_callable()
    
@@ -149,13 +109,8 @@ class RV (_Vals, _Prob):
 
     # Recalibrate scalar probabilities
     if self.ret_isscalar() and \
-        self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
-      lo, hi = self.get_bounds()
-      lohi = np.atleast_1d([lo, hi])
-      if not np.all(np.isfinite(lohi)):
-        return
-      lims = self.ret_vfun(0)(lohi)
-      lo, hi = float(np.min(lims)), float(np.max(lims))
+        self._vtype in VTYPES[float]:
+      lo, hi = self.get_bounds(use_vfun=True)
       prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
       if self._pscale != 1.:
         prob = rescale(prob, self._pscale)
@@ -178,7 +133,7 @@ class RV (_Vals, _Prob):
     self.__sym_tran = not self._tran.ret_istuple()
     if self._tran.ret_callable() or self._tran.ret_isscalar():
       return self.__sym_tran
-    assert self._vtype not in [float, np.dtype('float32'), np.dtype('float64')],\
+    assert self._vtype not in VTYPES[float],\
       "Scalar or callable transitional required for floating point data types"
     tran = self._tran() if self.__sym_tran else self._tran[0]()
     message = "Transition matrix must a square 2D Numpy array " + \
@@ -207,16 +162,13 @@ class RV (_Vals, _Prob):
 
     # Evaluate values from inverse cdf bounded within cdf limits
     number = list(values)[0]
-    lo, hi = self.get_bounds()
-    lohi = np.atleast_1d([lo, hi])
+    lo, hi = self.get_bounds(use_vfun=False)
+    lohi = np.array([lo, hi], dtype=float)
     assert np.all(np.isfinite(lohi)), \
         "Cannot evaluate {} values for bounds: {}".format(values, vset)
     lims = self.ret_pfun(0)(lohi)
     lo, hi = float(min(lims)), float(max(lims))
-    if number >= 0:
-      values = np.linspace(lo, hi, number + 2)[1:-1]
-    else:
-      values = np.random.uniform(lo, hi, size=-number)
+    values = uniform(lo, hi, number)
     return self.ret_pfun(1)(values)
 
 #-------------------------------------------------------------------------------
@@ -225,7 +177,7 @@ class RV (_Vals, _Prob):
       return super().eval_prob(values)
     prob = self._prob()
     vset = self._vset
-    return nominal_uniform(values, prob=prob, vset=vset)
+    return nominal_uniform_prob(values, prob=prob, vset=vset)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
@@ -245,14 +197,18 @@ class RV (_Vals, _Prob):
 
     # Scalar treatment is the most trivial
     if self._tran.ret_isscalar():
-      assert not isunitsetfloat(next_vals), \
-          "Cannot from cumulatively sample from scalar distribution"
+      if isunitsetint(next_vals):
+        next_vals = self.eval_vals(next_vals, use_pfun=False)
+      elif isunitsetfloat(next_vals):
+        assert self._vtype in VTYPES[float]
+        # RESUME HERE
       prob = self._tran()
       vset = self._vset
-      return next_vals, nominal_uniform(prev_vals, 
-                                        next_vals,
-                                        prob=prob,
-                                        vset=vset)
+      return next_vals, nominal_uniform_cond(prev_vals, 
+                                             next_vals,
+                                             prob=prob,
+                                             vset=vset)
+
     # Handle discrete non-callables
     if not self._tran.ret_callable():
       pass
@@ -268,7 +224,7 @@ class RV (_Vals, _Prob):
     elif len(args) == 2:
       prev_values, next_values = args[0], args[1]
     if next_vals is None:
-      if self._vtype in [float, np.dtype('float32'), np.dtype('float64')]:
+      if self._vtype in VTYPES[float]:
         next_vals = prev_vals
       else:
         next_vals = np.array(list(self._vset), dtype=self._vtype)

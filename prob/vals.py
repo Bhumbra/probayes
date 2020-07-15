@@ -6,7 +6,7 @@ invertible transformations.
 #-------------------------------------------------------------------------------
 from abc import ABC, abstractmethod
 import numpy as np
-from prob.vtypes import eval_vtype, isunitsetint
+from prob.vtypes import eval_vtype, isunitsetint, uniform, VTYPES
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ class _Vals (ABC):
     if self._vfun is None:
       return
 
-    assert self._vtype in (float, np.dtype('float32'),  np.dtype('float64')), \
+    assert self._vtype in VTYPES[float], \
         "Values transformation function only supported for floating point"
     message = "Input vfun be a two-sized tuple of callable functions"
     assert isinstance(self._vfun, tuple), message
@@ -71,15 +71,22 @@ class _Vals (ABC):
 
 #-------------------------------------------------------------------------------
   def ret_vfun(self, index=None):
-    if self._vfun is None or index is None:
+    if self._vfun is None:
+      return lambda x:x
+    if index is None:
       return self._vfun
     return self._vfun[index]
 
 #-------------------------------------------------------------------------------
-  def get_bounds(self):
+  def get_bounds(self, use_vfun=True):
     if self._vset is None:
       return None
-    lo, hi = min(self._vset), max(self._vset)
+    if use_vfun:
+      use_vfun = self._vfun is not None
+    vset = self._vset
+    if use_vfun:
+      vset = self.ret_vfun(0)(np.array(list(vset)))
+    lo, hi = min(vset), max(vset)
     return lo, hi
 
 #-------------------------------------------------------------------------------
@@ -94,7 +101,7 @@ class _Vals (ABC):
       number = int(list(values)[0])
 
       # Non-continuous
-      if self._vtype not in [float, np.dtype('float32'), np.dtype('float64')]:
+      if self._vtype not in VTYPES[float]:
         values = np.array(list(self._vset), dtype=self._vtype)
         divisor = len(self._vset)
         if number >= 0:
@@ -105,17 +112,11 @@ class _Vals (ABC):
        
       # Continuous
       else:
-        lo, hi = self.get_bounds()
-        lohi = np.atleast_1d([lo, hi])
+        lo, hi = self.get_bounds(use_vfun=True)
+        lohi = np.array([lo, hi])
         assert np.all(np.isfinite(lohi)), \
-            "Cannot evaluate {} values for bounds: {}".format(values, vset)
-        if self._vfun:
-          lims = self.ret_vfun(0)(lohi)
-          lo, hi = float(min(lims)), float(max(lims))
-        if number >= 0:
-          values = np.linspace(lo, hi, number + 2)[1:-1]
-        else:
-          values = np.random.uniform(lo, hi, size=-number)
+            "Cannot evaluate {} values for bounds: {}".format(values, lohi)
+        values = uniform(lo, hi, number)
         if self._vfun:
           return self.ret_vfun(1)(values)
         return values

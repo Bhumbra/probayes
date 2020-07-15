@@ -4,17 +4,15 @@ A module that handles variable data types.
 
 #-------------------------------------------------------------------------------
 import numpy as np
+import functools
+import operator
 
 #-------------------------------------------------------------------------------
-NUMPY_DTYPES = {
-                 np.dtype('bool'): bool,
-                 np.dtype('int'): int,
-                 np.dtype('int32'): int,
-                 np.dtype('int64'): int,
-                 np.dtype('float'): float,
-                 np.dtype('float32'): float,
-                 np.dtype('float64'): float,
-               }
+VTYPES = {
+          bool: (bool, np.dtype('bool')),
+          int:  (int, np.dtype('int'), np.dtype('int32'), np.dtype('int64')),
+          float: (float, np.dtype('float'),  np.dtype('float32'), np.dtype('float64'))
+         }
 
 #-------------------------------------------------------------------------------
 def eval_vtype(vtype):
@@ -24,11 +22,22 @@ def eval_vtype(vtype):
     vtype = np.array(vtype)
   if isinstance(vtype, np.ndarray):
     vtype = vtype.dtype
-  if vtype in NUMPY_DTYPES:
-    vtype = NUMPY_DTYPES[vtype]
-  if vtype in [bool, int, float]:
-    return vtype
+  for key, val in VTYPES.items():
+    if vtype in val:
+      vtype = key
+      break
   return vtype
+
+#-------------------------------------------------------------------------------
+def isunitset(var, vtype=None):
+  vtypes = VTYPES[vtype] if vtype else \
+           functools.reduce(operator.concat, VTYPES.values())
+  if isinstance(var, set):
+    if len(var) == 1:
+      element_type = type(list(var)[0])
+      if element_type in vtypes:
+        return True
+  return False
 
 #-------------------------------------------------------------------------------
 def isunitsetint(var):
@@ -38,32 +47,12 @@ def isunitsetint(var):
                    negative values request samples using random generation.
   Dist: set(int): proxies as a 'value' for a variable as a set of size int.
   """
-
-  if isinstance(var, set):
-    if len(var) == 1:
-      element_type = type(list(var)[0])
-      if element_type is int:
-        return True
-  return False
+  return isunitset(var, int)
 
 #-------------------------------------------------------------------------------
 def isunitsetfloat(var):
   """ Usage requests a sampling of value from a ICDF for then given P """
-  if isinstance(var, set):
-    if len(var) == 1:
-      element_type = type(list(var)[0])
-      if element_type is float:
-        return True
-  return False
-
-#-------------------------------------------------------------------------------
-def isunitset(var):
-  if isinstance(var, set):
-    if len(var) == 1:
-      element_type = type(list(var)[0])
-      if element_type in (int, float):
-        return True
-  return False
+  return isunitset(var, float)
 
 #-------------------------------------------------------------------------------
 def isscalar(var):
@@ -78,5 +67,13 @@ def issingleton(var):
   if isunitset(var):
     return True
   return isscalar(var)
+
+#-------------------------------------------------------------------------------
+def uniform(v_0, v_1, number):
+  assert type(number) in VTYPES[int], "Number must be an integer"
+  number = int(number)
+  if number >= 0:
+    return np.linspace(v_0, v_1, number + 2)[1:-1]
+  return np.random.uniform(v_0, v_1, size=-number)
 
 #-------------------------------------------------------------------------------
