@@ -11,8 +11,8 @@ from prob.vtypes import eval_vtype, uniform, VTYPES, \
                         isscalar, isunitsetint, isunitsetfloat
 from prob.pscales import rescale, NEARLY_POSITIVE_INF
 from prob.func import Func
-from prob.rv_utils import nominal_uniform_prob, nominal_uniform_cond
-
+from prob.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
+                          lookup_square_matrix
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
@@ -191,50 +191,116 @@ class RV (_Vals, _Prob):
     return dist_str
 
 #-------------------------------------------------------------------------------
-  def eval_tran(self, prev_vals, next_vals, reverse=False):
-    """ Returns adjusted next_vals and transitional probability """
+  def eval_tran(self, pred_vals, succ_vals, reverse=False):
+    """ Returns adjusted succ_vals and transitional probability """
     assert self._tran is None, "No transitional function specified"
 
-    # Scalar treatment is the most trivial
+    cond = None
+    # Scalar treatment is the most trivial and ignores reverse
     if self._tran.ret_isscalar():
-      if isunitsetint(next_vals):
-        next_vals = self.eval_vals(next_vals, use_pfun=False)
-      elif isunitsetfloat(next_vals):
-        assert self._vtype in VTYPES[float]
-        # RESUME HERE
+      if isunitsetint(succ_vals):
+        succ_vals = self.eval_vals(succ_vals, use_pfun=False)
+      elif isunitsetfloat(succ_vals):
+        assert self._vtype in VTYPES[float], \
+            "Inverse CDF sampling for scalar probabilities unavailable for " + \
+            "{} data type".format(self._vtype)
+        cdf_val = list(succ_vals)[0]
+        lo, hi = self.get_bounds(use_vfun=True)
+        succ_val = lo*(1.-cdf_val) + hi*cdf_val
+        if self._vfun is not None:
+          succ_val = self.ret_vfun(1)(succ_val)
+
       prob = self._tran()
       vset = self._vset
-      return next_vals, nominal_uniform_cond(prev_vals, 
-                                             next_vals,
-                                             prob=prob,
-                                             vset=vset)
+      cond = nominal_uniform_prob(pred_vals,
+                                  succ_vals, 
+                                  prob=prob, 
+                                  vset=vset) 
+                  
 
     # Handle discrete non-callables
-    if not self._tran.ret_callable():
-      pass
+    elif not self._tran.ret_callable():
+      if reverse and not self._tran.ret_istuple() and not self.__sym_tran:
+        warning.warn("Reverse direction called from asymmetric transitional")
+      prob = self._tran() if not self._tran.ret_istuple() else \
+             self._tran[int(reverse)]()
+      vset = self._vset
+      succ_vals, pred_idx, succ_idx = matrix_cond_sample(pred_vals, 
+                                                         succ_vals, 
+                                                         prob=prob, 
+                                                         vset=vset) 
+      cond = lookup_square_matrix(pred_vals,
+                                  succ_vals, 
+                                  prob=prob, 
+                                  vset=vset,
+                                  col_idx=pred_idx,
+                                  row_idx=succ_idx) 
+
+
+    # That just leaves callables
+    else:
+      if isunitset(succ_vals):
+        assert self._tfun is not None, \
+            "Conditional sampling requires setting CDF and ICDF " + \
+            "conditional functions using rv.set.tfun()"
+        assert isscalar(pred_vals), \
+            "Succesor sampling only possible with scalar predecessors"
+        succ_vals = list(succ_vals)[0]
+        kwds = {self.name: prev_vals}
+        if type(succ_vals) in VTYPES[int]:
+          lo, hi = self.get_bounds(use_vfun=False)
+          lohi = self._tfun[0](np.array([lo, hi], dtype=float), **kwds)
+          lo, hi = float(min(lohi)), float(max(lohi))
+          succ_vals = uniform(lo, hi, succ_vals)
+        else:
+          succ_vals = np.atleast_1d(succ_vals)
+        succ_vals = self._tfun[1](succ_vals, **kwds)
+      else:
+        succ_vals = np.atleast_1d(succ_vals)
+      cond = self._tran(succ_vals, **kwds)
+
+    dims = {}
+    ndim = 0
+    # Now reshape the values according to succ > prev dimensionality
+    if issingleton(succ_vals):
+      dims.update({self.name+"'": None})
+    else:
+      dims.update({self.name+"'": ndim})
+      ndim += 1
+    if issingleton(pred_vals):
+      dims.update({self.name: None})
+    else:
+      dims.update({self.name: ndim})
+      ndim += 1
+
+    if ndim == 2: # pred_vals distributed along inner dimension:
+      pred_vals = pred_vals.reshape([1, pred_vals.size])
+      succ_vals = succ_vals.reshape([succ_vals.size, 1])
+    vals = collections.OrderedDict({self._name+"'": succ_vals,
+                                    self._name: prec_vals})
+    return vals, dims, cond
 
 #-------------------------------------------------------------------------------
   def step(self, *args, reverse=False):
-    prev_values, next_values = None, None 
+    pred_values, succ_values = None, None 
     if len(args) == 1:
       if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
-        prev_values, next_values = args[0][0], args[0][1]
+        pred_values, succ_values = args[0][0], args[0][1]
       else:
-        prev_values, next_values = args[0], args[0]
+        pred_values, succ_values = args[0], args[0]
     elif len(args) == 2:
-      prev_values, next_values = args[0], args[1]
-    if next_vals is None:
+      pred_values, succ_values = args[0], args[1]
+    if succ_vals is None:
       if self._vtype in VTYPES[float]:
-        next_vals = prev_vals
+        succ_vals = pred_vals
       else:
-        next_vals = np.array(list(self._vset), dtype=self._vtype)
-    dist_prev_name = self.eval_dist_name(prev_values)
-    dist_next_name = self.eval_dist_name(next_values, "'")
-    dist_name = '|',join([dist_next_name, dist_prev_name])
-    prev_vals = self.eval_vals(prev_values)
-    next_vals, prob = eval_tran(prev_vals, next_vals)
-
-    # MORE NEEDED HERE
+        succ_vals = np.array(list(self._vset), dtype=self._vtype)
+    dist_pred_name = self.eval_dist_name(pred_values)
+    dist_succ_name = self.eval_dist_name(succ_values, "'")
+    dist_name = '|',join([dist_succ_name, dist_pred_name])
+    pred_vals = self.eval_vals(pred_values)
+    vals, dims, cond = eval_tran(pred_vals, succ_vals)
+    return Dist(dist_name, vals, dims, cond, self._pscale)
     
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
@@ -244,9 +310,9 @@ class RV (_Vals, _Prob):
     dist_name = self.eval_dist_name(values)
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    vals_dict = collections.OrderedDict({self._name: vals})
     dims = {self._name: None} if isscalar(vals) else {self._name: 0}
-    return Dist(dist_name, vals_dict, dims, prob, self._pscale)
+    vals = collections.OrderedDict({self._name: vals})
+    return Dist(dist_name, vals, dims, prob, self._pscale)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

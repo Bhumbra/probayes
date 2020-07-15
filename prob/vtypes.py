@@ -69,7 +69,7 @@ def issingleton(var):
   return isscalar(var)
 
 #-------------------------------------------------------------------------------
-def uniform(v_0, v_1, number):
+def uniform(v_0=0, v_1=1, number=-1):
   assert type(number) in VTYPES[int], "Number must be an integer"
   number = int(number)
   if number >= 0:

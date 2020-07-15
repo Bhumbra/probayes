@@ -1,5 +1,6 @@
 import numpy as np
-from prob.vtypes import isunitsetint, isunitsetfloat, uniform, VTYPES
+from prob.vtypes import isunitsetint, isunitsetfloat, isunitset, \
+                        uniform, VTYPES
 
 """
 A module to provide functional support to rv.py
@@ -49,22 +50,54 @@ def nominal_uniform_prob(*args, prob=1., vset=None):
   return prob
 
 #-------------------------------------------------------------------------------
-def nominal_uniform_cond(prev_vals, next_vals, prob=1., vset=None):
-  assert not isunitset(prev_vals), "Preceding values cannot be a unit set"
-  if isunitsetint(next_vals):
-    pass
-
-
-    
-  # Handle non-sampling case
-  if not isunitset(next_vals):
-    return next_vals, nominal_uniform_prob(prev_vals, 
-                                           next_vals, 
-                                           prob=prob, 
-                                           vset=vset)
-
-
-
+def matrix_cond_sample(pred_vals, succ_vals, prob, vset=None):
+  """ Returns succ_vals with sampling """
+  if not isunitset(succ_vals):
+    return succ_vals
+  assert isscalar(pred_vals), \
+      "Can only cumulatively sample from a single predecessor"
+  assert prob.ndim==2 and len(set(prob.shape)) == 1, \
+      "Transition matrix must be a square"
+  support = range(prob.shape[0])
+  if vset is None:
+    vset = set(range(support))
+  else:
+    assert len(vset) == support, \
+        "Transition matrix size {} incommensurate with set support {}".\
+        format(support, len(vset))
+  vset = np.array(vset)
+  pred_idx = vset.find(pred_vals)
+  cmf = np.cumsum(prob[:, pred_idx], axis=0)
+  succ_cmf = list(succ_vals)[0]
+  if type(succ_cmf) in VTYPES[int]:
+    succ_cmf = uniform(0., 1., succ_cmf)
+  else:
+    succ_cmf = np.atleast_1d(succ_cmf)
+  succ_idx = np.maximum(0, np.minimum(support-1, np.nonzero(succ_cmf, cmf)))
+  return vset[succ_idx], pred_idx, succ_idx
 
 #-------------------------------------------------------------------------------
+def lookup_square_matrix(col_vals, row_vals, matrix, 
+                         vset=None, col_idx=None, row_idx=None):
+  assert prob.ndim==2 and len(set(prob.shape)) == 1, \
+      "Transition matrix must be a square"
+  support = range(matrix.shape[0])
+  if vset is None:
+    vset = set(range(support))
+  else:
+    assert len(vset) == support, \
+        "Transition matrix size {} incommensurate with set support {}".\
+        format(support, len(vset))
+  if row_idx is None:
+    if isscalar(row_vals):
+      row_idx = vset.find(row_vals)
+    else:
+      row_idx = [vset.find(row_val) for row_val in row_vals]
+  if col_idx is None:
+    if isscalar(col_vals):
+      col_idx = vset.find(col_vals)
+    else:
+      col_idx = [vset.find(col_val) for col_val in pred_vals]
+  return prob[row_idx, col_idx]
 
+#-------------------------------------------------------------------------------

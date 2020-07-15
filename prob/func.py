@@ -79,8 +79,9 @@ class Func:
       elif not isinstance(ind, str):
         raise TypeError("Cannot interpret order value: {}".ind)
     indset = set(inds)
-    assert indset == set(range(len(indset))), \
-        "Index specification non_sequitur: {}".format(indset)
+    if len(indset):
+      assert indset == set(range(min(indset), max(indset)+1)), \
+          "Index specification non_sequitur: {}".format(indset)
 
 #-------------------------------------------------------------------------------
   def ret_callable(self):
@@ -109,30 +110,29 @@ class Func:
     # Callables order-free
     args = tuple(args)
     kwds = dict(kwds)
+    if not kwds and len(args) == 1 and isinstance(args[0], dict):
+      args, kwds = (), dict(args[0])
     if not self.__order:
-      if len(args) == 1 and not kwds and isinstance(args[0], dict):
-        return func(**dict(args[0]))
       return func(*args, **kwds)
 
     # Callables with order wrapper
-    if args:
-      assert len(args) == 1 and not kwds and isinstance(args[0], dict), \
-        "With order specified, calls argument must be a single " + \
-              "dictionary or keywords only"
-      kwds = dict(args[0])
-    elif kwds:
-      assert not args, \
-        "With order specified, calls argument must be a single " + \
-              "dictionary or keywords only"
-    n_args = sum([type(val) is int for val in self.__order.values()])
-    args = [None] * n_args
+    n_args = len(args)
+    for val in self.__order.values():
+      if type(val) is int:
+        n_args = max(n_args, val+1)
+    args = list(args)
+    while len(args) < n_args:
+      args.append(None)
     for key, val in self.__order.items():
       if type(val) is int:
         args[val] = kwds.pop(key)
       elif val is None:
         kwds.pop(key)
-      else:
+      elif isinstance(val, str):
         kwds.update({val: kwds.pop(key)})
+      else:
+        raise TypeError("Unrecognised order key: val type: {}:{}".\
+                        format(key, val))
     return func(*tuple(args), **kwds)
 
 #-------------------------------------------------------------------------------
