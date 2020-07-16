@@ -98,7 +98,7 @@ class _Vals (ABC):
 
     # Sets may be used to sample from support sets
     elif isunitsetint(values):
-      number = int(list(values)[0])
+      number = list(values)[0]
 
       # Non-continuous
       if self._vtype not in VTYPES[float]:

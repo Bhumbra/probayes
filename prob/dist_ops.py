@@ -204,11 +204,14 @@ def product(*args, **kwds):
   cond2marg_dict = {name: None for name in cond2marg}
   for i, arg in enumerate(args):
     cond_set = set(cond_names[i]) - cond2marg_set
-    assert prod_cond_set == cond_set, \
-        "Incompatible conditionals {} vs {}: ".format(prod_cond_set, cond_set)
+    if cond_set:
+      assert prod_cond_set == cond_set, \
+          "Incompatible conditionals {} vs {}: ".format(prod_cond_set, cond_set)
     for name in cond2marg:
       if name in arg.vals:
         values = arg.vals[name]
+        if not isscalar(values):
+          values = np.ravel(values)
         if cond2marg_dict[name] is None:
           cond2marg_dict[name] = values
         elif not np.allclose(cond2marg_dict[name], values):
@@ -293,8 +296,11 @@ def product(*args, **kwds):
   
   # Match probability axes and shapes with axes swapping then reshaping
   prod_probs = [None] * len(args)
-  for i, prob in enumerate(probs):
+  for i in range(len(args)):
+    prob = probs[i]
     if not isscalar(prob):
+      while prob.ndim < prod_ndims:
+        prob = np.expand_dims(prob, -1)
       dims = collections.OrderedDict()
       for key, val in args[i].dims.items():
         if val is not None:
@@ -310,7 +316,7 @@ def product(*args, **kwds):
       re_shape = np.copy(ones_ndims)
       for dim in new_dims:
         re_shape[dim] = prod_shape[dim]
-      probs[i] = probs[i].reshape(re_shape)
+      probs[i] = prob.reshape(re_shape)
 
   # Multiply the probabilities and output the result as a distribution instance
   prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)

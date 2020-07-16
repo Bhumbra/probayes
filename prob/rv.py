@@ -7,8 +7,8 @@ import scipy.stats
 from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
-from prob.vtypes import eval_vtype, uniform, VTYPES, \
-                        isscalar, isunitsetint, isunitsetfloat, issingleton
+from prob.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
+                        isunitset, isunitsetint, isunitsetfloat, issingleton
 from prob.pscales import rescale, NEARLY_POSITIVE_INF
 from prob.func import Func
 from prob.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
@@ -197,6 +197,29 @@ class RV (_Vals, _Prob):
     """ Returns adjusted succ_vals and transitional probability """
     assert self._tran is not None, "No transitional function specified"
 
+    #---------------------------------------------------------------------------
+    def _reshape_vals(pred, succ):
+      dims = {}
+      ndim = 0
+      # Now reshape the values according to succ > prev dimensionality
+      if issingleton(succ_vals):
+        dims.update({self._name+"'": None})
+      else:
+        dims.update({self._name+"'": ndim})
+        ndim += 1
+      if issingleton(pred_vals):
+        dims.update({self._name: None})
+      else:
+        dims.update({self._name: ndim})
+        ndim += 1
+
+      if ndim == 2: # pred_vals distributed along inner dimension:
+        pred = pred.reshape([1, pred_vals.size])
+        succ = succ.reshape([succ_vals.size, 1])
+      return pred, succ, dims
+
+    #---------------------------------------------------------------------------
+
     cond = None
     # Scalar treatment is the most trivial and ignores reverse
     if self._tran.ret_isscalar():
@@ -214,6 +237,7 @@ class RV (_Vals, _Prob):
 
       prob = self._tran()
       vset = self._vset
+      pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
       cond = nominal_uniform_prob(pred_vals,
                                   succ_vals, 
                                   prob=prob, 
@@ -231,6 +255,7 @@ class RV (_Vals, _Prob):
                                                          succ_vals, 
                                                          prob=prob, 
                                                          vset=vset) 
+      pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
       cond = lookup_square_matrix(pred_vals,
                                   succ_vals, 
                                   sq_matrix=prob, 
@@ -241,15 +266,15 @@ class RV (_Vals, _Prob):
 
     # That just leaves callables
     else:
+      kwds = {self._name: pred_vals}
       if isunitset(succ_vals):
         assert self._tfun is not None, \
             "Conditional sampling requires setting CDF and ICDF " + \
             "conditional functions using rv.set.tfun()"
         assert isscalar(pred_vals), \
-            "Succesor sampling only possible with scalar predecessors"
+            "Successor sampling only possible with scalar predecessors"
         succ_vals = list(succ_vals)[0]
-        kwds = {self.name: prev_vals}
-        if type(succ_vals) in VTYPES[int]:
+        if type(succ_vals) in VTYPES[int] or type(succ_vals) in VTYPES[np.uint]:
           lo, hi = self.get_bounds(use_vfun=False)
           lohi = self._tfun[0](np.array([lo, hi], dtype=float), **kwds)
           lo, hi = float(min(lohi)), float(max(lohi))
@@ -259,25 +284,10 @@ class RV (_Vals, _Prob):
         succ_vals = self._tfun[1](succ_vals, **kwds)
       else:
         succ_vals = np.atleast_1d(succ_vals)
+      pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
+      kwds.update({self._name: pred_vals})
       cond = self._tran(succ_vals, **kwds)
 
-    dims = {}
-    ndim = 0
-    # Now reshape the values according to succ > prev dimensionality
-    if issingleton(succ_vals):
-      dims.update({self._name+"'": None})
-    else:
-      dims.update({self._name+"'": ndim})
-      ndim += 1
-    if issingleton(pred_vals):
-      dims.update({self._name: None})
-    else:
-      dims.update({self._name: ndim})
-      ndim += 1
-
-    if ndim == 2: # pred_vals distributed along inner dimension:
-      pred_vals = pred_vals.reshape([1, pred_vals.size])
-      succ_vals = succ_vals.reshape([succ_vals.size, 1])
     vals = collections.OrderedDict({self._name+"'": succ_vals,
                                     self._name: pred_vals})
     return vals, dims, cond
@@ -289,18 +299,18 @@ class RV (_Vals, _Prob):
       if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
         pred_vals, succ_vals = args[0][0], args[0][1]
       else:
-        pred_vals, succ_vals = args[0], args[0]
+        pred_vals = args[0]
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
-    if succ_vals is None:
-      if self._vtype in VTYPES[float]:
-        succ_vals = pred_vals if not isscalar(prev_vals) else {0}
-      else:
-        succ_vals = np.array(list(self._vset), dtype=self._vtype)
     dist_pred_name = self.eval_dist_name(pred_vals)
-    dist_succ_name = self.eval_dist_name(succ_vals, "'")
+    if succ_vals is None:
+      dist_succ_name = self.eval_dist_name(pred_vals, "'")
+    else:
+      dist_succ_name = self.eval_dist_name(succ_vals, "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     pred_vals = self.eval_vals(pred_vals)
+    if succ_vals is None:
+      succ_vals = pred_vals
     vals, dims, cond = self.eval_tran(pred_vals, succ_vals)
     return Dist(dist_name, vals, dims, cond, self._pscale)
     
