@@ -5,9 +5,9 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import prob
 
-norm_range = {-3., 3.}
+set_lims = {-3., 3.}
 set_size = {20}
-rv = prob.RV("norm", norm_range, prob=scipy.stats.norm, 
+rv = prob.RV("norm", set_lims, prob=scipy.stats.norm, 
              pscale='log', loc=0, scale=1)
 logpdf = rv(set_size)
 pdf = logpdf.rescaled()

@@ -69,9 +69,10 @@ def issingleton(var):
   return isscalar(var)
 
 #-------------------------------------------------------------------------------
-def uniform(v_0=0, v_1=1, number=-1):
-  assert type(number) in VTYPES[int], "Number must be an integer"
-  number = int(number)
+def uniform(v_0=0, v_1=1, number=1):
+  if not number:
+    return np.random.uniform(v_0, v_1)
+  assert type(number) in VTYPES[int], "Non-zero number must be an integer"
   if number >= 0:
     return np.linspace(v_0, v_1, number + 2)[1:-1]
   return np.random.uniform(v_0, v_1, size=-number)

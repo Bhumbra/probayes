@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.dist_ops import str_margcond, margcond_str, product
+from prob.dist_ops import str_margcond, margcond_str, product, rekey_dict
 from prob.vtypes import issingleton, isscalar
 from prob.pscales import eval_pscale, rescale, iscomplex
 from prob.pscales import prod_pscale, prod_rule, div_prob
@@ -85,8 +85,8 @@ class Dist (Manifold):
     for i, key in enumerate(self._keys):
       if key in keys and key not in seen_keys:
         if self._aresingleton[i]:
-          seen_keys.add(keys)
-          vals.update({key: vals})
+          seen_keys.add(key)
+          vals.update({key: self.vals[key]})
         else:
           shared_keys = [key]
           for j, cand_key in enumerate(self._keys):
@@ -241,7 +241,7 @@ class Dist (Manifold):
 
     # Setup vals dimensions and evaluate probabilities
     name = margcond_str(marg, cond)
-    vals = self.redim(dims).vals
+    vals = super().redim(dims).vals
     old_dims = []
     new_dims = []
     sum_axes = set()
@@ -264,6 +264,47 @@ class Dist (Manifold):
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
+                pscale=self._pscale)
+
+#-------------------------------------------------------------------------------
+  def redim(self, dims):
+    """ 
+    Returns a distribution according to redimensionised values in dims, index-
+    ordered by the order in dims
+    """
+    manifold = super().redim(dims)
+    vals, dims = manifold.vals, manifold.dims
+    prob = self.prob
+
+    # Need to realign prob axes to new dimensions
+    if not self._issingleton:
+      old_dims = []
+      new_dims = []
+      for i, key in enumerate(self._keys):
+        if not self._aresingletons[i]:
+          old_dims.append(self._dims[key])
+          new_dims.append(dims[key])
+      prob = np.moveaxis(prob, old_dims, new_dims)
+
+    return Dist(name=self._name, 
+                vals=vals, 
+                dims=dims, 
+                prob=prob, 
+                pscale=self._pscale)
+
+#-------------------------------------------------------------------------------
+  def rekey(self, keymap):
+    """
+    Returns a distribution with modified key names without axes changes.
+    """
+    manifold = super().rekey(keymap)
+    marg = rekey_dict(self.marg, keymap) 
+    cond = rekey_dict(self.cond, keymap)
+    name = margcond_str(marg, cond)
+    return Dist(name=name, 
+                vals=manifold.vals, 
+                dims=manifold.dims, 
+                prob=self.prob, 
                 pscale=self._pscale)
 
 #-------------------------------------------------------------------------------

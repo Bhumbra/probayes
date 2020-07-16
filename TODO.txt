@@ -1,5 +1,3 @@
-Support for RVs for flat conditional transition functions
-Support transition functions in the form P(x' | x)
-Support Dist rekeying
-Support Markov chain random walks
+Support Markov transition matrix random walks
+Support Markov continuous transition function random walks
 Support MCMC Metropolis Hastings sampling

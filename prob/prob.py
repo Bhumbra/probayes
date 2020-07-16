@@ -44,6 +44,7 @@ class _Prob (ABC):
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
+    self._pfun = None
     pset = prob if is_scipy_stats_dist(prob) else None
     self.__scalar = None
     self.__callable = None

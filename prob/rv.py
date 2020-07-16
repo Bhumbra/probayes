@@ -8,7 +8,7 @@ from prob.vals import _Vals
 from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, uniform, VTYPES, \
-                        isscalar, isunitsetint, isunitsetfloat
+                        isscalar, isunitsetint, isunitsetfloat, issingleton
 from prob.pscales import rescale, NEARLY_POSITIVE_INF
 from prob.func import Func
 from prob.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
@@ -60,6 +60,7 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
+    self._tran, self._tfun = None, None
     super().set_prob(prob, pscale, *args, **kwds)
 
     # Default unspecified probabilities to uniform over self._vset is given
@@ -107,7 +108,7 @@ class RV (_Vals, _Prob):
     if self._vfun is None:
       return
 
-    # Recalibrate scalar probabilities
+    # Recalibrate scalar probabilities for floating point vtypes
     if self.ret_isscalar() and \
         self._vtype in VTYPES[float]:
       lo, hi = self.get_bounds(use_vfun=True)
@@ -115,6 +116,7 @@ class RV (_Vals, _Prob):
       if self._pscale != 1.:
         prob = rescale(prob, self._pscale)
       super().set_prob(prob, self._pscale)
+      self.set_tran(prob)
     if self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
@@ -193,7 +195,7 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def eval_tran(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals and transitional probability """
-    assert self._tran is None, "No transitional function specified"
+    assert self._tran is not None, "No transitional function specified"
 
     cond = None
     # Scalar treatment is the most trivial and ignores reverse
@@ -231,7 +233,7 @@ class RV (_Vals, _Prob):
                                                          vset=vset) 
       cond = lookup_square_matrix(pred_vals,
                                   succ_vals, 
-                                  prob=prob, 
+                                  sq_matrix=prob, 
                                   vset=vset,
                                   col_idx=pred_idx,
                                   row_idx=succ_idx) 
@@ -263,43 +265,43 @@ class RV (_Vals, _Prob):
     ndim = 0
     # Now reshape the values according to succ > prev dimensionality
     if issingleton(succ_vals):
-      dims.update({self.name+"'": None})
+      dims.update({self._name+"'": None})
     else:
-      dims.update({self.name+"'": ndim})
+      dims.update({self._name+"'": ndim})
       ndim += 1
     if issingleton(pred_vals):
-      dims.update({self.name: None})
+      dims.update({self._name: None})
     else:
-      dims.update({self.name: ndim})
+      dims.update({self._name: ndim})
       ndim += 1
 
     if ndim == 2: # pred_vals distributed along inner dimension:
       pred_vals = pred_vals.reshape([1, pred_vals.size])
       succ_vals = succ_vals.reshape([succ_vals.size, 1])
     vals = collections.OrderedDict({self._name+"'": succ_vals,
-                                    self._name: prec_vals})
+                                    self._name: pred_vals})
     return vals, dims, cond
 
 #-------------------------------------------------------------------------------
   def step(self, *args, reverse=False):
-    pred_values, succ_values = None, None 
+    pred_vals, succ_vals = None, None 
     if len(args) == 1:
       if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
-        pred_values, succ_values = args[0][0], args[0][1]
+        pred_vals, succ_vals = args[0][0], args[0][1]
       else:
-        pred_values, succ_values = args[0], args[0]
+        pred_vals, succ_vals = args[0], args[0]
     elif len(args) == 2:
-      pred_values, succ_values = args[0], args[1]
+      pred_vals, succ_vals = args[0], args[1]
     if succ_vals is None:
       if self._vtype in VTYPES[float]:
-        succ_vals = pred_vals
+        succ_vals = pred_vals if not isscalar(prev_vals) else {0}
       else:
         succ_vals = np.array(list(self._vset), dtype=self._vtype)
-    dist_pred_name = self.eval_dist_name(pred_values)
-    dist_succ_name = self.eval_dist_name(succ_values, "'")
-    dist_name = '|',join([dist_succ_name, dist_pred_name])
-    pred_vals = self.eval_vals(pred_values)
-    vals, dims, cond = eval_tran(pred_vals, succ_vals)
+    dist_pred_name = self.eval_dist_name(pred_vals)
+    dist_succ_name = self.eval_dist_name(succ_vals, "'")
+    dist_name = '|'.join([dist_succ_name, dist_pred_name])
+    pred_vals = self.eval_vals(pred_vals)
+    vals, dims, cond = self.eval_tran(pred_vals, succ_vals)
     return Dist(dist_name, vals, dims, cond, self._pscale)
     
 #-------------------------------------------------------------------------------

@@ -147,17 +147,18 @@ class Manifold:
   def rekey(self, keymap):
     assert isinstance(keymap, dict), \
         "Input keymap must a dictionary in the form {old_key: new_key}"
-    key_map = {key: key for key in self._keys}
-    dim_map = {key: dim for key, dim in self.dims.items()}
-    for key, val in keymap.items():
-      assert key in key_map, "Unrecognised key {}".format(key)
-      assert isinstance(val, str), "Target key must be a string"
-      key_map.update({key: val})
-      if key in dim:
-        dim.update({val: dim.pop(key)})
-    vals = collections.OrderedCollection()
-    for key, val in key_map.items():
-      vals.update({val: self.vals[key]})
+    vals = collections.OrderedDict()
+    dims = collections.OrderedDict()
+    for key in self._keys:
+      if key not in keymap.keys():
+        vals.update({key: self.vals[key]})
+        dims.update({key: self.dims[key]})
+      else:
+        map_key = keymap[key]
+        assert map_key not in vals, \
+            "Key map results in duplicate for key: {}".format(map_key)
+        vals.update({map_key: self.vals[key]})
+        dims.update({map_key: self.dims[key]})
     return Manifold(vals, dims)
     
 #-------------------------------------------------------------------------------

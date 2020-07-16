@@ -57,6 +57,29 @@ def margcond_str(marg, cond):
   return '|'.join([marg_str, cond_str]) if cond_str else marg_str
 
 #-------------------------------------------------------------------------------
+def rekey_dict(ordereddict, keymap):
+  assert isinstance(ordereddict, collections.OrderedDict), \
+      "Marg or Cond dict objects must be Ordered Collections"
+  assert isinstance(keymap, dict), \
+      "Key map must be a dictionary"
+  rekeyed = collections.OrderedDict()
+  for key, val in ordereddict.items():
+    if key not in keymap.keys():
+      rekeyed.update({key: val})
+    else:
+      map_key = keymap[key]
+      assert map_key not in rekeyed.keys(), \
+          "Key remapping results in duplicate key: {}".format(map_key)
+      string = val
+      k = string.find('=')
+      if k > 0:
+        string = map_key + string[k:]
+      else:
+        string = map_key
+      rekeyed.update({map_key: string})
+  return rekeyed
+
+#-------------------------------------------------------------------------------
 def product(*args, **kwds):
   """ Multiplies two or more distributions subject to the following:
   1. They must not share the same marginal variables. 

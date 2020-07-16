@@ -103,12 +103,15 @@ class _Vals (ABC):
       # Non-continuous
       if self._vtype not in VTYPES[float]:
         values = np.array(list(self._vset), dtype=self._vtype)
-        divisor = len(self._vset)
-        if number >= 0:
-          indices = np.arange(number, dtype=int) % divisor
+        if not number:
+          values = values[np.random.randint(0, len(values))]
         else:
-          indices = np.random.permutation(-number, dtype=int) % divisor
-        values = values[indices]
+          divisor = len(self._vset)
+          if number > 0:
+            indices = np.arange(number, dtype=int) % divisor
+          else:
+            indices = np.random.permutation(-number, dtype=int) % divisor
+          values = values[indices]
        
       # Continuous
       else:
