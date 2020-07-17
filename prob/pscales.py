@@ -64,6 +64,10 @@ def eval_pscale(pscale=None):
 
 #-------------------------------------------------------------------------------
 def log_prob(prob):
+  if np.isscalar(prob):
+    if prob >= NEARLY_POSITIVE_ZERO:
+      return np.log(prob)
+    return NEARLY_NEGATIVE_INF
   logp = np.tile(NEARLY_NEGATIVE_INF, prob.shape)
   ok = prob >= NEARLY_POSITIVE_ZERO
   logp[ok] = np.log(prob[ok])
@@ -71,6 +75,10 @@ def log_prob(prob):
 
 #-------------------------------------------------------------------------------
 def exp_logp(logp):
+  if np.isscalar(logp):
+    if logp <= LOG_NEARLY_POSITIVE_INF:
+      return np.exp(logp)
+    return NEARLY_POSITIVE_INF
   prob = np.tile(NEARLY_POSITIVE_INF, logp.shape)
   ok = logp <= LOG_NEARLY_POSITIVE_INF
   prob[ok] = np.exp(logp[ok])

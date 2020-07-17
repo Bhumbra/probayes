@@ -2,49 +2,60 @@ import numpy as np
 from prob.vtypes import isunitsetint, isunitsetfloat, isunitset, isscalar, \
                         uniform, eval_vtype, VTYPES
 
+from prob.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_INF
 """
 A module to provide functional support to rv.py
 """
 #-------------------------------------------------------------------------------
-def nominal_uniform_prob(*args, prob=1., vset=None):
+def nominal_uniform_prob(*args, prob=None, vset=None, pscale=1.):
+  """ Also handles categorical data types if vset is a list """
 
   assert len(args) >= 1, "Minimum of a single positional argument"
-  vals = args[0]
+  pscale = eval_pscale(pscale)
+  use_logs = iscomplex(pscale)
+  if prob is None:
+    prob = 0. if use_logs else 1.
 
-  # Default to prob if no values
+  # Default to prob if no values otherwise detect vtype
+  vals = args[0]
   if vals is None:
     return prob
   vtype = eval_vtype(vset)
 
   # If scalar, check within variable set
+  p0 = NEARLY_NEGATIVE_INF if use_logs else 0.
   if isscalar(vals):
     if vtype in VTYPES[float]:
-      prob = 0. if vals < min(vset) or vals > max(vset) else prob
+      prob = p0 if vals < min(vset) or vals > max(vset) else prob
     else:
-      prob = prob if vals in vset else 0.
+      prob = prob if vals in vset else p0
 
   # Otherwise treat as arrays
   else:
-    prob = np.tile(prob, vals.shape)
-
     # Handle nominal probabilities
     if vtype in VTYPES[bool]:
+      prob = rescale(prob, pscale, 1.)
+      prob = np.tile(prob, vals.shape)
       isfalse = np.logical_not(vals)
       prob[isfalse] = 1. - prob[isfalse]
-      return prob
+      return rescale(prob, 1., pscale)
 
     # Otherwise treat as uniform within range
+    prob = np.tile(prob, vals.shape)
     if vtype in VTYPES[float]:
       outside = np.logical_or(vals < min(vset), vals > max(vset))
-      prob[outside] = 0.
+      prob[outside] = p0
     else:
       outside = np.array([val not in vset for val in vals], dtype=bool)
-      prob[outside] = 0.
+      prob[outside] = p0
 
   # Broadcast probabilities across args
   if len(args) > 1:
     for arg in args[1:]:
-      prob = prob * nominal_uniform_prob(arg, vset=vset)
+      if use_logs:
+        prob = prob + nominal_uniform_prob(arg, vset=vset, pscale=0.j)
+      else:
+        prob = prob * nominal_uniform_prob(arg, vset=vset)
 
   return prob
 

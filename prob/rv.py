@@ -9,7 +9,7 @@ from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from prob.pscales import rescale, NEARLY_POSITIVE_INF
+from prob.pscales import NEARLY_POSITIVE_INF, rescale, eval_pscale
 from prob.func import Func
 from prob.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
@@ -61,9 +61,29 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
     self._tran, self._tfun = None, None
-    super().set_prob(prob, pscale, *args, **kwds)
+    if prob is not None:
+      super().set_prob(prob, pscale, *args, **kwds)
+    else:
+      self._default_prob(pscale)
 
+    # Check uncallable probabilities commensurate with self._vset
+    if self._vset is not None and \
+        not self.ret_callable() and not self.ret_isscalar():
+      assert len(self._prob()) == len(self._vset), \
+          "Probability of length {} incommensurate with Vset of length {}".format(
+              len(self._prob), len(self._vset))
+
+    # If using scipy stats, ensure vset is float type
+    pset = self.ret_pset()
+    if is_scipy_stats_cont(pset):
+      if self._vtype not in VTYPES[float]:
+        self.set_vset(self._vset, vtype=float)
+    return self.ret_callable()
+   
+#-------------------------------------------------------------------------------
+  def _default_prob(self, pscale=None):
     # Default unspecified probabilities to uniform over self._vset is given
+    self._pscale = eval_pscale(pscale)
     if self._prob is None:
       if self._vset is None:
         return self.ret_callable()
@@ -76,21 +96,10 @@ class RV (_Vals, _Prob):
           lo, hi = self.get_bounds()
           prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
         if self._pscale != 1.:
-          prob = rescale(prob, self._pscale)
+          prob = rescale(prob, 1., self._pscale)
         super().set_prob(prob, self._pscale)
         self.set_tran(prob)
 
-    # Otherwise check uncallable probabilities commensurate with self._vset
-    elif not self.ret_callable() and not self.ret_isscalar():
-      assert len(self._prob()) == len(self._vset), \
-          "Probability of length {} incommensurate with Vset of length {}".format(
-              len(self._prob), len(self._vset))
-    pset = self.ret_pset()
-    if is_scipy_stats_cont(pset):
-      if self._vtype not in VTYPES[float]:
-        self.set_vset(self._vset, vtype=float)
-    return self.ret_callable()
-   
 #-------------------------------------------------------------------------------
   def set_pfun(self, *args, **kwds):
     super().set_pfun(*args, **kwds)
@@ -117,6 +126,8 @@ class RV (_Vals, _Prob):
         prob = rescale(prob, self._pscale)
       super().set_prob(prob, self._pscale)
       self.set_tran(prob)
+
+    # Check pfun is unspecified or uniform
     if self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \

@@ -46,8 +46,9 @@ class _Vals (ABC):
       vtype = eval_vtype(vset)
     else:
       vset = np.array(vset, dtype=vtype)
-    self._vset = set(vset)
     self._vtype = eval_vtype(vtype)
+    self._vset = set(vset) if self._vtype in VTYPES.keys() \
+                 else sorted(vset)
     return self._vtype
 
 #-------------------------------------------------------------------------------
