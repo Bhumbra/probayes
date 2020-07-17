@@ -1,3 +1,2 @@
-Support Markov continuous transition function random walks
 Support multivariable transition functions
 Support MCMC Metropolis Hastings sampling

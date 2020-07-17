@@ -37,7 +37,7 @@ for i in range(n_sims):
     cond[i][j] = x.step(pred, {0}) # {0} denotes randomly sampled scalar
     succ[i][j] = cond[i][j].vals["x'"]
     pred = succ[i][j]
-print('...Done')
+print('...done')
 obsp = np.sum(succ==0, axis=0) / n_sims
 
 # Plot

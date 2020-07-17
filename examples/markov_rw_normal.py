@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
-n_steps = 6
+n_steps = 10000
 set_lims = {-np.pi, np.pi}
 
 def tran(succ, pred):
@@ -29,4 +29,27 @@ def ticdf(succ, pred):
 x = prob.RV('x', set_lims)
 x.set_tran(tran, order={'x': 'pred', "x'": 'succ'})
 x.set_tfun((tcdf, ticdf), order={'x': 'pred', "x'": 'succ'})
-d = x.step({0})
+
+cond = [None] * n_steps
+pred = np.empty(n_steps, dtype=float)
+succ = np.empty(n_steps, dtype=float)
+prob = np.empty(n_steps, dtype=float)
+print('Simulating...')
+for i in range(n_steps):
+  if i == 0:
+    cond[i] = x.step({0})
+  else:
+    cond[i] = x.step(succ[i-1])
+  pred[i] = cond[i].vals['x']
+  succ[i] = cond[i].vals["x'"]
+  prob[i] = cond[i].prob
+print('...done')
+
+
+# PLOT DATA
+figure()
+c_norm = Normalize(vmin=np.min(prob), vmax=np.max(prob))
+c_map = cm.jet(c_norm(prob))
+scatter(pred, succ, color=c_map, marker='.')
+xlabel('Predecessor')
+ylabel('Succesor')

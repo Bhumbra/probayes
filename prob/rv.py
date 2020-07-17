@@ -326,7 +326,7 @@ class RV (_Vals, _Prob):
       succ_vals = pred_vals
     pred_vals = self.eval_vals(pred_vals)
     if succ_vals is None:
-      succ_vals = _pred_vals
+      succ_vals = {0} if isscalar(pred_vals) else pred_vals
     vals, dims, cond = self.eval_tran(pred_vals, succ_vals)
     return Dist(dist_name, vals, dims, cond, self._pscale)
     
