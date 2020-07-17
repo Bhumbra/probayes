@@ -27,6 +27,9 @@ def rv_prod_rule(values, rvs, pscale=None):
 
 #-------------------------------------------------------------------------------
 class SJ:
+  # Public
+  Delta = None
+  delta = None
 
   # Protected
   _name = None      # Cannot be set externally
@@ -38,7 +41,8 @@ class SJ:
   _pscale = None
   _prob = None
   _pscale = None
-  _tran = None      # Transitional prob - can be 
+  _tran = None
+  _tfun = None
 
   # Private
   __isscalar = None
@@ -73,9 +77,9 @@ class SJ:
         rvs = rvs.values()
       [self.add_rv(rv) for rv in rvs]
     else:
-      key = rv.ret_name()
       assert isinstance(rv, RV), \
           "Input not a RV instance but of type: {}".format(type(rv))
+      key = rv.ret_name()
       assert key not in self._rvs.keys(), \
           "Existing RV name {} already present in collection".format(rv_name)
       self._rvs.update({key: rv})
@@ -84,6 +88,9 @@ class SJ:
     self._keyset = set(self._keys)
     self._defiid = self._keyset
     self._name = ','.join(self._keys)
+    self._id = '_and_'.join(self._keys)
+    self.Delta = collections.namedtuple(self._id, 'ð')
+    self.delta = collections.namedtuple('ð', self._keys)
     self.set_pscale()
     return self._nrvs
   
@@ -265,7 +272,16 @@ class SJ:
     if self._tran is None:
       return
     self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = self._train.ret_is_tuple()
+    self.__sym_tran = self._tran.ret_is_tuple()
+
+#-------------------------------------------------------------------------------
+  def set_tfun(self, tfun=None, *args, **kwds):
+    # Provide cdf and inverse cdf for conditional sampling
+    self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
+    if self._tfun is None:
+      return
+    assert self._tfun.ret_istuple(), "Tuple of two functions required"
+    assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
@@ -289,7 +305,7 @@ class SJ:
     return self._prob(values)
 
 #-------------------------------------------------------------------------------
-  def eval_dist_name(self, values=None):
+  def eval_dist_name(self, values=None, suffix=None):
     vals = collections.OrderedDict()
     if isinstance(values, dict):
       for key, val in values.items():
@@ -305,7 +321,7 @@ class SJ:
     else:
       vals.update({key: values for key in keys})
     rvs = self.ret_rvs()
-    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()]) \
+    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()], suffix) \
                      for rv in rvs]
     dist_name = ','.join(rv_dist_names)
     return dist_name

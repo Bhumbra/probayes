@@ -24,6 +24,9 @@ asscociated probability distribution function (prob).
 #-------------------------------------------------------------------------------
 class RV (_Vals, _Prob):
 
+  # Public
+  delta = None      # A named tuple generator
+
   # Protected
   _name = "rv"      # Name of the random variable
   _tran = None      # Transitional prob - can be a matrix
@@ -53,6 +56,7 @@ class RV (_Vals, _Prob):
         "Mandatory RV name must be a string: {}".format(self._name)
     assert self._name.isidentifier(), \
         "RV name must ba a valid identifier: {}".format(self._name)
+    self.delta = collections.namedtuple('ð', [self._name])
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
@@ -203,9 +207,14 @@ class RV (_Vals, _Prob):
     return dist_str
 
 #-------------------------------------------------------------------------------
-  def eval_tran(self, pred_vals, succ_vals, reverse=False):
+  def eval_succ(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals and transitional probability """
     assert self._tran is not None, "No transitional function specified"
+    kwargs = dict() # dictionary to passover to eval_tran
+    if succ_vals is None:
+      succ_vals = {0} if isscalar(pred_vals) else pred_vals
+    elif isinstance(succ_vals, self.delta):
+      succ_vals = pred_vals + succ_vals[0]
 
     #---------------------------------------------------------------------------
     def _reshape_vals(pred, succ):
@@ -230,7 +239,6 @@ class RV (_Vals, _Prob):
 
     #---------------------------------------------------------------------------
 
-    cond = None
     # Scalar treatment is the most trivial and ignores reverse
     if self._tran.ret_isscalar():
       if isunitsetint(succ_vals):
@@ -246,33 +254,20 @@ class RV (_Vals, _Prob):
           succ_val = self.ret_vfun(1)(succ_val)
 
       prob = self._tran()
-      vset = self._vset
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
-      cond = nominal_uniform_prob(pred_vals,
-                                  succ_vals, 
-                                  prob=prob, 
-                                  vset=vset) 
                   
-
     # Handle discrete non-callables
     elif not self._tran.ret_callable():
       if reverse and not self._tran.ret_istuple() and not self.__sym_tran:
         warning.warn("Reverse direction called from asymmetric transitional")
       prob = self._tran() if not self._tran.ret_istuple() else \
              self._tran[int(reverse)]()
-      vset = self._vset
       succ_vals, pred_idx, succ_idx = matrix_cond_sample(pred_vals, 
                                                          succ_vals, 
                                                          prob=prob, 
-                                                         vset=vset) 
+                                                         vset=self._vset) 
+      kwargs.update({'pred_idx': pred_idx, 'succ_idx': succ_idx})
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
-      cond = lookup_square_matrix(pred_vals,
-                                  succ_vals, 
-                                  sq_matrix=prob, 
-                                  vset=vset,
-                                  col_idx=pred_idx,
-                                  row_idx=succ_idx) 
-
 
     # That just leaves callables
     else:
@@ -298,13 +293,59 @@ class RV (_Vals, _Prob):
       elif not isscalar(succ_vals):
         succ_vals = np.atleast_1d(succ_vals)
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
-      kwds.update({self._name: pred_vals,
-                   self._name+"'": succ_vals})
-      cond = self._tran(**kwds)
 
     vals = collections.OrderedDict({self._name+"'": succ_vals,
                                     self._name: pred_vals})
-    return vals, dims, cond
+    return vals, dims, kwargs
+
+#-------------------------------------------------------------------------------
+  def eval_tran(self, vals, reverse=False, **kwargs):
+    pred_vals, succ_vals = vals[self._name], vals[self._name+"'"]
+    pred_idx = None if 'pred_idx' not in kwargs else kwargs['pred_idx'] 
+    succ_idx = None if 'succ_idx' not in kwargs else kwargs['succ_idx'] 
+
+    cond = None
+    # Scalar treatment is the most trivial and ignores reverse
+    if self._tran.ret_isscalar():
+      cond = nominal_uniform_prob(pred_vals,
+                                  succ_vals, 
+                                  prob=prob, 
+                                  vset=self._vset) 
+                  
+
+    # Handle discrete non-callables
+    elif not self._tran.ret_callable():
+      prob = self._tran() if not self._tran.ret_istuple() else \
+             self._tran[int(reverse)]()
+      cond = lookup_square_matrix(pred_vals,
+                                  succ_vals, 
+                                  sq_matrix=prob, 
+                                  vset=self._vset,
+                                  col_idx=pred_idx,
+                                  row_idx=succ_idx) 
+
+
+    # That just leaves callables
+    else:
+      prob = self._tran if not self._tran.ret_istuple() else \
+             self._tran[int(reverse)]
+      kwds = {self._name: pred_vals,
+              self._name+"'": succ_vals}
+      cond = prob(**kwds)
+
+    return cond
+
+#-------------------------------------------------------------------------------
+  def __call__(self, values=None):
+    ''' 
+    Returns a namedtuple of samp and prob.
+    '''
+    dist_name = self.eval_dist_name(values)
+    vals = self.eval_vals(values)
+    prob = self.eval_prob(vals)
+    dims = {self._name: None} if isscalar(vals) else {self._name: 0}
+    vals = collections.OrderedDict({self._name: vals})
+    return Dist(dist_name, vals, dims, prob, self._pscale)
 
 #-------------------------------------------------------------------------------
   def step(self, *args, reverse=False):
@@ -318,25 +359,12 @@ class RV (_Vals, _Prob):
       pred_vals, succ_vals = args[0], args[1]
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals = self.eval_vals(pred_vals)
-    if succ_vals is None:
-      succ_vals = {0} if isscalar(pred_vals) else pred_vals
+    vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
+    cond = self.eval_tran(vals, **kwargs)
     dist_succ_name = self.eval_dist_name(succ_vals, "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
-    vals, dims, cond = self.eval_tran(pred_vals, succ_vals)
     return Dist(dist_name, vals, dims, cond, self._pscale)
     
-#-------------------------------------------------------------------------------
-  def __call__(self, values=None):
-    ''' 
-    Returns a namedtuple of samp and prob.
-    '''
-    dist_name = self.eval_dist_name(values)
-    vals = self.eval_vals(values)
-    prob = self.eval_prob(vals)
-    dims = {self._name: None} if isscalar(vals) else {self._name: 0}
-    vals = collections.OrderedDict({self._name: vals})
-    return Dist(dist_name, vals, dims, prob, self._pscale)
-
 #-------------------------------------------------------------------------------
   def __repr__(self):
     return super().__repr__() + ": '" + self._name + "'"
