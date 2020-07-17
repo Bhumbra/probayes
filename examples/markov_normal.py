@@ -21,7 +21,7 @@ def tran(succ, pred):
   return logdx+scipy.stats.norm.logpdf(succ, loc=loc, scale=scale)
 
 x = prob.RV('x', set_lims, pscale='log')
-x.set_tran(tran, order={'x': 'pred'})
+x.set_tran(tran, order={"x'": 0, 'x': 1})
 cond = x.step(set_size)
 conds = [None] * n_steps
 for i in range(n_steps):

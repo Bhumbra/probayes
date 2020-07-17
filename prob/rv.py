@@ -163,7 +163,6 @@ class RV (_Vals, _Prob):
     self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
     if self._tfun is None:
       return
-    self._tfun = Func(self._tfun, *args, **kwds)
     assert self._tfun.ret_istuple(), "Tuple of two functions required"
     assert len(self._tfun) == 2, "Tuple of two functions required."
 
@@ -287,17 +286,21 @@ class RV (_Vals, _Prob):
         succ_vals = list(succ_vals)[0]
         if type(succ_vals) in VTYPES[int] or type(succ_vals) in VTYPES[np.uint]:
           lo, hi = self.get_bounds(use_vfun=False)
-          lohi = self._tfun[0](np.array([lo, hi], dtype=float), **kwds)
+          kwds.update({self._name+"'": np.array([lo, hi], dtype=float)})
+          lohi = self._tfun[0](**kwds)
           lo, hi = float(min(lohi)), float(max(lohi))
           succ_vals = uniform(lo, hi, succ_vals)
         else:
           succ_vals = np.atleast_1d(succ_vals)
-        succ_vals = self._tfun[1](succ_vals, **kwds)
-      else:
+        kwds.update({self._name: pred_vals,
+                     self._name+"'": succ_vals})
+        succ_vals = self._tfun[1](**kwds)
+      elif not isscalar(succ_vals):
         succ_vals = np.atleast_1d(succ_vals)
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
-      kwds.update({self._name: pred_vals})
-      cond = self._tran(succ_vals, **kwds)
+      kwds.update({self._name: pred_vals,
+                   self._name+"'": succ_vals})
+      cond = self._tran(**kwds)
 
     vals = collections.OrderedDict({self._name+"'": succ_vals,
                                     self._name: pred_vals})
@@ -319,9 +322,11 @@ class RV (_Vals, _Prob):
     else:
       dist_succ_name = self.eval_dist_name(succ_vals, "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
+    if succ_vals is None and isunitsetint(pred_vals):
+      succ_vals = pred_vals
     pred_vals = self.eval_vals(pred_vals)
     if succ_vals is None:
-      succ_vals = pred_vals
+      succ_vals = _pred_vals
     vals, dims, cond = self.eval_tran(pred_vals, succ_vals)
     return Dist(dist_name, vals, dims, cond, self._pscale)
     
