@@ -86,10 +86,11 @@ def product(*args, **kwds):
   2. Conditional variables must be identical unless contained as marginal from
      another distribution.
   """
+  from prob.dist import Dist
+
   # Check pscales, scalars, possible fasttrack
   if not len(args):
     return None
-  dist_obj = type(args[0])
   kwds = dict(kwds)
   pscales = [arg.ret_pscale() for arg in args]
   pscale = kwds.get('pscale', None) or prod_pscale(pscales)
@@ -299,8 +300,6 @@ def product(*args, **kwds):
   for i in range(len(args)):
     prob = probs[i]
     if not isscalar(prob):
-      while prob.ndim < prod_ndims:
-        prob = np.expand_dims(prob, -1)
       dims = collections.OrderedDict()
       for key, val in args[i].dims.items():
         if val is not None:
@@ -312,7 +311,10 @@ def product(*args, **kwds):
           old_dims.append(key)
           new_dims.append(val)
       if len(old_dims) > 1 and not old_dims == new_dims:
-        probs[i] = np.moveaxis(prob, old_dims, new_dims)
+        max_dims_inc = max(new_dims) + 1
+        while prob.ndim < max_dims_inc:
+          prob = np.expand_dims(prob, -1)
+        prob = np.moveaxis(prob, old_dims, new_dims)
       re_shape = np.copy(ones_ndims)
       for dim in new_dims:
         re_shape[dim] = prod_shape[dim]
@@ -321,15 +323,15 @@ def product(*args, **kwds):
   # Multiply the probabilities and output the result as a distribution instance
   prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
 
-  return dist_obj(prod_name, prod_vals, prod_dims, prob, pscale)
+  return Dist(prod_name, prod_vals, prod_dims, prob, pscale)
 
 
 #-------------------------------------------------------------------------------
 def sum_dist(*args):
   """ Quick and dirty concatenation """
+  from prob.dist import Dist
   if not len(args):
     return None
-  dist_obj = type(args[0])
   pscales = [arg.ret_pscale() for arg in args]
   vals = [arg.vals for arg in args]
   probs = [arg.prob for arg in args]
@@ -377,6 +379,6 @@ def sum_dist(*args):
     sum_vals[key] = np.concatenate([sum_vals[key], val[key]], axis=sum_dim)
     sub_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
 
-  return dist_obj(sum_name, sum_vals, sum_prob, sum_pscale)
+  return Dist(sum_name, sum_vals, sum_prob, sum_pscale)
 
 #-------------------------------------------------------------------------------

@@ -340,3 +340,43 @@ class SJ:
     return self._rvs[key]
 
 #-------------------------------------------------------------------------------
+  def __repr__(self):
+    return super().__repr__() + ": '" + self._name + "'"
+
+#-------------------------------------------------------------------------------
+  def __mul__(self, other):
+    from prob.rv import RV
+    from prob.sc import SC
+    if isinstance(other, SC):
+      marg = self.ret_rvs() + other.ret_marg().ret_rvs()
+      cond = other.ret_cond().ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, SJ):
+      rvs = self.ret_rvs() + other.ret_rvs()
+      return SJ(*tuple(rvs))
+
+    if isinstance(other, RV):
+      rvs = self.ret_rvs() + [other]
+      return SJ(*tuple(rvs))
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+
+#-------------------------------------------------------------------------------
+  def __truediv__(self, other):
+    from prob.rv import RV
+    from prob.sc import SC
+    if isinstance(other, SC):
+      marg = self.ret_rvs() + other.ret_cond().ret_rvs()
+      cond = other.ret_marg().ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, SJ):
+      return SC(self, other)
+
+    if isinstance(other, RV):
+      return SC(self, other)
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+
+#-------------------------------------------------------------------------------

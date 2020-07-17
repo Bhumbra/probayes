@@ -317,16 +317,11 @@ class RV (_Vals, _Prob):
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
     dist_pred_name = self.eval_dist_name(pred_vals)
-    if succ_vals is None:
-      dist_succ_name = self.eval_dist_name(pred_vals, "'")
-    else:
-      dist_succ_name = self.eval_dist_name(succ_vals, "'")
-    dist_name = '|'.join([dist_succ_name, dist_pred_name])
-    if succ_vals is None and isunitsetint(pred_vals):
-      succ_vals = pred_vals
     pred_vals = self.eval_vals(pred_vals)
     if succ_vals is None:
       succ_vals = {0} if isscalar(pred_vals) else pred_vals
+    dist_succ_name = self.eval_dist_name(succ_vals, "'")
+    dist_name = '|'.join([dist_succ_name, dist_pred_name])
     vals, dims, cond = self.eval_tran(pred_vals, succ_vals)
     return Dist(dist_name, vals, dims, cond, self._pscale)
     
@@ -345,5 +340,40 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     return super().__repr__() + ": '" + self._name + "'"
+
+#-------------------------------------------------------------------------------
+  def __mul__(self, other):
+    from prob.sj import SJ
+    from prob.sc import SC
+    if isinstance(other, SC):
+      marg = [self] + other.ret_marg().ret_rvs()
+      cond = other.ret_cond().ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, SJ):
+      rvs = [self] + other.ret_rvs()
+      return SJ(*tuple(rvs))
+
+    if isinstance(other, RV):
+      return SJ(self, other)
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+
+#-------------------------------------------------------------------------------
+  def __truediv__(self, other):
+    from prob.sj import SJ
+    from prob.sc import SC
+    if isinstance(other, SC):
+      marg = [self] + other.ret_cond().ret_rvs()
+      cond = other.ret_marg().ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, SJ):
+      return SC(self, other)
+
+    if isinstance(other, RV):
+      return SC(self, other)
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------

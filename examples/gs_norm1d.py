@@ -27,8 +27,8 @@ x = prob.RV('x', {-np.inf, np.inf}, vtype=float)
 sigma.set_prob(lambda x: 1./x)
 
 # Set up params and models
-params = prob.SJ(mu, sigma)
-model = prob.SC(x, params)
+params = mu * sigma
+model = x / params
 model.set_prob(scipy.stats.norm.pdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'})
 

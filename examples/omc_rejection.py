@@ -25,12 +25,12 @@ y = prob.RV("y", xy_range)
 o = prob.RV("o")
 
 # DEFINE STOCHASTIC CONDITION
-xy = prob.SJ(x, y)
-oxy = prob.SC(o, xy)
+xy = x * y
+oxy = o / xy
 oxy.set_prob(inside)
 
 # DEFINE PROPOSAL DENSITY AND COEFFICIENT VARIABLE
-prop_xy = prob.SJ(x, y)
+prop_xy = x * y
 prop_xy.set_prob(norm2d)
 coef_max = float(norm2d(radius, 1.))
 coef = prob.RV('coef', {0., coef_max})

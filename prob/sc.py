@@ -93,6 +93,14 @@ class SC (SJ):
     return dist_name
 
 #-------------------------------------------------------------------------------
+  def ret_marg(self):
+    return self._marg
+
+#-------------------------------------------------------------------------------
+  def ret_cond(self):
+    return self._cond
+
+#-------------------------------------------------------------------------------
   def set_rvs(self, *args):
     raise NotImplementedError()
 
@@ -116,5 +124,47 @@ class SC (SJ):
         return None
       key = self._keys.index(key)
     return self._rvs[key]
+
+#-------------------------------------------------------------------------------
+  def __mul__(self, other):
+    from prob.rv import RV
+    from prob.sj import SJ
+    marg = self.ret_marg().ret_rvs()
+    cond = self.ret_cond().ret_rvs()
+    if isinstance(other, SC):
+      marg = marg + other.ret_marg().ret_rvs()
+      cond = cond + other.ret_cond().ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, SJ):
+      marg = marg + other.ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, RV):
+      marg = marg + [other]
+      return SC(marg, cond)
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+
+#-------------------------------------------------------------------------------
+  def __truediv__(self, other):
+    from prob.rv import RV
+    from prob.sj import SJ
+    marg = self.ret_marg().ret_rvs()
+    cond = self.ret_cond().ret_rvs()
+    if isinstance(other, SC):
+      marg = marg + other.ret_cond().ret_rvs()
+      cond = cond + other.ret_marg().ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, SJ):
+      cond = cond + other.ret_rvs()
+      return SC(marg, cond)
+
+    if isinstance(other, RV):
+      cond = cond + [self]
+      return SC(marg, cond)
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
