@@ -11,8 +11,8 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 n_steps = 6
-set_lims = {-np.pi, np.pi}
-set_size = {np.uint(200)} # np.uint encodes include limits
+set_lims = [-np.pi, np.pi]
+set_size = {200}
 
 def tran(succ, pred):
   loc = -np.sin(pred)

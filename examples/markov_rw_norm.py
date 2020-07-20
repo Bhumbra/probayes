@@ -9,7 +9,7 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 n_steps = 10000
-set_lims = {-np.pi, np.pi}
+set_lims = [-np.pi, np.pi]
 
 def tran(succ, pred):
   loc = -np.sin(pred)

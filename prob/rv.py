@@ -9,7 +9,7 @@ from prob.prob import _Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from prob.pscales import NEARLY_POSITIVE_INF, rescale, eval_pscale
+from prob.pscales import div_prob, rescale, eval_pscale
 from prob.func import Func
 from prob.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
@@ -34,6 +34,7 @@ class RV (_Vals, _Prob):
 
   # Private
   __sym_tran = None
+  __prime_key = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
@@ -57,6 +58,7 @@ class RV (_Vals, _Prob):
     assert self._name.isidentifier(), \
         "RV name must ba a valid identifier: {}".format(self._name)
     self.delta = collections.namedtuple('ð', [self._name])
+    self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
@@ -92,13 +94,7 @@ class RV (_Vals, _Prob):
       if self._vset is None:
         return self.ret_callable()
       else:
-        prob = 1.
-        if self._vtype in (bool, int):
-          nvset = len(self._vset)
-          prob = NEARLY_POSITIVE_INF if not nvset else 1. / float(nvset)
-        elif self._vtype in VTYPES[float]:
-          lo, hi = self.get_bounds()
-          prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
+        prob = div_prob(1., float(self._length))
         if self._pscale != 1.:
           prob = rescale(prob, 1., self._pscale)
         super().set_prob(prob, self._pscale)
@@ -124,12 +120,7 @@ class RV (_Vals, _Prob):
     # Recalibrate scalar probabilities for floating point vtypes
     if self.ret_isscalar() and \
         self._vtype in VTYPES[float]:
-      lo, hi = self.get_bounds(use_vfun=True)
-      prob = NEARLY_POSITIVE_INF if lo==hi else 1./float(hi - lo)
-      if self._pscale != 1.:
-        prob = rescale(prob, self._pscale)
-      super().set_prob(prob, self._pscale)
-      self.set_tran(prob)
+      self._default_prob(self._pscale)
 
     # Check pfun is unspecified or uniform
     if self._pfun is None:
@@ -178,13 +169,14 @@ class RV (_Vals, _Prob):
 
     # Evaluate values from inverse cdf bounded within cdf limits
     number = list(values)[0]
-    lo, hi = self.get_bounds(use_vfun=False)
-    lohi = np.array([lo, hi], dtype=float)
-    assert np.all(np.isfinite(lohi)), \
-        "Cannot evaluate {} values for bounds: {}".format(values, vset)
-    lims = self.ret_pfun(0)(lohi)
-    lo, hi = float(min(lims)), float(max(lims))
-    values = uniform(lo, hi, number)
+    assert np.all(np.isfinite(self._lims)), \
+        "Cannot evaluate {} values for bounds: {}".format(values, self._lims)
+    lims = self.ret_pfun(0)(self._lims)
+    values = uniform(
+                     lims[0], lims[1], number, 
+                     isinstance(self._vset[0], tuple),
+                     isinstance(self._vset[1], tuple)
+                    )
     return self.ret_pfun(1)(values)
 
 #-------------------------------------------------------------------------------
@@ -216,10 +208,31 @@ class RV (_Vals, _Prob):
     """ Returns adjusted succ_vals and transitional probability """
     assert self._tran is not None, "No transitional function specified"
     kwargs = dict() # dictionary to passover to eval_tran
+    #---------------------------------------------------------------------------
+    delta_type = None
     if succ_vals is None:
       succ_vals = {0} if isscalar(pred_vals) else pred_vals
+
+    # Handle deltas by type
     elif isinstance(succ_vals, self.delta):
-      succ_vals = pred_vals + succ_vals[0]
+      delta_vals = succ_vals[0]
+      if isinstance(delta_vals, list):
+        delta_type = list
+        delta_vals = delta_vals[0]
+      elif isinstance(delta_vals, tuple):
+        delta_type = tuple
+        delta_vals = delta_vals[0]
+      if isinstance(delta_vals, set):
+        delta_vals = list(delta_vals)[0] * self._length
+      prop_vals = pred_vals + delta_vals if self._vfun is None else \
+                  self._vfun[1](self._vfun[0](pred_vals) + delta_vals)
+      if delta_type is None:
+        succ_vals = prop_vals
+      elif delta_type is list:
+        succ_vals = np.maximum(self._lims[0], np.minimum(self._lims[1],
+                                                         prop_vals))
+      elif delta_type is tuple:
+        succ_vals = prop_vals if self._inside(prop_vals) else pred_vals
 
     #---------------------------------------------------------------------------
     def _reshape_vals(pred, succ):
@@ -253,7 +266,7 @@ class RV (_Vals, _Prob):
             "Inverse CDF sampling for scalar probabilities unavailable for " + \
             "{} data type".format(self._vtype)
         cdf_val = list(succ_vals)[0]
-        lo, hi = self.get_bounds(use_vfun=True)
+        lo, hi = min(self._limits), max(self._limits)
         succ_val = lo*(1.-cdf_val) + hi*cdf_val
         if self._vfun is not None:
           succ_val = self.ret_vfun(1)(succ_val)
@@ -285,11 +298,13 @@ class RV (_Vals, _Prob):
             "Successor sampling only possible with scalar predecessors"
         succ_vals = list(succ_vals)[0]
         if type(succ_vals) in VTYPES[int] or type(succ_vals) in VTYPES[np.uint]:
-          lo, hi = self.get_bounds(use_vfun=False)
+          lo, hi = min(self._lims), max(self._lims)
           kwds.update({self._name+"'": np.array([lo, hi], dtype=float)})
           lohi = self._tfun[0](**kwds)
           lo, hi = float(min(lohi)), float(max(lohi))
-          succ_vals = uniform(lo, hi, succ_vals)
+          succ_vals = uniform(lo, hi, succ_vals,
+                              isinstance(self._vset[0], tuple),
+                              isinstance(self._vset[1], tuple))
         else:
           succ_vals = np.atleast_1d(succ_vals)
         kwds.update({self._name: pred_vals,
@@ -366,7 +381,7 @@ class RV (_Vals, _Prob):
     pred_vals = self.eval_vals(pred_vals)
     vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
     cond = self.eval_tran(vals, **kwargs)
-    dist_succ_name = self.eval_dist_name(succ_vals, "'")
+    dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     return Dist(dist_name, vals, dims, cond, self._pscale)
     

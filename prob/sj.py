@@ -43,6 +43,7 @@ class SJ:
   _pscale = None
   _tran = None
   _tfun = None
+  _length = None
 
   # Private
   __isscalar = None
@@ -93,8 +94,20 @@ class SJ:
       self.Delta = collections.namedtuple(self._id, 'ð')
       self.delta = collections.namedtuple('ð', self._keys)
     self.set_pscale()
+    self.eval_length()
     return self._nrvs
   
+#-------------------------------------------------------------------------------
+  def eval_length(self):
+    rvs = self.ret_rvs(aslist=True)
+    lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
+    self._length = np.sqrt(np.sum(lengths))
+    return self._length
+
+#-------------------------------------------------------------------------------
+  def ret_length(self):
+    return self._length
+
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
     # Defaulting aslist=True plays more nicely with inheriting classes

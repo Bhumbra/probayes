@@ -59,6 +59,7 @@ class SC (SJ):
     self._defiid = self._marg.ret_keyset()
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
+    self.eval_length()
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values=None):

@@ -207,7 +207,8 @@ def product(*args, **kwds):
     cond_set = set(cond_names[i]) - cond2marg_set
     if cond_set:
       assert prod_cond_set == cond_set, \
-          "Incompatible conditionals {} vs {}: ".format(prod_cond_set, cond_set)
+          "Incompatible product conditional {} for conditional set {}: ".format(
+              prod_cond_set, cond_set)
     for name in cond2marg:
       if name in arg.vals:
         values = arg.vals[name]

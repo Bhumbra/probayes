@@ -19,7 +19,7 @@ def norm2d(x, y, loc=0., scale=radius):
   return scipy.stats.norm.pdf(x, loc=loc, scale=scale) * \
          scipy.stats.norm.pdf(y, loc=loc, scale=scale)
 
-xy_range = {-radius, radius}
+xy_range = [-radius, radius]
 x = prob.RV("x", xy_range)
 y = prob.RV("y", xy_range)
 o = prob.RV("o")
