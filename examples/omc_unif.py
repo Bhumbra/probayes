@@ -12,7 +12,7 @@ set_size = {-10000}
 # SETUP CIRCLE FUNCTION AND RVs
 def inside(o, x, y): 
   return o == (x**2 + y**2 <= radius**2)
-xy_range = {-radius, radius}
+xy_range = [-radius, radius]
 x = prob.RV("x", xy_range)
 y = prob.RV("y", xy_range)
 o = prob.RV("o")
@@ -36,9 +36,9 @@ circle_area = square_area * joint_expt['o']
 figure()
 true = np.nonzero(p_omc_true.prob)[0]
 false = np.nonzero(np.logical_not(p_omc_true.prob))[0]
-x, y = p_omc_true.vals['x'], p_omc_true.vals['y']
-plot(x[true], y[true], 'b.')
-plot(x[false], y[false], 'r.')
+x_all, y_all = p_omc_true.vals['x'], p_omc_true.vals['y']
+plot(x_all[true], y_all[true], 'b.')
+plot(x_all[false], y_all[false], 'r.')
 xlabel('x')
 ylabel('y')
 title('Est. circle area={}'.format(circle_area))

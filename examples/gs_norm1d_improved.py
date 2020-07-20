@@ -11,8 +11,8 @@ from pylab import *; ion()
 rand_size = 60
 rand_mean = 50.
 rand_stdv = 10.
-mu_lims = {40, 60}
-sigma_lims = {5, 20.}
+mu_lims = (40, 60)
+sigma_lims = (5, 20.)
 resolution = {'mu': {128}, 'sigma': {192}}
 
 # Generate data

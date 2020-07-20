@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
-n_steps = 10000
+n_steps = 2000
 set_lims = {-np.pi, np.pi}
 
 def tran(succ, pred):
@@ -39,7 +39,7 @@ for i in range(n_steps):
   if i == 0:
     cond[i] = x.step(0.)
   else:
-    dx = x.delta(np.random.normal(scale=.05))
+    dx = x.delta(({np.random.uniform(-0.1, 0.1)},))
     cond[i] = x.step(succ[i-1], dx)
   pred[i] = cond[i].vals['x']
   succ[i] = cond[i].vals["x'"]
@@ -51,6 +51,6 @@ print('...done')
 figure()
 c_norm = Normalize(vmin=np.min(prob), vmax=np.max(prob))
 c_map = cm.jet(c_norm(prob))
-scatter(pred, succ, color=c_map, marker='.')
+scatter(pred, succ,  color=c_map, marker='.')
 xlabel('Predecessor')
-ylabel('Succesor')
+ylabel('Successor')

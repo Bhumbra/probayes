@@ -5,7 +5,7 @@
 import prob
 import numpy as np
 
-set_lims = {np.e, np.e**3} # returns a scalar probability of 0.5
+set_lims = (np.e, np.e**3) # returns a scalar probability of 0.5
 set_sizes = [{-5}, {0}]
 
 x = prob.RV('x', set_lims)

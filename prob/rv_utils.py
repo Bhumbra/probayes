@@ -7,56 +7,63 @@ from prob.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_INF
 A module to provide functional support to rv.py
 """
 #-------------------------------------------------------------------------------
-def nominal_uniform_prob(*args, prob=None, vset=None, pscale=1.):
-  """ Also handles categorical data types if vset is a list """
+def nominal_uniform_prob(*args, prob=None, inside=None, pscale=1.):
+  """ Also handles categorical data types if inside is a list. Inside can
+  (and should) be a callable function """
 
+  # Detect ptype, default to prob if no values, otherwise detect vtype  
   assert len(args) >= 1, "Minimum of a single positional argument"
   pscale = eval_pscale(pscale)
   use_logs = iscomplex(pscale)
   if prob is None:
     prob = 0. if use_logs else 1.
-
-  # Default to prob if no values otherwise detect vtype
   vals = args[0]
   if vals is None:
     return prob
-  vtype = eval_vtype(vset)
+  vtype = eval_vtype(vals) if callable(inside) else eval_type(inside)
+
+  # Set inside function by vtype if not specified
+  if not callable(inside):
+    if vtype in VTYPES[bool]:
+      pass
+    elif vtype in VTYPES[float]:
+      inside = lambda x: np.logical_and(x >= min(inside), x <= max(inside))
+    else:
+      inside = lambda x: np.isin(x, inside)
 
   # If scalar, check within variable set
-  p0 = NEARLY_NEGATIVE_INF if use_logs else 0.
+  p_zero = NEARLY_NEGATIVE_INF if use_logs else 0.
   if isscalar(vals):
-    if vtype in VTYPES[float]:
-      prob = p0 if vals < min(vset) or vals > max(vset) else prob
+    if vtype in VTYPES[bool]:
+      prob = prob if vals else \
+             rescale(1. - rescale(prob, pscale, 1.), 1., pscale)
     else:
-      prob = prob if vals in vset else p0
+      prob = prob if inside(vals) else p_zero
 
-  # Otherwise treat as arrays
+  # Otherwise perform array operations
   else:
-    # Handle nominal probabilities
+
+    # Handle nominal probabilities, that ignores inside
     if vtype in VTYPES[bool]:
       prob = rescale(prob, pscale, 1.)
+      p_false = 1. - prob
       prob = np.tile(prob, vals.shape)
-      isfalse = np.logical_not(vals)
-      prob[isfalse] = 1. - prob[isfalse]
-      return rescale(prob, 1., pscale)
+      prob[np.logical_not(vals)] = p_false
+      prob = rescale(prob, 1., pscale)
 
     # Otherwise treat as uniform within range
-    prob = np.tile(prob, vals.shape)
-    if vtype in VTYPES[float]:
-      outside = np.logical_or(vals < min(vset), vals > max(vset))
-      prob[outside] = p0
     else:
-      outside = np.array([val not in vset for val in vals], dtype=bool)
-      prob[outside] = p0
+      p_true = prob
+      prob = np.tile(p_zero, vals.shape)
+      prob[inside(vals)] = p_true
 
   # Broadcast probabilities across args
   if len(args) > 1:
     for arg in args[1:]:
       if use_logs:
-        prob = prob + nominal_uniform_prob(arg, vset=vset, pscale=0.j)
+        prob = prob + nominal_uniform_prob(arg, inside=inside, pscale=0.j)
       else:
-        prob = prob * nominal_uniform_prob(arg, vset=vset)
-
+        prob = prob * nominal_uniform_prob(arg, inside=inside)
   return prob
 
 #-------------------------------------------------------------------------------
