@@ -44,6 +44,7 @@ class SJ:
   _tran = None
   _tfun = None
   _length = None
+  _lengths = None
 
   # Private
   __isscalar = None
@@ -100,7 +101,7 @@ class SJ:
 #-------------------------------------------------------------------------------
   def eval_length(self):
     rvs = self.ret_rvs(aslist=True)
-    lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
+    self._lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
     self._length = np.sqrt(np.sum(lengths))
     return self._length
 
@@ -355,6 +356,43 @@ class SJ:
     if not iid: 
       return Dist(dist_name, vals, dims, prob, self._pscale)
     return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
+
+#-------------------------------------------------------------------------------
+  def eval_delta(self, delta):
+    if isinstance(delta, self.delta):
+      return delta
+
+    assert isinstance(delta, self.Delta),\
+        "Unknown delta specification type: {}".format(delta)
+
+    delta_vals = delta[0]
+    delta_scale = False
+    if isinstance(delta, list):
+      delta_type = list
+      delta_vals = delta_vals[0]
+    elif isinstance(delta_vals, tuple):
+      delta_type = tuple
+      delta_vals = delta_vals[0]
+    if isinstance(delta_vals, set):
+      assert np.isfinite(self._length), \
+          "Length is infinite and therefore precludes scaling along length"
+      delta_vals = list(delta_vals)[0] * self._length
+      delta_scale = True
+    delta_square = delta_vals ** 2
+    deltas = np.random.uniform(-1., +1., size=self._nrvs)
+    if delta_scale:
+      deltas = deltas * self.lengths
+    deltas_squared = np.sum(deltas ** 2)
+    deltas = np.sqrt(delta_square / deltas_squared)
+    delta_args = [None] * self._nrvs
+    for i, key in enumerate(self._keys):
+      arg = deltas[i]
+      if delta_type is list:
+        arg = [arg]
+      elif delta_type is tuple:
+        arg = (arg,)
+      delta_args[i] = arg
+    return self.delta(*tuple(delta_args))
 
 #-------------------------------------------------------------------------------
   def __len__(self):

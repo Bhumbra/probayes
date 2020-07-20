@@ -223,6 +223,8 @@ class RV (_Vals, _Prob):
         delta_type = tuple
         delta_vals = delta_vals[0]
       if isinstance(delta_vals, set):
+        assert np.isfinite(self._length), \
+            "Length is infinite and therefore precludes scaling along length"
         delta_vals = list(delta_vals)[0] * self._length
       prop_vals = pred_vals + delta_vals if self._vfun is None else \
                   self._vfun[1](self._vfun[0](pred_vals) + delta_vals)
