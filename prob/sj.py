@@ -89,8 +89,9 @@ class SJ:
     self._defiid = self._keyset
     self._name = ','.join(self._keys)
     self._id = '_and_'.join(self._keys)
-    self.Delta = collections.namedtuple(self._id, 'ð')
-    self.delta = collections.namedtuple('ð', self._keys)
+    if self._id:
+      self.Delta = collections.namedtuple(self._id, 'ð')
+      self.delta = collections.namedtuple('ð', self._keys)
     self.set_pscale()
     return self._nrvs
   

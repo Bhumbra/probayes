@@ -20,11 +20,22 @@ def eval_vtype(vtype):
   if isinstance(vtype, set):
     vtype = list(vtype)
   if isinstance(vtype, (list, tuple)):
-    vtype = np.array(vtype)
+    if any([isinstance(_vtype, tuple) for _vtype in vtype]):
+        vtype = np.concatenate([np.array(_vtype).reshape([1]) \
+                                for _vtype in vtype]).dtype
+    else:
+      vtype = np.array(vtype)
   if isinstance(vtype, np.ndarray):
     vtype = vtype.dtype
+  elif hasattr(vtype, 'type'):
+    vtype = vtype.type
   for key, val in VTYPES.items():
-    if vtype in val:
+    try:
+      found = vtype in val
+    except TypeError:
+      vtype = type(vtype)
+      found = vtype in val
+    if found:
       vtype = key
       break
   return vtype

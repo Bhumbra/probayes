@@ -36,9 +36,9 @@ circle_area = square_area * joint_expt['o']
 figure()
 true = np.nonzero(p_omc_true.prob)[0]
 false = np.nonzero(np.logical_not(p_omc_true.prob))[0]
-x, y = p_omc_true.vals['x'], p_omc_true.vals['y']
-plot(x[true], y[true], 'b.')
-plot(x[false], y[false], 'r.')
+x_all, y_all = p_omc_true.vals['x'], p_omc_true.vals['y']
+plot(x_all[true], y_all[true], 'b.')
+plot(x_all[false], y_all[false], 'r.')
 xlabel('x')
 ylabel('y')
 title('Est. circle area={}'.format(circle_area))

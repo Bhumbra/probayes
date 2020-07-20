@@ -19,6 +19,8 @@ class _Vals (ABC):
   _vset = None      # Variable set (array or 2-length tuple range)
   _vtype = None     # Variable type
   _vfun = None      # 2-length tuple of mutually inverting functions
+  _lims = None      # Limits for floating point variable types
+  _inside = None    # Lambda function for defining inside vset
 
 #-------------------------------------------------------------------------------
   def __init__(self, vset=None, 
@@ -33,22 +35,69 @@ class _Vals (ABC):
   def set_vset(self, vset=None, vtype=None):
 
     # Default vset to nominal
+    self._lims = None
     if vset is None: 
       vset = list(DEFAULT_VSET)
     elif isinstance(vset, (set, range)):
-      vset = list(vset)
+      vset = sorted(vset)
     elif np.iscalar(self._vset):
       vset = [self._vset]
+    elif isinstance(vset, tuple):
+      assert len(vset) == 2, \
+          "Tuple vsets contain pairs of values, not {}".format(vset)
+      vset = sorted(vset)
+      vset = [(vset[0]), (vset[1])]
+    elif isinstance(vset, np.ndarray):
+      vset = np.sort(vset).tolist()
+    else:
+      assert isinstance(vset, list), \
+          "Unrecognised vset specification: {}".format(vset)
 
-    # At this point, self._vset should be a list, tuple, or np.ndarray
+    # At this point, self._vset can only be a sorted list
     if vtype is None:
       vset = np.array(vset)
       vtype = eval_vtype(vset)
     else:
-      vset = np.array(vset, dtype=vtype)
+      if any([isinstance(_vset, tuple) for _vset in vset]):
+        for i in range(len(vset)):
+          if isinstance(vset[i], tuple):
+            vset[i] = vtype(vset[i])
+      else:
+        vset = np.array(vset, dtype=vtype).tolist()
+    self._vset = vset
     self._vtype = eval_vtype(vtype)
-    self._vset = set(vset) if self._vtype in VTYPES.keys() \
-                 else sorted(vset)
+    self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
+    if self._vtype is not float:
+      self._lims = np.array([min(self._vset), max(self._vset)])
+      return self._vtype
+
+    # Set up limits and inside function if float
+    
+    if any([isinstance(_vset, tuple) for _vset in self._vset]):
+      lims = np.concatenate([np.array(_vtype).reshape([1]) \
+                             for _vtype in vtype])
+    else:
+      lims = np.array(self._vset)
+    assert len(lims) == 2, \
+        "Floating point vset must be two elements, not {}".format(self._vset)
+    if lims[1] < lims[0]:
+      self._vset = self._vset[::-1]
+    self._lims = np.sort(lims)
+    if not isinstance(self._vset[0], tuple) and \
+        not isinstance(self._vset[1], tuple):
+      self._inside = lambda x: np.logical_and(x >= self._lims[0],
+                                              x <= self._lims[1])
+    elif not isinstance(self._vset[0], tuple) and \
+        isinstance(self._vset[1], tuple):
+      self._inside = lambda x: np.logical_and(x >= self._lims[0],
+                                              x < self._lims[1])
+    elif isinstance(self._vset[0], tuple) and \
+        not isinstance(self._vset[1], tuple):
+      self._inside = lambda x: np.logical_and(x > self._lims[0],
+                                              x <= self._lims[1])
+    else:
+      self._inside = lambda x: np.logical_and(x > self._lims[0],
+                                              x < self._lims[1])
     return self._vtype
 
 #-------------------------------------------------------------------------------
@@ -80,14 +129,14 @@ class _Vals (ABC):
 
 #-------------------------------------------------------------------------------
   def get_bounds(self, use_vfun=True):
-    if self._vset is None:
+    if self._lims is None:
       return None
     if use_vfun:
       use_vfun = self._vfun is not None
-    vset = self._vset
-    if use_vfun:
-      vset = self.ret_vfun(0)(np.array(list(vset)))
-    lo, hi = min(vset), max(vset)
+    if not use_vfun:
+      return self._lims[0], self._lims[1]
+    lims = self.ret_vfun(0)(self._lims)
+    lo, hi = min(lims), max(lims)
     return lo, hi
 
 #-------------------------------------------------------------------------------

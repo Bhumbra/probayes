@@ -191,9 +191,14 @@ class RV (_Vals, _Prob):
   def eval_prob(self, values=None):
     if not self.ret_isscalar():
       return super().eval_prob(values)
-    prob = self._prob()
-    vset = self._vset
-    return nominal_uniform_prob(values, prob=prob, vset=vset)
+    watch =  nominal_uniform_prob(values, 
+                                prob=self._prob(), 
+                                inside=self._inside,
+                                pscale=self._pscale)
+    return nominal_uniform_prob(values, 
+                                prob=self._prob(), 
+                                inside=self._inside,
+                                pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
@@ -309,8 +314,8 @@ class RV (_Vals, _Prob):
     if self._tran.ret_isscalar():
       cond = nominal_uniform_prob(pred_vals,
                                   succ_vals, 
-                                  prob=prob, 
-                                  vset=self._vset) 
+                                  prob=self._tran(), 
+                                  inside=self._inside) 
                   
 
     # Handle discrete non-callables
