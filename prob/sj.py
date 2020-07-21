@@ -295,6 +295,8 @@ class SJ:
     self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
     if self._tfun is None:
       return
+    raise NotImplemented(
+        "Multidimensional transitional CDF sampling not yet implemented")
     assert self._tfun.ret_istuple(), "Tuple of two functions required"
     assert len(self._tfun) == 2, "Tuple of two functions required."
 
@@ -342,22 +344,6 @@ class SJ:
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def __call__(self, *args, **kwds):
-    '''  Returns a Dist instance '''
-    if self._rvs is None:
-      return None
-    iid = False if 'iid' not in kwds else kwds.pop('iid')
-    if type(iid) is bool and iid:
-      iid = self._defiid
-    values = self._parse_args(*args, **kwds)
-    dist_name = self.eval_dist_name(values)
-    vals, dims = self.eval_vals(values, _skip_parsing=True)
-    prob = self.eval_prob(vals)
-    if not iid: 
-      return Dist(dist_name, vals, dims, prob, self._pscale)
-    return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
-
-#-------------------------------------------------------------------------------
   def eval_delta(self, delta):
     if isinstance(delta, self.delta):
       return delta
@@ -366,6 +352,7 @@ class SJ:
         "Unknown delta specification type: {}".format(delta)
 
     delta_vals = delta[0]
+    delta_type = None
     delta_scale = False
     if isinstance(delta, list):
       delta_type = list
@@ -383,7 +370,7 @@ class SJ:
     if delta_scale:
       deltas = deltas * self.lengths
     deltas_squared = np.sum(deltas ** 2)
-    deltas = np.sqrt(delta_square / deltas_squared)
+    deltas = deltas * np.sqrt(delta_square / deltas_squared)
     delta_args = [None] * self._nrvs
     for i, key in enumerate(self._keys):
       arg = deltas[i]
@@ -393,6 +380,77 @@ class SJ:
         arg = (arg,)
       delta_args[i] = arg
     return self.delta(*tuple(delta_args))
+
+#-------------------------------------------------------------------------------
+  def eval_succ(self, pred_vals, succ_vals, reverse=False):
+    """ Returns adjusted succ_vals """
+    rvs = self.ret_rvs(aslist=True)
+    if isinstance(succ_vals, self.Delta):
+      succ_vals = self.eval_delta(succ_vals)
+    succ_delta = None
+    if isinstance(succ_vals, self.delta):
+      succ_values = collections.OrderedDict()
+      for i, key in enumerate(self._keys):
+        succ_values[key] = rvs[i].apply_delta(prev_vals[key], succ_vals[key])
+      succ_vals =  succ_values
+    elif isunitsetint(succ_vals):
+      assert self._tfun is not None and self._tfun_ret_callable(),\
+          "Transitional CDF calling requires callable tfun"
+
+    # TODO: to increase capability of this section to cope beyond scalars
+    dims = {}
+    kwargs = {}
+    vals = collections.OrderedDict()
+    for key in self._keys:
+      vals.update({key: pred_vals[key]})
+    for key in self._keys:
+      vals.update({key+"'": succ_vals[key]})
+    return vals, dims, kwargs
+
+#-------------------------------------------------------------------------------
+  def eval_tran(vals, reverse=False, **kwargs):
+    assert self._tran is not None, \
+        "Cannot evaluate without transitional function"
+    prob = self._tran if not self._tran.ret_istuple() else \
+           self._tran[int(reverse)]
+    cond = prob(**vals)
+    return cond
+
+#-------------------------------------------------------------------------------
+  def __call__(self, *args, **kwds):
+    '''  Returns a Dist instance '''
+    if self._rvs is None:
+      return None
+    iid = False if 'iid' not in kwds else kwds.pop('iid')
+    if type(iid) is bool and iid:
+      iid = self._defiid
+    values = self._parse_args(*args, **kwds)
+    dist_name = self.eval_dist_name(values)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    prob = self.eval_prob(vals)
+    if not iid: 
+      return Dist(dist_name, vals, dims, prob, self._pscale)
+    return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
+
+#-------------------------------------------------------------------------------
+  def step(self, *args, **kwds):
+    reverse = False if 'reverse' not in kwds else kwds.pop('reverse')
+    pred_vals, succ_vals = None, None 
+    if len(args) == 1:
+      if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
+        pred_vals, succ_vals = args[0][0], args[0][1]
+      else:
+        pred_vals = args[0]
+    elif len(args) == 2:
+      pred_vals, succ_vals = args[0], args[1]
+    pred_vals = self._parse_args(pred_vals)
+    dist_pred_name = self.eval_dist_name(pred_vals)
+    pred_vals = self.eval_vals(pred_vals)
+    vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
+    cond = self.eval_tran(vals, reverse=reverse, **kwargs)
+    dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
+    dist_name = '|'.join([dist_succ_name, dist_pred_name])
+    return Dist(dist_name, vals, dims, cond, self._pscale)
 
 #-------------------------------------------------------------------------------
   def __len__(self):

@@ -204,42 +204,50 @@ class RV (_Vals, _Prob):
     return dist_str
 
 #-------------------------------------------------------------------------------
+  def apply_delta(self, pred_vals, succ_delta):
+    delta_vals = succ_delta
+    if isinstance(delta_vals, self.delta):
+      delta_vals = delta_vals[0]
+    if isinstance(delta_vals, list):
+      delta_type = list
+      delta_vals = delta_vals[0]
+    elif isinstance(delta_vals, tuple):
+      delta_type = tuple
+      delta_vals = delta_vals[0]
+    if isinstance(delta_vals, set):
+      assert np.isfinite(self._length), \
+          "Length is infinite and therefore precludes scaling along length"
+      delta_vals = list(delta_vals)[0] * self._length
+    prop_vals = pred_vals + delta_vals if self._vfun is None else \
+                self._vfun[1](self._vfun[0](pred_vals) + delta_vals)
+    if delta_type is None:
+      succ_vals = prop_vals
+    elif delta_type is list:
+      succ_vals = np.maximum(self._lims[0], np.minimum(self._lims[1],
+                                                       prop_vals))
+    elif delta_type is tuple:
+      succ_vals = prop_vals if self._inside(prop_vals) else pred_vals
+    return succ_vals
+
+#-------------------------------------------------------------------------------
   def eval_succ(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals and transitional probability """
+
     assert self._tran is not None, "No transitional function specified"
     kwargs = dict() # dictionary to passover to eval_tran
-    #---------------------------------------------------------------------------
     delta_type = None
     if succ_vals is None:
       succ_vals = {0} if isscalar(pred_vals) else pred_vals
 
     # Handle deltas by type
     elif isinstance(succ_vals, self.delta):
-      delta_vals = succ_vals[0]
-      if isinstance(delta_vals, list):
-        delta_type = list
-        delta_vals = delta_vals[0]
-      elif isinstance(delta_vals, tuple):
-        delta_type = tuple
-        delta_vals = delta_vals[0]
-      if isinstance(delta_vals, set):
-        assert np.isfinite(self._length), \
-            "Length is infinite and therefore precludes scaling along length"
-        delta_vals = list(delta_vals)[0] * self._length
-      prop_vals = pred_vals + delta_vals if self._vfun is None else \
-                  self._vfun[1](self._vfun[0](pred_vals) + delta_vals)
-      if delta_type is None:
-        succ_vals = prop_vals
-      elif delta_type is list:
-        succ_vals = np.maximum(self._lims[0], np.minimum(self._lims[1],
-                                                         prop_vals))
-      elif delta_type is tuple:
-        succ_vals = prop_vals if self._inside(prop_vals) else pred_vals
+      succ_vals = self.apply_delta(pred_vals, succ_vals)
 
     #---------------------------------------------------------------------------
     def _reshape_vals(pred, succ):
       dims = {}
       ndim = 0
+
       # Now reshape the values according to succ > prev dimensionality
       if issingleton(succ_vals):
         dims.update({self._name+"'": None})
@@ -258,7 +266,6 @@ class RV (_Vals, _Prob):
       return pred, succ, dims
 
     #---------------------------------------------------------------------------
-
     # Scalar treatment is the most trivial and ignores reverse
     if self._tran.ret_isscalar():
       if isunitsetint(succ_vals):
@@ -322,11 +329,12 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def eval_tran(self, vals, reverse=False, **kwargs):
+    # Evaluates transitional probability
     pred_vals, succ_vals = vals[self._name], vals[self._name+"'"]
     pred_idx = None if 'pred_idx' not in kwargs else kwargs['pred_idx'] 
     succ_idx = None if 'succ_idx' not in kwargs else kwargs['succ_idx'] 
-
     cond = None
+
     # Scalar treatment is the most trivial and ignores reverse
     if self._tran.ret_isscalar():
       cond = nominal_uniform_prob(pred_vals,
@@ -382,7 +390,7 @@ class RV (_Vals, _Prob):
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals = self.eval_vals(pred_vals)
     vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
-    cond = self.eval_tran(vals, **kwargs)
+    cond = self.eval_tran(vals, reverse=reverse, **kwargs)
     dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     return Dist(dist_name, vals, dims, cond, self._pscale)
