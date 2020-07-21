@@ -13,16 +13,36 @@ from prob.pscales import eval_pscale, prod_pscale, prod_rule
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
-def rv_prod_rule(values, rvs, pscale=None):
+def rv_prod_rule(*args, rvs, pscale=None):
   """ Returns the probability product treating all rvs as independent.
-  Values are keyed by RV name and rvs are a list of RVs.
+  Values (=args[0]) are keyed by RV name and rvs are a list of RVs.
   """
+  values = args[0]
   pscales = [rv.ret_pscale() for rv in rvs]
   pscale = pscale or prod_pscale(pscales)
+  use_logs = iscomplex(pscale)
   probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
   prob, pscale = prod_rule(*tuple(probs),
                            pscales=pscales,
                            pscale=pscale)
+
+  # This section below is there just to play nicely with conditionals
+  if len(args) > 1:
+    if use_logs:
+      prob = rescale(prob, pscale, 0.j)
+    else:
+      prob = rescale(prob, pscale, 1.)
+    for arg in args[1:]:
+      if use_logs:
+        prob = prob + rv_prod_rule(arg, rvs=rvs, pscale=0.j)
+      else:
+        prob = prob * rv_prod_rule(arg, rvs=rvs, pscale=1.)
+    if use_logs:
+      prob = prob / float(len(args))
+      prob = rescale(prob, 0.j, pscale)
+    else:
+      prob = prob ** (1. / float(len(args)))
+      prob = rescale(prob, 1., pscale)
   return prob, pscale
 
 #-------------------------------------------------------------------------------
@@ -312,7 +332,7 @@ class SJ:
     # If not specified, treat as independent variables
     if self._prob is None:
       prob, pscale = rv_prod_rule(values, 
-                                  self.ret_rvs(aslist=True),
+                                  rvs=self.ret_rvs(aslist=True),
                                   pscale=self._pscale)
       return prob
 
@@ -409,11 +429,22 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def eval_tran(vals, reverse=False, **kwargs):
-    assert self._tran is not None, \
-        "Cannot evaluate without transitional function"
-    prob = self._tran if not self._tran.ret_istuple() else \
-           self._tran[int(reverse)]
-    cond = prob(**vals)
+    if self._tran is None:
+      rvs = self.ret_rvs(aslist=True)
+      pred_vals = dict()
+      succ_vals = dict()
+      for key, val in vals.items():
+        if key[-1] == "'":
+          succ_vals.update({key: val})
+        else:
+          pred_vals.update({key: val})
+      cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)
+    else:
+      assert self._tran.ret_callable(), \
+          "Only callable transitional functions supported for multidimensionals"
+      prob = self._tran if not self._tran.ret_istuple() else \
+             self._tran[int(reverse)]
+      cond = prob(**vals)
     return cond
 
 #-------------------------------------------------------------------------------

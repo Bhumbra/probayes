@@ -57,7 +57,7 @@ def nominal_uniform_prob(*args, prob=None, inside=None, pscale=1.):
       prob = np.tile(p_zero, vals.shape)
       prob[inside(vals)] = p_true
 
-  # Broadcast probabilities across args
+  # This section below is there just to play nicely with conditionals
   if len(args) > 1:
     for arg in args[1:]:
       if use_logs:
