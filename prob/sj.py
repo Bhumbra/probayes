@@ -102,7 +102,7 @@ class SJ:
   def eval_length(self):
     rvs = self.ret_rvs(aslist=True)
     self._lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
-    self._length = np.sqrt(np.sum(lengths))
+    self._length = np.sqrt(np.sum(self._lengths))
     return self._length
 
 #-------------------------------------------------------------------------------

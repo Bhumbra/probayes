@@ -10,4 +10,5 @@ set_size = {-10000} # size negation denotes random sampling
 rv = prob.RV("zipf_rv", zipf_range)
 rv.set_vfun((np.log, np.exp))
 samples = rv.eval_vals(set_size)
+figure()
 hist(samples, 100)

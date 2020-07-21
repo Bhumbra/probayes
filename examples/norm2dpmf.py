@@ -17,6 +17,7 @@ l_1 = rv_1(set_size_1)
 l_01 = l_0 * l_1
 p_01 = l_01.rescaled()
 pmf = p_01.prob[:-1, :-1]
+figure()
 pcolor(np.ravel(p_01.vals['norm_1']), 
        np.ravel(p_01.vals['norm_0']), 
        pmf, cmap=cm.jet)

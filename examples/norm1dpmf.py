@@ -11,4 +11,5 @@ rv = prob.RV("norm", set_lims, prob=scipy.stats.norm,
              pscale='log', loc=0, scale=1)
 logpdf = rv(set_size)
 pdf = logpdf.rescaled()
+figure()
 plot(pdf.vals['norm'], pdf.prob)
