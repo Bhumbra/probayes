@@ -9,7 +9,7 @@ import numpy as np
 from prob.rv import RV
 from prob.dist import Dist
 from prob.vtypes import isscalar, issingleton
-from prob.pscales import eval_pscale, prod_pscale, prod_rule
+from prob.pscales import iscomplex, rescale, eval_pscale, prod_pscale, prod_rule
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
@@ -34,9 +34,11 @@ def rv_prod_rule(*args, rvs, pscale=None):
       prob = rescale(prob, pscale, 1.)
     for arg in args[1:]:
       if use_logs:
-        prob = prob + rv_prod_rule(arg, rvs=rvs, pscale=0.j)
+        offs, _ = rv_prod_rule(arg, rvs=rvs, pscale=0.j)
+        prob = prob + offs
       else:
-        prob = prob * rv_prod_rule(arg, rvs=rvs, pscale=1.)
+        coef, _ = rv_prod_rule(arg, rvs=rvs, pscale=1.)
+        prob = prob * coef
     if use_logs:
       prob = prob / float(len(args))
       prob = rescale(prob, 0.j, pscale)
@@ -187,7 +189,7 @@ class SJ:
     return self.__callable
 
 #-------------------------------------------------------------------------------
-  def _parse_args(self, *args, **kwds):
+  def parse_args(self, *args, **kwds):
     """ Returns (values, iid) from *args and **kwds """
     args = tuple(args)
     kwds = dict(kwds)
@@ -228,11 +230,11 @@ class SJ:
     return values
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, *args, _skip_parsing=False, **kwds):
+  def eval_vals(self, *args, _skip_parsing=False, min_dim=0, **kwds):
     """ 
     Keep args and kwds since could be called externally. This ignores self._prob.
     """
-    values = self._parse_args(*args, **kwds) if not _skip_parsing else args[0]
+    values = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
     dims = {}
     
     # Don't reshape if all scalars (and therefore by definition no shared keys)
@@ -248,7 +250,7 @@ class SJ:
           values_ref[subkey] = [key, i]
 
     # Share dimensions for joint variables and do not dimension scalars
-    ndim = 0
+    ndim = min_dim
     dims = collections.OrderedDict({key: None for key in self._keys})
     seen_keys = set()
     for i, key in enumerate(self._keys):
@@ -288,7 +290,7 @@ class SJ:
         if vals_val is None or isinstance(vals_val, set):
           vals_val = rv.eval_vals(vals_val)
         vals.update({key: vals_val})
-      if reshape:
+      if reshape and not isscalar(vals[key]):
         re_shape = np.copy(ones_ndims)
         re_dim = dims[key]
         re_shape[re_dim] = vals[key].size
@@ -411,7 +413,8 @@ class SJ:
     if isinstance(succ_vals, self.delta):
       succ_values = collections.OrderedDict()
       for i, key in enumerate(self._keys):
-        succ_values[key] = rvs[i].apply_delta(prev_vals[key], succ_vals[key])
+        succ_values[key] = rvs[i].apply_delta(pred_vals[key], 
+                                              getattr(succ_vals, key))
       succ_vals =  succ_values
     elif isunitsetint(succ_vals):
       assert self._tfun is not None and self._tfun_ret_callable(),\
@@ -419,7 +422,7 @@ class SJ:
 
     # TODO: to increase capability of this section to cope beyond scalars
     dims = {}
-    kwargs = {}
+    kwargs = {'reverse': reverse}
     vals = collections.OrderedDict()
     for key in self._keys:
       vals.update({key: pred_vals[key]})
@@ -428,14 +431,15 @@ class SJ:
     return vals, dims, kwargs
 
 #-------------------------------------------------------------------------------
-  def eval_tran(vals, reverse=False, **kwargs):
+  def eval_tran(self, vals, **kwargs):
+    reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     if self._tran is None:
       rvs = self.ret_rvs(aslist=True)
       pred_vals = dict()
       succ_vals = dict()
       for key, val in vals.items():
         if key[-1] == "'":
-          succ_vals.update({key: val})
+          succ_vals.update({key[:-1]: val})
         else:
           pred_vals.update({key: val})
       cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)
@@ -449,13 +453,13 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    '''  Returns a Dist instance '''
+    """ Returns a joint distribution p(args) """
     if self._rvs is None:
       return None
     iid = False if 'iid' not in kwds else kwds.pop('iid')
     if type(iid) is bool and iid:
       iid = self._defiid
-    values = self._parse_args(*args, **kwds)
+    values = self.parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values)
     vals, dims = self.eval_vals(values, _skip_parsing=True)
     prob = self.eval_prob(vals)
@@ -465,6 +469,7 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
+    """ Returns a conditional distribution p(args[1] | args[0]) """
     reverse = False if 'reverse' not in kwds else kwds.pop('reverse')
     pred_vals, succ_vals = None, None 
     if len(args) == 1:
@@ -474,12 +479,13 @@ class SJ:
         pred_vals = args[0]
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
-    pred_vals = self._parse_args(pred_vals)
+    pred_vals = self.parse_args(pred_vals)
     dist_pred_name = self.eval_dist_name(pred_vals)
-    pred_vals = self.eval_vals(pred_vals)
+    pred_vals, pred_dims = self.eval_vals(pred_vals)
     vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
-    cond = self.eval_tran(vals, reverse=reverse, **kwargs)
-    dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
+    cond = self.eval_tran(vals, **kwargs)
+    succ_vals = {key[:-1]: val for key, val in vals.items() if key[-1] == "'"}
+    dist_succ_name = self.eval_dist_name(succ_vals, "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     return Dist(dist_name, vals, dims, cond, self._pscale)
 

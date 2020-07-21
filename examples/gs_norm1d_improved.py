@@ -28,16 +28,15 @@ sigma.set_vfun((np.log, np.exp))
 
 # Set up params and models
 params = prob.SJ(mu, sigma)
-model = prob.SC(x, params)
+stats = prob.SJ(x)
+model = prob.SC(stats, params)
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')
 
 # Evaluate log probabilities
-likelihood = model({'x': data, **resolution}, iid=True)
-param_vals = likelihood.ret_cond_vals()
-prior = params(param_vals)
-posterior = prob.product(prior, likelihood).conditionalise('x')
+posterior = model({'x': data, **resolution}, 
+                  iid=True, joint=True).conditionalise('x')
 
 # Return posterior probability mass
 inference = posterior.rescaled().prob

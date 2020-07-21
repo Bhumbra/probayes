@@ -3,6 +3,7 @@
 
 #-------------------------------------------------------------------------------
 import collections
+import functools
 import numpy as np
 from prob.vtypes import isscalar, issingleton, isunitsetint
 from prob.pscales import rescale, prod_pscale, prod_rule, iscomplex
@@ -381,5 +382,14 @@ def sum_dist(*args):
     sub_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
 
   return Dist(sum_name, sum_vals, sum_prob, sum_pscale)
+
+#-------------------------------------------------------------------------------
+def iterdict(dicts):
+  """ Converts a tuple/list of dicts to a dict of lists """
+  return collections.OrderedDict(
+      {key: [_dict[key] for _dict in dicts if key in _dict]
+             for key in functools.reduce(set.union, [set(_dict.keys()) 
+                                                     for _dict in dicts])}
+                                )
 
 #-------------------------------------------------------------------------------

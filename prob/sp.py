@@ -11,6 +11,7 @@ class SP (SC):
 
   # Protected
   _dists = None
+  _afun = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -41,6 +42,7 @@ class SP (SC):
 
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):
+    """ Moves stochastic process one index forward """
     return self.add_dist(self.propose(*args, **kwds))
 
 #-------------------------------------------------------------------------------

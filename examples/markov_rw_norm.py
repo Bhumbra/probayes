@@ -30,26 +30,26 @@ x = prob.RV('x', set_lims)
 x.set_tran(tran, order={'x': 'pred', "x'": 'succ'})
 x.set_tfun((tcdf, ticdf), order={'x': 'pred', "x'": 'succ'})
 
-cond = [None] * n_steps
+steps = [None] * n_steps
 pred = np.empty(n_steps, dtype=float)
 succ = np.empty(n_steps, dtype=float)
-prob = np.empty(n_steps, dtype=float)
+cond = np.empty(n_steps, dtype=float)
 print('Simulating...')
 for i in range(n_steps):
   if i == 0:
-    cond[i] = x.step({0})
+    steps[i] = x.step({0})
   else:
-    cond[i] = x.step(succ[i-1])
-  pred[i] = cond[i].vals['x']
-  succ[i] = cond[i].vals["x'"]
-  prob[i] = cond[i].prob
+    steps[i] = x.step(succ[i-1])
+  pred[i] = steps[i].vals['x']
+  succ[i] = steps[i].vals["x'"]
+  cond[i] = steps[i].prob
 print('...done')
 
 
 # PLOT DATA
 figure()
-c_norm = Normalize(vmin=np.min(prob), vmax=np.max(prob))
-c_map = cm.jet(c_norm(prob))
+c_norm = Normalize(vmin=np.min(cond), vmax=np.max(cond))
+c_map = cm.jet(c_norm(cond))
 scatter(pred, succ, color=c_map, marker='.')
 xlabel('Predecessor')
 ylabel('Succesor')

@@ -9,6 +9,7 @@ import collections
 from prob.sj import SJ
 from prob.func import Func
 from prob.dist import Dist
+from prob.dist_ops import product
 
 #-------------------------------------------------------------------------------
 class SC (SJ):
@@ -17,7 +18,10 @@ class SC (SJ):
   _marg = None
   _cond = None
 
-#-------------------------------------------------------------------------------
+  # Private
+  __sym_tran = None
+
+#------------------------------------------------------------------------------- 
   def __init__(self, *args):
     self.set_prob()
     assert len(args) < 3, "Maximum of two initialisation arguments"
@@ -60,6 +64,30 @@ class SC (SJ):
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
     self.eval_length()
+    tran = 'cond' if self._cond else 'marg'
+    self.set_tran(tran)
+    self.delta = self._delta
+    self.Delta = self._Delta
+
+#-------------------------------------------------------------------------------
+  def _delta(self, *args, **kwds):
+    raise NotImplementedError(
+      "Use ret_marg().delta or ret_cond().delta() instead")
+
+#-------------------------------------------------------------------------------
+  def _Delta(self, *args, **kwds):
+    raise NotImplementedError(
+      "Use ret_marg().Delta or ret_cond().Delta() instead")
+
+#-------------------------------------------------------------------------------
+  def set_tran(self, tran=None, *args, **kwds):
+    self._tran = tran
+    self.__sym_tran = False
+    if isinstance(self._tran, str):
+      assert self._tran in ['marg', 'cond'],\
+          "If string, tran must be 'marg' or 'cond', not {}".format(self._tran)
+    else:
+      return super().set_tran(tran, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values=None):
@@ -117,6 +145,68 @@ class SC (SJ):
   def eval_vals(self, *args, _skip_parsing=False, **kwds):
     assert self._marg, "No marginal stochastic random variables defined"
     return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
+
+#-------------------------------------------------------------------------------
+  def __call__(self, *args, **kwds):
+    """  Returns p[args] join distribution instance. 
+    Optionally takes 'joint' keyword 
+    """
+    if self._rvs is None:
+      return None
+    joint = False if 'joint' not in kwds else kwds.pop('joint')
+    dist = super().__call__(*args, **kwds)
+    if not joint:
+      return dist
+    vals = dist.ret_cond_vals()
+    cond_dist = self._cond(vals)
+    return product(cond_dist, dist)
+
+#-------------------------------------------------------------------------------
+  def step(self, *args, **kwds):
+    obj = None
+    if self._tran == 'marg': obj = self._marg
+    if self._tran == 'cond': obj = self._cond
+    if obj is None:
+      return super().step(*args, **kwds)
+    return obj.step(*args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def parse_pred_args(self, arg):
+    obj = None
+    if self._tran == 'marg': obj = self._marg
+    if self._tran == 'cond': obj = self._cond
+    if obj is None:
+      return self.parse_args(args)
+    if not isinstance(arg, dict):
+      return obj.parse_args(args)
+    keyset = obj.ret_keyset()
+    pred = collections.OrderedDict({key: val for key, val in arg.items() 
+                                             if key in keyset})
+    return obj.parse_args(pred)
+
+#-------------------------------------------------------------------------------
+  def sample(self, *args, **kwds):
+    """ If len(args) == 1, returns just a call.
+    If len(args) == 2, returns a two-distribution tuple (step, call) based on 
+    the step. This function is implemented here and not for SJ to ensure
+    support for the keyword 'joint' which is to be encouraged.
+    """
+    assert 0 < len(args) < 3, "Accepts either one or two arguments"
+
+    # Single call is the trivial case
+    if len(args) == 1:
+      return self.__call__(*args, **kwds)
+
+    # Step
+    pred = self.parse_pred_args(args[0])
+    cond = self.step(pred, args[1], **kwds)
+
+    # Call
+    values = self.parse_args(args[0])
+    for key, val in cond.vals.items():
+      if key[-1] == "'":
+        values.update({key[:-1]: val})
+    return cond, self.__call__(values, **kwds)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

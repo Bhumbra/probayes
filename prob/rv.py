@@ -325,11 +325,13 @@ class RV (_Vals, _Prob):
 
     vals = collections.OrderedDict({self._name+"'": succ_vals,
                                     self._name: pred_vals})
+    kwargs.update({'reverse': reverse})
     return vals, dims, kwargs
 
 #-------------------------------------------------------------------------------
-  def eval_tran(self, vals, reverse=False, **kwargs):
+  def eval_tran(self, vals, **kwargs):
     # Evaluates transitional probability
+    reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     pred_vals, succ_vals = vals[self._name], vals[self._name+"'"]
     pred_idx = None if 'pred_idx' not in kwargs else kwargs['pred_idx'] 
     succ_idx = None if 'succ_idx' not in kwargs else kwargs['succ_idx'] 
@@ -390,7 +392,7 @@ class RV (_Vals, _Prob):
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals = self.eval_vals(pred_vals)
     vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
-    cond = self.eval_tran(vals, reverse=reverse, **kwargs)
+    cond = self.eval_tran(vals, **kwargs)
     dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     return Dist(dist_name, vals, dims, cond, self._pscale)
