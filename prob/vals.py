@@ -96,7 +96,7 @@ class _Vals (ABC):
     if self._vtype not in VTYPES[float]:
       self._lims = np.array([min(self._vset), max(self._vset)])
       self._limits = self._lims
-      self._length = len(self._vset)
+      self._length = True if self._vtype in VTYPES[bool] else len(self._vset)
       self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
       return self._length
 
