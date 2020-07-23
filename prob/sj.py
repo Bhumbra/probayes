@@ -8,8 +8,9 @@ import collections
 import numpy as np
 from prob.rv import RV
 from prob.dist import Dist
-from prob.vtypes import isscalar, issingleton
-from prob.pscales import iscomplex, rescale, eval_pscale, prod_pscale, prod_rule
+from prob.vtypes import isscalar, isunitsetint, issingleton
+from prob.pscales import iscomplex, real_sqrt, prod_rule, \
+                         rescale, eval_pscale, prod_pscale
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
@@ -65,13 +66,16 @@ class SJ:
   _pscale = None
   _tran = None
   _tfun = None
+  _cfun = None
   _length = None
   _lengths = None
+  _cfun = None
 
   # Private
   __isscalar = None
   __callable = None
   __sym_tran = None
+  __cfun_lud = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -119,7 +123,22 @@ class SJ:
     self.set_pscale()
     self.eval_length()
     return self._nrvs
-  
+
+#-------------------------------------------------------------------------------
+  def set_cfun(self, cfun=None, *args, **kwds):
+    self._cfun = cfun
+    self.__cfun_lud = None
+    if self._cfun is None:
+      return
+    self._cfun = Func(self._cfun, *args, **kwds)
+    if not self._cfun.ret_callable():
+      message = "Non callable cfun objects must be a square 2D Numpy array " + \
+                "of size corresponding to number of variables {}".format(self._nrvs)
+      assert isinstance(cfun, np.ndarray), message
+      assert cfun.ndim == 2, message
+      assert np.all(np.array(cfun.shape) == self._nrvs), message
+      self.__cfun_lud = np.linalg.cholesky(cfun)
+
 #-------------------------------------------------------------------------------
   def eval_length(self):
     rvs = self.ret_rvs(aslist=True)
@@ -309,7 +328,7 @@ class SJ:
     if self._tran is None:
       return
     self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = self._tran.ret_is_tuple()
+    self.__sym_tran = self._tran.ret_istuple()
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -373,7 +392,7 @@ class SJ:
     assert isinstance(delta, self.Delta),\
         "Unknown delta specification type: {}".format(delta)
 
-    # Determine delta type
+    # Determine delta type, extract delta_scale and use random number generator
     delta_val = delta[0]
     delta_type = None
     if isinstance(delta, list):
@@ -382,22 +401,28 @@ class SJ:
     elif isinstance(delta_val, tuple):
       delta_type = tuple
       delta_val = delta_val[0]
-
-    # Multiple deltas by lengths if scaling
-    deltas = np.random.uniform(-1., +1., size=self._nrvs)
     if isinstance(delta_val, set):
       assert np.isfinite(self._length), \
           "Length is infinite and therefore precludes scaling along length"
-      delta_val = list(delta_val)[0] * self._length
-      delta = -deltas * self.lengths
-
-    # Positive delta_val denotes hyperspherical step
-    if delta_val <= 0.:
-      deltas = delta_val * deltas
+      delta_val = list(delta_val)[0]
+      delta_lim = abs(delta_val) * float(self._length)
     else:
-      delta_square = delta_val ** 2
-      deltas_squared = np.sum(deltas ** 2)
-      deltas = deltas * np.sqrt(delta_square / deltas_squared)
+      delta_lim = abs(delta_val)
+    deltas = np.random.uniform(-delta_lim, delta_lim, size=self._nrvs)
+
+    # Either scale with positive delta_val denoting hyperspherical step...
+    if self._cfun is None:
+      if delta_val > 0.:
+        root_sum_squares = real_sqrt(np.sum(deltas ** 2))
+        deltas = deltas * delta_lim / root_sum_squares
+    
+    # ...or multiply the LUD with the deltas...
+    elif self.__cfun_lud is not None:
+      deltas = self.__cfun_lud.dot(deltas)
+
+    # ...or call supplied covariance function...
+    else:
+      deltas = np._cfun(deltas)
 
     # Package RV deltas by delta type
     delta_args = [None] * self._nrvs
@@ -435,7 +460,9 @@ class SJ:
     for key in self._keys:
       vals.update({key: pred_vals[key]})
     for key in self._keys:
-      vals.update({key+"'": succ_vals[key]})
+      mod_key = key+"'"
+      succ_key = key if mod_key not in succ_vals else mod_key
+      vals.update({key+"'": succ_vals[mod_key]})
     return vals, dims, kwargs
 
 #-------------------------------------------------------------------------------

@@ -9,10 +9,6 @@ import collections
 #-------------------------------------------------------------------------------
 class SP (SC):
 
-  # Protected
-  _dists = None
-  _afun = None
-
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
     super().__init__(*args)
@@ -41,7 +37,7 @@ class SP (SC):
     self._dists.append(dist)
 
 #-------------------------------------------------------------------------------
-  def sample(self, *args, **kwds):
+  def mcmc_sampler(self, arg):
     """ Moves stochastic process one index forward """
     return self.add_dist(self.propose(*args, **kwds))
 

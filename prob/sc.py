@@ -27,8 +27,8 @@ class SC (SJ):
     assert len(args) < 3, "Maximum of two initialisation arguments"
     arg0 = None if len(args) < 1 else args[0]
     arg1 = None if len(args) < 2 else args[1]
-    self.add_marg(arg0)
-    self.add_cond(arg1)
+    if arg0 is not None: self.add_marg(arg0)
+    if arg1 is not None: self.add_cond(arg1)
 
 #-------------------------------------------------------------------------------
   def add_marg(self, *args):
@@ -55,7 +55,7 @@ class SC (SJ):
       cond_name = self._cond.ret_name()
       cond_rvs = [rv for rv in self._cond.ret_rvs()]
       self._rvs.extend([rv for rv in self._cond.ret_rvs()])
-    if self._marg is None or self._cond is None:
+    if self._marg is None and self._cond is None:
       return
     self._nrvs = len(self._rvs)
     self._keys = [rv.ret_name() for rv in self._rvs]
@@ -66,18 +66,9 @@ class SC (SJ):
     self.eval_length()
     tran = 'cond' if self._cond else 'marg'
     self.set_tran(tran)
-    self.delta = self._delta
-    self.Delta = self._Delta
-
-#-------------------------------------------------------------------------------
-  def _delta(self, *args, **kwds):
-    raise NotImplementedError(
-      "Use ret_marg().delta or ret_cond().delta() instead")
-
-#-------------------------------------------------------------------------------
-  def _Delta(self, *args, **kwds):
-    raise NotImplementedError(
-      "Use ret_marg().Delta or ret_cond().Delta() instead")
+    tran_obj = self._marg if tran=='marg' else self._cond
+    self.delta = tran_obj.delta
+    self.Delta = tran_obj.Delta
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
@@ -89,8 +80,11 @@ class SC (SJ):
     else:
       return super().set_tran(tran, *args, **kwds)
 
+
 #-------------------------------------------------------------------------------
-  def eval_dist_name(self, values=None):
+  def eval_dist_name(self, values, suffix=None):
+    if suffix is not None:
+      return super().eval_dist_name(values, suffix)
     keys = self._keys 
     vals = collections.OrderedDict()
     if not isinstance(vals, dict):
@@ -107,15 +101,18 @@ class SC (SJ):
         if key not in vals.keys():
           vals.update({key: None})
     marg_vals = collections.OrderedDict()
-    for key in self._marg.ret_keys():
-      if key in keys:
-        marg_vals.update({key: vals[key]})
+    if self._marg:
+      for key in self._marg.ret_keys():
+        if key in keys:
+          marg_vals.update({key: vals[key]})
     cond_vals = collections.OrderedDict()
-    for key in self._cond.ret_keys():
-      if key in keys:
-        cond_vals.update({key: vals[key]})
+    if self._cond:
+      for key in self._cond.ret_keys():
+        if key in keys:
+          cond_vals.update({key: vals[key]})
     marg_dist_name = self._marg.eval_dist_name(marg_vals)
-    cond_dist_name = self._cond.eval_dist_name(cond_vals)
+    cond_dist_name = '' if not self._cond else \
+                     self._cond.eval_dist_name(cond_vals)
     dist_name = marg_dist_name
     if len(cond_dist_name):
       dist_name += "|{}".format(cond_dist_name)

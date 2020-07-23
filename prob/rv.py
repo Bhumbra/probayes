@@ -206,6 +206,7 @@ class RV (_Vals, _Prob):
 #-------------------------------------------------------------------------------
   def apply_delta(self, pred_vals, succ_delta):
     delta_vals = succ_delta
+    delta_type = None
     if isinstance(delta_vals, self.delta):
       delta_vals = delta_vals[0]
     if isinstance(delta_vals, list):

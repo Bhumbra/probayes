@@ -131,10 +131,12 @@ class Func:
       return func
 
     # Callables order-free
-    args = tuple(args)
-    kwds = dict(kwds)
     if not kwds and len(args) == 1 and isinstance(args[0], dict):
       args, kwds = (), dict(args[0])
+    if self._args:
+      args = tuple(list(self._args) + list(args))
+    if self._kwds:
+      kwds = {**kwds, **self._kwds}
     if not self.__order and not self.__delta:
       return func(*args, **kwds)
 

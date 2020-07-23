@@ -103,6 +103,17 @@ def prob_coef(pscale=None):
   return np.exp(-float(np.real(pscale)))
 
 #-------------------------------------------------------------------------------
+def real_sqrt(real):
+  if np.isscalar(real):
+    if real >= NEARLY_POSITIVE_ZERO:
+      return np.sqrt(real)
+    return 0.
+  root = np.zeros_like(real)
+  ok = real >= NEARLY_POSITIVE_ZERO
+  root[ok] = np.sqrt(real[ok])
+  return root
+
+#-------------------------------------------------------------------------------
 def rescale(prob, *args):
   """ Rescales prob according to pscales given in args """
   pscale, rtype = None, None
