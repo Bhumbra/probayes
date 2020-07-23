@@ -2,7 +2,7 @@
 import prob
 import numpy as np
 set_lims = [-0.5, 0.5]
-num_deltas = 1000
+num_deltas = 10000
 delta_spec = 0.1
 
 x = prob.RV('x', set_lims, vtype=float)
@@ -16,3 +16,4 @@ dxdydz = np.array([np.array(list(_delta)) for _delta in deltas])
 means = np.mean(dxdydz, axis=0)
 stdvs = np.std(dxdydz, axis=0)
 lengths = np.sqrt(np.sum(dxdydz**2, axis=1))
+mean_lengths = np.mean(lengths)

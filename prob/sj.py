@@ -367,32 +367,39 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta):
+
     if isinstance(delta, self.delta):
       return delta
-
     assert isinstance(delta, self.Delta),\
         "Unknown delta specification type: {}".format(delta)
 
-    delta_vals = delta[0]
+    # Determine delta type
+    delta_val = delta[0]
     delta_type = None
-    delta_scale = False
     if isinstance(delta, list):
       delta_type = list
-      delta_vals = delta_vals[0]
-    elif isinstance(delta_vals, tuple):
+      delta_val = delta_val[0]
+    elif isinstance(delta_val, tuple):
       delta_type = tuple
-      delta_vals = delta_vals[0]
-    if isinstance(delta_vals, set):
+      delta_val = delta_val[0]
+
+    # Multiple deltas by lengths if scaling
+    deltas = np.random.uniform(-1., +1., size=self._nrvs)
+    if isinstance(delta_val, set):
       assert np.isfinite(self._length), \
           "Length is infinite and therefore precludes scaling along length"
-      delta_vals = list(delta_vals)[0] * self._length
-      delta_scale = True
-    delta_square = delta_vals ** 2
-    deltas = np.random.uniform(-1., +1., size=self._nrvs)
-    if delta_scale:
-      deltas = deltas * self.lengths
-    deltas_squared = np.sum(deltas ** 2)
-    deltas = deltas * np.sqrt(delta_square / deltas_squared)
+      delta_val = list(delta_val)[0] * self._length
+      delta = -deltas * self.lengths
+
+    # Positive delta_val denotes hyperspherical step
+    if delta_val <= 0.:
+      deltas = delta_val * deltas
+    else:
+      delta_square = delta_val ** 2
+      deltas_squared = np.sum(deltas ** 2)
+      deltas = deltas * np.sqrt(delta_square / deltas_squared)
+
+    # Package RV deltas by delta type
     delta_args = [None] * self._nrvs
     for i, key in enumerate(self._keys):
       arg = deltas[i]
@@ -401,6 +408,7 @@ class SJ:
       elif delta_type is tuple:
         arg = (arg,)
       delta_args[i] = arg
+
     return self.delta(*tuple(delta_args))
 
 #-------------------------------------------------------------------------------
