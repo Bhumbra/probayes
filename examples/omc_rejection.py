@@ -30,12 +30,12 @@ oxy = o / xy
 oxy.set_prob(inside)
 
 # DEFINE PROPOSAL DENSITY AND COEFFICIENT VARIABLE
-prop_xy = x * y
-prop_xy.set_prob(norm2d)
+xy.set_prop(norm2d)
+oxy.set_prop(xy)
 coef_max = float(norm2d(radius, 1.))
 coef = prob.RV('coef', {0., coef_max})
 coefs = coef(set_size)
-p_prop = prop_xy({'x,y': set_size})
+p_prop = oxy.propose({'x,y': set_size}, suffix=False)
 thresholds = coefs.vals['coef'] * p_prop.prob
 
 # CALL TARGET DENSITY AND APPLY REJECTION SAMPLING

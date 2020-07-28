@@ -1,4 +1,4 @@
-""" Example of ordinary Monte Carlo integration with uniform sampling """
+""" Example of ordinary Monte Carlo integration with random walk uniform sampling """
 import numpy as np
 import matplotlib
 matplotlib.use("Qt5Agg")
@@ -21,6 +21,8 @@ y = prob.RV("y", xy_range)
 # DEFINE STOCHASTIC JUNCTION
 xy = x * y
 delta = xy.Delta((0.15*radius,))
+xy.set_step(delta)
+xy.set_prop(isinside, order={'x': None, 'y': None, "x'": 0, "y'": 1})
 steps = [None] * n_steps
 pred = [None] * n_steps
 succ = [None] * n_steps
@@ -29,9 +31,9 @@ cond = np.empty(n_steps, dtype=float)
 print('Simulating...')
 for i in range(n_steps):
   if i == 0:
-    steps[i] = xy.step({0}, delta)
+    steps[i] = xy.step({0})
   else:
-    steps[i] = xy.step(succ[i-1], delta)
+    steps[i] = xy.step(succ[i-1])
   x_pred, y_pred = steps[i]["x"], steps[i]["y"]
   x_succ, y_succ = steps[i]["x'"], steps[i]["y'"]
   pred[i] = {'x': x_pred, 'y': y_pred}

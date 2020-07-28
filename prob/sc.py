@@ -17,8 +17,11 @@ class SC (SJ):
   # Protected
   _marg = None
   _cond = None
+  _marg_cond = None    # {'marg': marg, 'cond': cond}
+  _prop_obj = None
 
   # Private
+
   __sym_tran = None
 
 #------------------------------------------------------------------------------- 
@@ -27,12 +30,31 @@ class SC (SJ):
     assert len(args) < 3, "Maximum of two initialisation arguments"
     arg0 = None if len(args) < 1 else args[0]
     arg1 = None if len(args) < 2 else args[1]
-    if arg0 is not None: self.add_marg(arg0)
-    if arg1 is not None: self.add_cond(arg1)
+    if arg0 is not None: self.set_marg(arg0)
+    if arg1 is not None: self.set_cond(arg1)
+
+#-------------------------------------------------------------------------------
+  def set_marg(self, arg):
+    if isinstance(arg, SJ):
+      assert not isinstance(arg, SC), "Marginal must be SJ class type"
+      self._marg = arg
+      self._refresh()
+    else:
+      self.add_marg(arg)
+
+#-------------------------------------------------------------------------------
+  def set_cond(self, arg):
+    if isinstance(arg, SJ):
+      assert not isinstance(arg, SC), "Conditional must be SJ class type"
+      self._cond = arg
+      self._refresh()
+    else:
+      self.add_cond(arg)
 
 #-------------------------------------------------------------------------------
   def add_marg(self, *args):
-    if self._marg is None: self._marg = SJ()
+    if self._marg is None: 
+      self._marg = SJ()
     self._marg.add_rv(*args)
     self._refresh()
 
@@ -57,6 +79,7 @@ class SC (SJ):
       self._rvs.extend([rv for rv in self._cond.ret_rvs()])
     if self._marg is None and self._cond is None:
       return
+    self._marg_cond = {'marg': self._marg, 'cond': self._cond}
     self._nrvs = len(self._rvs)
     self._keys = [rv.ret_name() for rv in self._rvs]
     self._keyset = set(self._keys)
@@ -64,22 +87,67 @@ class SC (SJ):
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
     self.eval_length()
-    tran = 'cond' if self._cond else 'marg'
-    self.set_tran(tran)
-    tran_obj = self._marg if tran=='marg' else self._cond
-    self.delta = tran_obj.delta
-    self.Delta = tran_obj.Delta
+    prop_obj = self._cond if self._cond is not None else self._marg
+    self.set_prop_obj(prop_obj)
+
+#-------------------------------------------------------------------------------
+  def set_prop_obj(self, prop_obj=None):
+    """ Sets the object used for assigning proposal distributions """
+    self._prop_obj = prop_obj
+    if self._prop_obj is None:
+      return
+    self.delta = self._prop_obj.delta
+    self.Delta = self._prop_obj.Delta
+
+#-------------------------------------------------------------------------------
+  def set_prop(self, prop=None, *args, **kwds):
+    if not isinstance(prop, str) and prop not in self._marg_cond.values():
+      return super().set_prop(prop, *args, **kwds)
+    if isinstance(prop, str):
+      prop = self._marg_cond[prop]
+    self.set_prop_obj(prop)
+    self._prop = prop._prop
+    return self._prop
+
+#-------------------------------------------------------------------------------
+  def set_step(self, step=None, *args, **kwds):
+    if not isinstance(step, str) and step not in self._marg_cond.values(): 
+      return super().set_step(step, *args, **kwds)
+    if isinstance(step, str):
+      step = self._marg_cond[tran]
+    self.set_prop_obj(step)
+    self._step = step._step
+    return self._step
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
-    self._tran = tran
-    self.__sym_tran = False
-    if isinstance(self._tran, str):
-      assert self._tran in ['marg', 'cond'],\
-          "If string, tran must be 'marg' or 'cond', not {}".format(self._tran)
-    else:
+    if not isinstance(tran, str) and tran not in self._marg_cond.values(): 
       return super().set_tran(tran, *args, **kwds)
+    if isinstance(tran, str):
+      tran = self._marg_cond[tran]
+    self.set_prop_obj(tran)
+    self._tran = tran._tran
+    return self._tran
 
+#-------------------------------------------------------------------------------
+  def set_tfun(self, tfun=None, *args, **kwds):
+    if not isinstance(tfun, str) and tfun not in self._marg_cond.values(): 
+      return super().set_tfun(tfun, *args, **kwds)
+    if isinstance(tfun, str):
+      tfun = self._marg_cond[tfun]
+    self.set_prop_obj(tfun)
+    self._tfun = tfun._tfun
+    return self._tfun
+
+#-------------------------------------------------------------------------------
+  def set_cfun(self, cfun=None, *args, **kwds):
+    if not isinstance(cfun, str) and cfun not in self._marg_cond.values(): 
+      return super().set_cfun(cfun, *args, **kwds)
+    if isinstance(cfun, str):
+      cfun = self._marg_cond[cfun]
+    self.set_prop_obj(cfun)
+    self._cfun = cfun._cfun
+    return self._cfun
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
@@ -145,9 +213,8 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    """  Returns p[args] join distribution instance. 
-    Optionally takes 'joint' keyword 
-    """
+    """ Like SJ.__call__ but optionally takes 'joint' keyword """
+
     if self._rvs is None:
       return None
     joint = False if 'joint' not in kwds else kwds.pop('joint')
@@ -160,12 +227,15 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
-    obj = None
-    if self._tran == 'marg': obj = self._marg
-    if self._tran == 'cond': obj = self._cond
-    if obj is None:
+    if self._prop_obj is None:
       return super().step(*args, **kwds)
-    return obj.step(*args, **kwds)
+    return self._prop_obj.step(*args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def propose(self, *args, **kwds):
+    if self._prop_obj is None:
+      return super().propose(*args, **kwds)
+    return self._prop_obj.propose(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def parse_pred_args(self, arg):

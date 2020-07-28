@@ -231,7 +231,7 @@ class RV (_Vals, _Prob):
     return succ_vals
 
 #-------------------------------------------------------------------------------
-  def eval_succ(self, pred_vals, succ_vals, reverse=False):
+  def eval_step(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals and transitional probability """
 
     assert self._tran is not None, "No transitional function specified"
@@ -392,7 +392,7 @@ class RV (_Vals, _Prob):
       pred_vals, succ_vals = args[0], args[1]
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals = self.eval_vals(pred_vals)
-    vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
+    vals, dims, kwargs = self.eval_step(pred_vals, succ_vals, reverse=reverse)
     cond = self.eval_tran(vals, **kwargs)
     dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])

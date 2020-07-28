@@ -64,12 +64,13 @@ class SJ:
   _pscale = None
   _prob = None
   _pscale = None
-  _tran = None
-  _tfun = None
-  _cfun = None
-  _length = None
-  _lengths = None
-  _cfun = None
+  _prop = None      # Non-transitional proposition function
+  _step = None      # Step specification: None denotes independent
+  _tran = None      # Transitional proposition function
+  _tfun = None      # CDF/IDF of transition function
+  _cfun = None      # Covariance function
+  _length = None    # Length of junction
+  _lengths = None   # Lengths of RVs
 
   # Private
   __isscalar = None
@@ -81,6 +82,10 @@ class SJ:
   def __init__(self, *args):
     self.set_rvs(*args)
     self.set_prob()
+    self.set_prop()
+    self.set_step()
+    self.set_tran()
+    self.set_cfun()
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -125,30 +130,85 @@ class SJ:
     return self._nrvs
 
 #-------------------------------------------------------------------------------
+  def set_prob(self, prob=None, *args, **kwds):
+    # Set joint probability distribution function
+    kwds = dict(kwds)
+    if 'pscale' in kwds:
+      pscale = kwds.pop('pscale')
+      self.set_pscale(pscale)
+    self.__callable = None
+    self.__isscalar = None
+    self._prob = prob
+    if self._prob is None:
+      return self.__callable
+    self._prob = Func(self._prob, *args, **kwds)
+    self.__callable = self._prob.ret_callable()
+    self.__isscalar = self._prob.ret_isscalar()
+    return self.__callable
+
+#-------------------------------------------------------------------------------
+  def set_pscale(self, pscale=None):
+    if pscale is not None or not self._nrvs:
+      self._pscale = eval_pscale(pscale)
+      return self._pscale
+    rvs = self.ret_rvs(aslist=True)
+    pscales = [rv.ret_pscale() for rv in rvs]
+    self._pscale = prod_pscale(pscales)
+    return self._pscale
+
+#-------------------------------------------------------------------------------
+  def set_prop(self, prop=None, *args, **kwds):
+    # Set joint proposition function
+    self._prop = prop
+    if self._prop is None:
+      return
+    assert self._tran is None, \
+        "Cannot assign both proposition and transition probabilities"
+    self._prop = Func(self._prop, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def set_step(self, step=None):
+    # Set transitioning specification
+    self._step = step
+
+#-------------------------------------------------------------------------------
+  def set_tran(self, tran=None, *args, **kwds):
+    # Set transition function
+    self._tran = tran
+    self.__sym_tran = False
+    if self._tran is None:
+      return
+    assert self._prop is None, \
+        "Cannot assign both proposition and transition probabilities"
+    self._tran = Func(self._tran, *args, **kwds)
+    self.__sym_tran = self._tran.ret_istuple()
+
+#-------------------------------------------------------------------------------
+  def set_tfun(self, tfun=None, *args, **kwds):
+    # Set cdf and inverse cdf of transitional for conditional sampling
+    self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
+    if self._tfun is None:
+      return
+    raise NotImplemented(
+        "Multidimensional transitional CDF sampling not yet implemented")
+    assert self._tfun.ret_istuple(), "Tuple of two functions required"
+    assert len(self._tfun) == 2, "Tuple of two functions required."
+
+#-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
+    # Set covariance function for kernel-based sampling
     self._cfun = cfun
     self.__cfun_lud = None
     if self._cfun is None:
       return
     self._cfun = Func(self._cfun, *args, **kwds)
     if not self._cfun.ret_callable():
-      message = "Non callable cfun objects must be a square 2D Numpy array " + \
+      message = "Non-callable cfun objects must be a square 2D Numpy array " + \
                 "of size corresponding to number of variables {}".format(self._nrvs)
       assert isinstance(cfun, np.ndarray), message
       assert cfun.ndim == 2, message
       assert np.all(np.array(cfun.shape) == self._nrvs), message
       self.__cfun_lud = np.linalg.cholesky(cfun)
-
-#-------------------------------------------------------------------------------
-  def eval_length(self):
-    rvs = self.ret_rvs(aslist=True)
-    self._lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
-    self._length = np.sqrt(np.sum(self._lengths))
-    return self._length
-
-#-------------------------------------------------------------------------------
-  def ret_length(self):
-    return self._length
 
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
@@ -160,6 +220,17 @@ class SJ:
       assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
                                     format(type(rvs))
     return rvs
+
+#-------------------------------------------------------------------------------
+  def eval_length(self):
+    rvs = self.ret_rvs(aslist=True)
+    self._lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
+    self._length = np.sqrt(np.sum(self._lengths))
+    return self._length
+
+#-------------------------------------------------------------------------------
+  def ret_length(self):
+    return self._length
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
@@ -178,34 +249,8 @@ class SJ:
     return self._keyset
 
 #-------------------------------------------------------------------------------
-  def set_pscale(self, pscale=None):
-    if pscale is not None or not self._nrvs:
-      self._pscale = eval_pscale(pscale)
-      return self._pscale
-    rvs = self.ret_rvs(aslist=True)
-    pscales = [rv.ret_pscale() for rv in rvs]
-    self._pscale = prod_pscale(pscales)
-    return self._pscale
-
-#-------------------------------------------------------------------------------
   def ret_pscale(self):
     return self._pscale
-
-#-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, *args, **kwds):
-    kwds = dict(kwds)
-    if 'pscale' in kwds:
-      pscale = kwds.pop('pscale')
-      self.set_pscale(pscale)
-    self.__callable = None
-    self.__isscalar = None
-    self._prob = prob
-    if self._prob is None:
-      return self.__callable
-    self._prob = Func(self._prob, *args, **kwds)
-    self.__callable = self._prob.ret_callable()
-    self.__isscalar = self._prob.ret_isscalar()
-    return self.__callable
 
 #-------------------------------------------------------------------------------
   def parse_args(self, *args, **kwds):
@@ -247,6 +292,29 @@ class SJ:
         values.update({key: None})
 
     return values
+
+#-------------------------------------------------------------------------------
+  def eval_dist_name(self, values=None, suffix=None):
+    # Evaluates the string used to set the distribution name
+    vals = collections.OrderedDict()
+    if isinstance(values, dict):
+      for key, val in values.items():
+        if ',' in key:
+          subkeys = key.split(',')
+          for i, subkey in enumerate(subkeys):
+            vals.update({subkey: val[i]})
+        else:
+          vals.update({key: val})
+      for key in self._keys:
+        if key not in vals.keys():
+          vals.update({key: None})
+    else:
+      vals.update({key: values for key in keys})
+    rvs = self.ret_rvs()
+    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()], suffix) \
+                     for rv in rvs]
+    dist_name = ','.join(rv_dist_names)
+    return dist_name
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, *args, _skip_parsing=False, min_dim=0, **kwds):
@@ -322,26 +390,6 @@ class SJ:
     return vals, dims
 
 #-------------------------------------------------------------------------------
-  def set_tran(self, tran=None, *args, **kwds):
-    self._tran = tran
-    self.__sym_tran = False
-    if self._tran is None:
-      return
-    self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = self._tran.ret_istuple()
-
-#-------------------------------------------------------------------------------
-  def set_tfun(self, tfun=None, *args, **kwds):
-    # Provide cdf and inverse cdf for conditional sampling
-    self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
-    if self._tfun is None:
-      return
-    raise NotImplemented(
-        "Multidimensional transitional CDF sampling not yet implemented")
-    assert self._tfun.ret_istuple(), "Tuple of two functions required"
-    assert len(self._tfun) == 2, "Tuple of two functions required."
-
-#-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
     if values is None:
       values = {}
@@ -361,28 +409,6 @@ class SJ:
     if not self.__callable:
       return self._prob()
     return self._prob(values)
-
-#-------------------------------------------------------------------------------
-  def eval_dist_name(self, values=None, suffix=None):
-    vals = collections.OrderedDict()
-    if isinstance(values, dict):
-      for key, val in values.items():
-        if ',' in key:
-          subkeys = key.split(',')
-          for i, subkey in enumerate(subkeys):
-            vals.update({subkey: val[i]})
-        else:
-          vals.update({key: val})
-      for key in self._keys:
-        if key not in vals.keys():
-          vals.update({key: None})
-    else:
-      vals.update({key: values for key in keys})
-    rvs = self.ret_rvs()
-    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()], suffix) \
-                     for rv in rvs]
-    dist_name = ','.join(rv_dist_names)
-    return dist_name
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta):
@@ -437,7 +463,19 @@ class SJ:
     return self.delta(*tuple(delta_args))
 
 #-------------------------------------------------------------------------------
-  def eval_succ(self, pred_vals, succ_vals, reverse=False):
+  def eval_prop(self, values, **kwargs):
+    if self._tran is not None:
+      return self.eval_tran(values, **kwargs)
+    if values is None:
+      values = {}
+    if self._prop is None:
+      return self.eval_prob(values, **kwargs)
+    if not self._prop.ret_callable():
+      return self._prop()
+    return self._prop(values)
+
+#-------------------------------------------------------------------------------
+  def eval_step(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals """
     rvs = self.ret_rvs(aslist=True)
     if isinstance(succ_vals, self.Delta):
@@ -454,25 +492,32 @@ class SJ:
           "Transitional CDF calling requires callable tfun"
 
     # TODO: to increase capability of this section to cope beyond scalars
+
+    # Initialise outputs with predecessor values
     dims = {}
     kwargs = {'reverse': reverse}
     vals = collections.OrderedDict()
     for key in self._keys:
       vals.update({key: pred_vals[key]})
+    if succ_vals is None and self._tran is None:
+      return vals, dims, kwargs
+
+    # If stepping or have a transition function, add successor values
     for key in self._keys:
       mod_key = key+"'"
       succ_key = key if mod_key not in succ_vals else mod_key
-      vals.update({key+"'": succ_vals[mod_key]})
+      vals.update({key+"'": succ_vals[succ_key]})
+
     return vals, dims, kwargs
 
 #-------------------------------------------------------------------------------
-  def eval_tran(self, vals, **kwargs):
+  def eval_tran(self, values, **kwargs):
     reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     if self._tran is None:
       rvs = self.ret_rvs(aslist=True)
       pred_vals = dict()
       succ_vals = dict()
-      for key, val in vals.items():
+      for key, val in values.items():
         if key[-1] == "'":
           succ_vals.update({key[:-1]: val})
         else:
@@ -503,8 +548,39 @@ class SJ:
     return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
 
 #-------------------------------------------------------------------------------
+  def propose(self, *args, **kwds):
+    """ Returns a proposal distribution p(args[0]) for values """
+    pred_vals, succ_vals = None, None 
+    suffix = "'" if 'suffix' not in kwds else kwds.pop('suffix')
+    if len(args) == 1:
+      if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
+        pred_vals, succ_vals = args[0][0], args[0][1]
+      else:
+        pred_vals = args[0]
+    elif len(args) == 2:
+      pred_vals, succ_vals = args[0], args[1]
+    if succ_vals is not None or self._step is not None or self._tran is not None:
+      return self.step(*args, **kwds)
+    values = self.parse_args(*args, **kwds)
+    dist_name = self.eval_dist_name(values, suffix)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    prop = self.eval_prop(vals) if self._prop is not None else \
+           self.eval_prob(vals)
+    if suffix:
+      keys = list(vals.keys())
+      for key in keys:
+        mod_key = key + suffix
+        vals.update({mod_key: vals.pop(key)})
+        if key in dims:
+          dims.update({mod_key: dims.pop(key)})
+    return Dist(dist_name, vals, dims, prop, self._pscale)
+
+#-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
-    """ Returns a conditional distribution p(args[1] | args[0]) """
+    """ Returns a proposal distribution p(args[1]) given args[0], depending on
+    whether using self._prop, that denotes a simple proposal distribution,
+    or self._tran, that denotes a transitional distirbution. """
+
     reverse = False if 'reverse' not in kwds else kwds.pop('reverse')
     pred_vals, succ_vals = None, None 
     if len(args) == 1:
@@ -514,14 +590,21 @@ class SJ:
         pred_vals = args[0]
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
+    if succ_vals is None and self._step is not None:
+      succ_vals = self._step
+
+    # Evaluate predecessor values
     pred_vals = self.parse_args(pred_vals)
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals, pred_dims = self.eval_vals(pred_vals)
-    vals, dims, kwargs = self.eval_succ(pred_vals, succ_vals, reverse=reverse)
-    cond = self.eval_tran(vals, **kwargs)
+
+    # Evaluate successor evaluates
+    vals, dims, kwargs = self.eval_step(pred_vals, succ_vals, reverse=reverse)
     succ_vals = {key[:-1]: val for key, val in vals.items() if key[-1] == "'"}
+    cond = self.eval_tran(vals, **kwargs)
     dist_succ_name = self.eval_dist_name(succ_vals, "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
+
     return Dist(dist_name, vals, dims, cond, self._pscale)
 
 #-------------------------------------------------------------------------------

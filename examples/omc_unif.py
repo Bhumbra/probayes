@@ -12,6 +12,7 @@ set_size = {-10000}
 # SETUP CIRCLE FUNCTION AND RVs
 def inside(o, x, y): 
   return o == (x**2 + y**2 <= radius**2)
+
 xy_range = [-radius, radius]
 x = prob.RV("x", xy_range)
 y = prob.RV("y", xy_range)
