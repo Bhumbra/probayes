@@ -13,7 +13,7 @@ class SP (SC):
 
   # Private
   _scores = None # Scores function used for the basis of acceptance
-  _thresh = None # Threshold function used 
+  _thresh = None # Threshold function to compare with scores
   _update = None # Update function (output True, None, or False)
 
 #-------------------------------------------------------------------------------
