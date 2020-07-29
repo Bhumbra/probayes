@@ -8,37 +8,24 @@ import collections
 
 #-------------------------------------------------------------------------------
 class SP (SC):
+  # Public
+  opqrstu = None # opqr + scores + thresh + update
+
+  # Private
+  _scores = None # Scores function used for the basis of acceptance
+  _thresh = None # Threshold function used 
+  _update = None # Update function (output True, None, or False)
 
 #-------------------------------------------------------------------------------
-  def __init__(self, *args):
-    super().__init__(*args)
+  def __init__(self, *args, **kwds):
+    super().__init__(*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def __call__(self, *args, **kwds):
-    if self._dists is None:
-      self._dists = []
-    self._dists.append(super().__call__(*args, **kwds))
-    return self._dists[-1]
-
-#-------------------------------------------------------------------------------
-  def __getitem__(self, index=None):
-    if self._dists is None or index is None:
-      return self._dists
-    return self._dists[index]
-
-#-------------------------------------------------------------------------------
-  def __len__(self):
-    if self._dists is None:
-      return None
-    return len(self._dists)
-
-#-------------------------------------------------------------------------------
-  def add_dist(self, dist):
-    self._dists.append(dist)
-
-#-------------------------------------------------------------------------------
-  def mcmc_sampler(self, arg):
-    """ Moves stochastic process one index forward """
-    return self.add_dist(self.propose(*args, **kwds))
+  def _refresh(self):
+    super()._refresh()
+    if self._marg is None and self._cond is None:
+      return
+    self.opqrstu = collections.namedtuple(self._id, 
+                       ['o', 'p', 'q', 'r', 's', 't', 'u'])
 
 #-------------------------------------------------------------------------------

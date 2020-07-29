@@ -69,14 +69,17 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def _refresh(self):
     marg_name, cond_name = None, None
+    marg_id, cond_id = None, None
     self._rvs = []
     self._keys = []
     if self._marg:
       marg_name = self._marg.ret_name()
+      marg_id = self._marg.ret_id()
       marg_rvs = [rv for rv in self._marg.ret_rvs()]
       self._rvs.extend([rv for rv in self._marg.ret_rvs()])
     if self._cond:
       cond_name = self._cond.ret_name()
+      cond_id = self._cond.ret_id()
       cond_rvs = [rv for rv in self._cond.ret_rvs()]
       self._rvs.extend([rv for rv in self._cond.ret_rvs()])
     if self._marg is None and self._cond is None:
@@ -88,10 +91,12 @@ class SC (SJ):
     self._defiid = self._marg.ret_keyset()
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
+    ids = [_id for _id in [marg_id, cond_id] if _id]
+    self._id = 'with'.join(ids)
     self.eval_length()
     prop_obj = self._cond if self._cond is not None else self._marg
     self.set_prop_obj(prop_obj)
-    self.opqr = collections.namedtuple(self._name, ['p', 'q', 'r'])
+    self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
 
 #-------------------------------------------------------------------------------
   def set_prop_obj(self, prop_obj=None):
