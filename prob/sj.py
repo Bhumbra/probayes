@@ -545,7 +545,22 @@ class SJ:
     prob = self.eval_prob(vals)
     if not iid: 
       return Dist(dist_name, vals, dims, prob, self._pscale)
-    return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
+
+    # Deal with IID cases
+    max_dim = None
+    for dim in dims.values():
+      if dim is not None:
+        max_dim = dim if max_dim is None else max(dim, max_dim)
+
+    # If scalar or prob is expected shape then perform product here
+    if max_dim is None or max_dim == prob.ndim - 1:
+      return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
+
+    # Otherwise it is left to the user function to perform the iid product
+    for key in iid:
+      vals[key] = {len(vals[key])}
+      dims[key] = None
+    return Dist(dist_name, vals, dims, prob, self._pscale)
 
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):

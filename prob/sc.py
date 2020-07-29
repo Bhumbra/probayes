@@ -10,9 +10,12 @@ from prob.sj import SJ
 from prob.func import Func
 from prob.dist import Dist
 from prob.dist_ops import product
+from prob.sc_utils import desuffix, get_suffixed
 
 #-------------------------------------------------------------------------------
 class SC (SJ):
+  # Public
+  opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
 
   # Protected
   _marg = None
@@ -21,7 +24,6 @@ class SC (SJ):
   _prop_obj = None
 
   # Private
-
   __sym_tran = None
 
 #------------------------------------------------------------------------------- 
@@ -89,6 +91,7 @@ class SC (SJ):
     self.eval_length()
     prop_obj = self._cond if self._cond is not None else self._marg
     self.set_prop_obj(prop_obj)
+    self.opqr = collections.namedtuple(self._name, ['p', 'q', 'r'])
 
 #-------------------------------------------------------------------------------
   def set_prop_obj(self, prop_obj=None):
@@ -253,27 +256,107 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):
-    """ If len(args) == 1, returns just a call.
-    If len(args) == 2, returns a two-distribution tuple (step, call) based on 
-    the step. This function is implemented here and not for SJ to ensure
-    support for the keyword 'joint' which is to be encouraged.
+    """ A function for unconditional and conditional sampling. For conditional
+    sampling, use SC.set_step() to set the step specification. if neither
+    set_prob() nor set_tran() are set, then opqr inputs are disallowed and this
+    function outputs a normal __call__(). Otherwise this function returns a 
+    namedtuple-generated opqr object that can be accessed using opqr.p or 
+    opqr[1] for the probability distribution and opqr.q or opqr[2] for the 
+    proposal. Unavailable values are set to None. 
+    
+    If using set_prop() the output opqr comprises:
+
+    opqr.o: None
+    opqr.p: Probability distribution 
+    opqr.q: Proposition distribution
+    opqr.r: None
+
+    If using set_tran() the output opqr comprises:
+
+    opqr.o: Probability distribution for predecessor
+    opqr.p: Probability distribution for successor
+    opqr.q: Proposition distribution (successor | predecessor)
+    opqr.r: None [for now, reserved for proposition (predecessor | successor)]
+
+    If inputting and opqr object using set_prop(), the values for performing any
+    delta operations are taken from the entered proposition distribution. If using
+    set_prop(), optional keyword flag suffix=False may be used to remove prime
+    notation in keys.
+
+    An optional argument args[1] can included in order to input a dictionary
+    of values beyond outside the proposition distribution required to evaluate
+    the probability distribution.
     """
-    assert 0 < len(args) < 3, "Accepts either one or two arguments"
+    if not args:
+      args = {0},
+    assert len(args) < 3, "Maximum of two positional arguments"
+    if self._tran is None:
+      if self._prop is None:
+        assert not isinstance(args[0], self.opqr),\
+            "Cannot input opqr object with neither set_prob() nor set_tran() set"
+        return self.__call__(*args, **kwds)
+      return self._sample_prop(*args, **kwds)
+    return self._sample_tran(*args, **kwds)
 
-    # Single call is the trivial case
-    if len(args) == 1:
-      return self.__call__(*args, **kwds)
+#-------------------------------------------------------------------------------
+  def _sample_prop(self, *args, **kwds):
 
-    # Step
-    pred = self.parse_pred_args(args[0])
-    cond = self.step(pred, args[1], **kwds)
+    # Extract suffix status; it is latter popped by propose()
+    suffix = "'" if suffix not in kwds else kwds['suffix'] 
 
-    # Call
-    values = self.parse_args(args[0])
-    for key, val in cond.vals.items():
-      if key[-1] == "'":
-        values.update({key[:-1]: val})
-    return cond, self.__call__(values, **kwds)
+    # Non-opqr argument requires no parsing
+    if not isinstance(args[0], self.opqr):
+      prop = self.propose(args[0], **kwds)
+
+    # Otherwise parse:
+    else:
+      assert args[0].q is not None, \
+          "An input opqr argument must contain a non-None value for opqr.q"
+      vals = desuffix(args[0].q.vals)
+      prop = self.propose(vals, **kwds)
+
+    # Evaluation of probability
+    vals = desuffix(prop.vals)
+    if len(args) > 1:
+      assert isinstance(args[1], dict),\
+          "Second argument must be dictionary type, not {}".format(
+              type(args[1]))
+      vals.update(args[1])
+    call = self.__call__(vals, **kwds)
+
+    return self.opqr(None, call, prop, None)
+
+#-------------------------------------------------------------------------------
+  def _sample_tran(self, *args, **kwds):
+    assert 'suffix' not in kwds, \
+        "Disallowed keyword 'suffix' when using set_tran()"
+
+    # Original probability distribution defaults to None
+    orig = None
+
+    # Non-opqr argument requires no parsing
+    if not isinstance(args[0], self.opqr):
+      prop = self.propose(args[0], **kwds)
+
+    # Otherwise parse successor:
+    else:
+      dist = args[0].q
+      orig = args[0].p
+      assert dist is not None, \
+          "An input opqr argument must contain a non-None value for opqr.q"
+      vals = get_suffixed(dist.vals)
+      prop = self.propose(vals, **kwds)
+
+    # Extract values evaluating probability
+    vals = get_suffixed(prop.vals)
+    if len(args) > 1:
+      assert isinstance(args[1], dict),\
+          "Second argument must be dictionary type, not {}".format(
+              type(args[1]))
+      vals.update(args[1])
+    call = self.__call__(vals, **kwds)
+
+    return self.opqr(orig, call, prop, None)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

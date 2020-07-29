@@ -1,4 +1,3 @@
-Code SJ.set_prop() to support unconditional proposal distributions
 Provide methods to handle deltas for int and bool vtypes
 Code SC.set_afun() to include acceptance functions
 Code a two-dimensional MH-MCMC toy example

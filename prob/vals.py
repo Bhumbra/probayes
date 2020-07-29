@@ -178,9 +178,10 @@ class _Vals (ABC):
 
     # Default to arrays of complete sets
     if values is None:
-      assert self._vtype not in VTYPES[float], \
-          "Cannot default evaluation for vtype: {}".format(self._vtype)
-      return np.array(list(self._vset), dtype=self._vtype)
+      if self._vtype in VTYPES[float]:
+        values = {0}
+      else:
+        return np.array(list(self._vset), dtype=self._vtype)
 
     # Sets may be used to sample from support sets
     if isunitsetint(values):
