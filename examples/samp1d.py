@@ -1,5 +1,7 @@
-# Overkill program to test 1-D sampling
+# Sampling program to test simple 1-D sampling
 import prob
 x = prob.RV('x', vtype=float)
-c = prob.SC(x)
-samples = c.sample({-10})
+c = prob.SP(x)
+sampler = c.sampler(10)
+samples = [sample for sample in sampler]
+print("Found {} samples".format(len(samples)))
