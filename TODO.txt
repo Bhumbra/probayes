@@ -1,4 +1,4 @@
-Code SC.set_afun() to include acceptance functions
+Code SP functions for scores, thresholds, and update facilities.
 Provide methods to handle deltas for int and bool vtypes
 Code a two-dimensional MH-MCMC toy example
 Introduce indexable containers to SP

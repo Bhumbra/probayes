@@ -11,6 +11,8 @@ from prob.dist import Dist
 from prob.vtypes import isscalar, isunitsetint, issingleton
 from prob.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
+from prob.sp_utils import sample_generator, \
+                          metropolis_scores, hastings_scores, metropolis_update
 from prob.func import Func
 
 #-------------------------------------------------------------------------------

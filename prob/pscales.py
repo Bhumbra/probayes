@@ -222,15 +222,16 @@ def prod_rule(*args, **kwds):
   return prob, pscale
 
 #-------------------------------------------------------------------------------
-def div_prob(dividend, divisor, *args):
+def div_prob(dividend, divisor, *args, pscale=None):
   pscales = [None, None]
   if len(args):
     assert len(args) == 2, "Both pscales must be specified if at all"
     pscales[0] = eval_pscale(args[0])
     pscales[1] = eval_pscale(args[1])
+    pscale = pscale or pscales[0]
   dividend = rescale(dividend, pscales[0], None)
   divisor = rescale(divisor, pscales[1], None)
   quotient = dividend / np.maximum(NEARLY_POSITIVE_ZERO, divisor)
-  return rescale(quotient, None, pscales[0])
+  return rescale(quotient, None, pscale)
   
 #-------------------------------------------------------------------------------

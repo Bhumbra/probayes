@@ -5,25 +5,19 @@ iteratively samples a stochastic condition.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
-from prob.sc import SC
 import collections
-
-#-------------------------------------------------------------------------------
-def sample_generator(sp, *args, stop=None, **kwds):
-  if stop is None:
-    while True:
-      yield sp.next(*args, **kwds)
-  else:
-    while sp.ret_counter() is None or sp.ret_counter() < stop:
-      yield sp.next(*args, **kwds)
-    else:
-      sp.reset(sp.ret_last())
+from prob.sc import SC
+from prob.func import Func
+from prob.sp_utils import sample_generator, \
+                          metropolis_scores, metropolis_thresh, metropolis_update, \
+                          hastings_scores, hastings_thresh, hastings_update \
 
 #-------------------------------------------------------------------------------
 class SP (SC):
 
   # Public
-  opqrstu = None # opqr + scores + thresh + update
+  stu = None     # scores + thresholds + update
+  opqrstu = None # opqr + stu
 
   # Protected
   _scores = None # Scores function used for the basis of acceptance
@@ -44,8 +38,74 @@ class SP (SC):
     super()._refresh()
     if self._marg is None and self._cond is None:
       return
+    self.stu = collections.namedtuple(self._id, ['s', 't', 'u'])
     self.opqrstu = collections.namedtuple(self._id, 
                        ['o', 'p', 'q', 'r', 's', 't', 'u'])
+
+#-------------------------------------------------------------------------------
+  def set_scores(self, scores=None, *args, **kwds):
+    self._scores = scores
+    if self._scores is None:
+      return
+    if self._scores == 'metropolis':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._scores)
+      self.set_scores(metropolis_scores, pscale=self._pscale)
+      self.set_thresh('metropolis')
+      return
+    elif self._scores == 'hastings':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._scores)
+      self.set_scores(hastings_scores, pscale=self._pscale)
+      self.set_thresh('hastings')
+      return
+    self._scores = Func(self._scores, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def set_thresh(self, thresh=None, *args, **kwds):
+    self._thresh = thresh
+    if self._thresh is None:
+      return
+    if self._thresh == 'metropolis':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._thresh)
+      self.set_thresh(metropolis_thresh)
+      self.set_update('metropolis')
+      return
+    elif self._thresh == 'hastings':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._thresh)
+      self.set_thresh(hastings_thresh)
+      self.set_update('hastings')
+      return
+    self._thresh = Func(self._thresh, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def set_update(self, update=None, *args, **kwds):
+    self._update = update
+    if self._update is None:
+      return
+    if self._update == 'metropolis':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._update)
+      self.set_update(metropolis_update)
+      return
+    elif self._update == 'hastings':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._update)
+      self.set_update(hastings_update)
+      return
+    self._update = Func(self._update, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def eval_func(self, func=None, *args, **kwds):
+    if func is None:
+      return func
+    assert isinstance(func, Func), \
+        "Evaluation of func no possible for type {}".format(type(func))
+    if not func.ret_callable():
+      return func()
+    return func(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def reset(self, last=None, counter=None): # this allows optional preservation
@@ -62,23 +122,33 @@ class SP (SC):
 
 #-------------------------------------------------------------------------------
   def next(self, *args, **kwds):
+
+    # Reset counters
     if self.__counter is None:
       self.reset(self.ret_last(), 0)
+    self.__counter += 1
 
     # Treat sampling without proposals as a distribution call
     if self.__last is None or (self._tran is None and self._prop is None):
-      self.__last = self.sample(*args, **kwds)
+      opqr = self.sample(*args, **kwds)
+      if self._tran is None and self._prop is None:
+        return opqr
 
     # Otherwise refeed last proposals into sample function
     elif len(args) < 2:
-      self.__last = self.sample(self.__last, **kwds)
+      opqr = self.sample(self.__last, **kwds)
     else:
       args = tuple(self._list + list(args[1:]))
-      self.__last = self.sample(*args, **kwds)
-    
-    # Increment counter
-    self.__counter += 1
-    return self.__last
+      opqr = self.sample(*args, **kwds)
+
+    # Set to last if accept is not False
+    stu = self.stu(self.eval_func(self._scores, opqr),
+                   self.eval_func(self._thresh),
+                   None)
+    update = self._eval_func(self._update, stu)
+    if self.__last is None or update:
+      self.__last = opqr
+    return self.opqrstu(opqr.o, opqr.p, opqr.q, opqr.r, stu.s, stu.t, update)
 
 #-------------------------------------------------------------------------------
   def sampler(self, *args, **kwds):
