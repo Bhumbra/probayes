@@ -1,5 +1,7 @@
 """
-A stocastic process is indexable sequence of realisations of a stochastic condition
+A stocastic process is an indexable sequence of realisations of a stochastic 
+condition. It is therefore implemented here using a sample generator that 
+iteratively samples a stochastic condition.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -15,7 +17,7 @@ def sample_generator(sp, *args, stop=None, **kwds):
     while sp.ret_counter() is None or sp.ret_counter() < stop:
       yield sp.next(*args, **kwds)
     else:
-      sp.reset_last()
+      sp.reset(sp.ret_last())
 
 #-------------------------------------------------------------------------------
 class SP (SC):
@@ -27,15 +29,15 @@ class SP (SC):
   _scores = None # Scores function used for the basis of acceptance
   _thresh = None # Threshold function to compare with scores
   _update = None # Update function (output True, None, or False)
-  _last = None   # Last accepted OPQR object
 
   # Private
+  __last = None    # Last accepted Dist or OPQR object
   __counter = None # Step counter
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args, **kwds):
     super().__init__(*args, **kwds)
-    self.reset_last()
+    self.reset()
 
 #-------------------------------------------------------------------------------
   def _refresh(self):
@@ -46,9 +48,13 @@ class SP (SC):
                        ['o', 'p', 'q', 'r', 's', 't', 'u'])
 
 #-------------------------------------------------------------------------------
-  def reset_last(self):
-    self.__last = None
-    self.__counter = None
+  def reset(self, last=None, counter=None): # this allows optional preservation
+    self.__last = last
+    self.__counter = counter
+
+#-------------------------------------------------------------------------------
+  def ret_last(self):
+    return self.__last
 
 #-------------------------------------------------------------------------------
   def ret_counter(self):
@@ -57,21 +63,26 @@ class SP (SC):
 #-------------------------------------------------------------------------------
   def next(self, *args, **kwds):
     if self.__counter is None:
-      self.__counter = 0
+      self.reset(self.ret_last(), 0)
 
-    # Treat sampling without proposals as a sk
-    if self._last is None or (self._tran is None and self._prop is None):
-      self._last = self.sample(*args, **kwds)
+    # Treat sampling without proposals as a distribution call
+    if self.__last is None or (self._tran is None and self._prop is None):
+      self.__last = self.sample(*args, **kwds)
+
+    # Otherwise refeed last proposals into sample function
     elif len(args) < 2:
-      self._last = self.sample(self._last, **kwds)
+      self.__last = self.sample(self.__last, **kwds)
     else:
       args = tuple(self._list + list(args[1:]))
-      self._last = self.sample(*args, **kwds)
+      self.__last = self.sample(*args, **kwds)
+    
+    # Increment counter
     self.__counter += 1
-    return self._last
+    return self.__last
 
 #-------------------------------------------------------------------------------
   def sampler(self, *args, **kwds):
+    self.reset()
     if not args:
       args = {0},
     elif len(args) == 1 and type(args[0]) is int and 'stop' not in kwds:

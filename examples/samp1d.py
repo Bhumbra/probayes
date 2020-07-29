@@ -1,7 +1,18 @@
 # Sampling program to test simple 1-D sampling
 import prob
+num_samples = 10
+
 x = prob.RV('x', vtype=float)
-c = prob.SP(x)
-sampler = c.sampler(10)
-samples = [sample for sample in sampler]
-print("Found {} samples".format(len(samples)))
+p = prob.SP(x)
+
+# Method one
+sampler_0 = p.sampler()
+samples = []
+while len(samples) < num_samples:
+  samples.append(next(sampler_0))
+print("Number of samples: {}".format(len(samples)))
+
+# Method two
+sampler_1 = p.sampler(num_samples)
+samples = [sample for sample in sampler_1]
+print("Number of samples: {}".format(len(samples)))
