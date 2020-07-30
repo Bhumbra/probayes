@@ -5,7 +5,7 @@
 import collections
 import functools
 import numpy as np
-from prob.vtypes import isscalar, issingleton, isunitsetint
+from prob.vtypes import isscalar, issingleton, isunitsetint, isunitset
 from prob.pscales import rescale, prod_pscale, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ def str_margcond(name=None):
   marg_strs = []
   cond_strs = []
   if len(marg_str):
-    marg_strs = marg_str.split(',') if ',' in marg_str else [marg_str]
+    marg_strs = marg_str.split(',') if ',' in marg_str else [marg_str] 
   if len(cond_str):
     cond_strs = cond_str.split(',') if ',' in cond_str else [cond_str]
   for string in marg_strs:
@@ -329,7 +329,7 @@ def product(*args, **kwds):
 
 
 #-------------------------------------------------------------------------------
-def sum_dist(*args):
+def summate(*args):
   """ Quick and dirty concatenation """
   from prob.dist import Dist
   if not len(args):
@@ -338,50 +338,79 @@ def sum_dist(*args):
   vals = [arg.vals for arg in args]
   probs = [arg.prob for arg in args]
 
-  # Extract marginal and conditional names
-  marg_names = [str2key(arg.ret_marg_names()) for arg in args]
-  cond_names = [str2key(arg.ret_cond_names()) for arg in args]
+  # Check pscales are the same
+  pscale = pscales[0]
+  for _pscale in pscales[1:]:
+    assert pscale == _pscale, \
+        "Cannot summate distributions with different pscales"
 
-  assert len(marg_names) == len(set(marg_names)), \
-      "Marginal variable names not identical across distributions: {}".\
-      format(marg_names)
-  marg_names = marg_names[0]
+  # Check marginal and conditional keys
+  marg_keys = list(args[0].marg.keys())
+  cond_keys = list(args[0].cond.keys())
+  for arg in args[1:]:
+    assert marg_keys == list(arg.marg.keys()), \
+      "Marginal variable names not identical across distributions: {}"
+    assert cond_keys == list(arg.cond.keys()), \
+      "Conditional variable names not identical across distributions: {}"
+  sum_keys = marg_keys + cond_keys
+  sum_name = ','.join(marg_keys)
+  if cond_keys:
+    sum_name += '|' + ','.join(cond_keys)
 
-  assert len(cond_names) == len(set(cond_names)), \
-      "Conditional variable names not identical across distributions: {}".\
-      format(cond_names)
-  cond_names = cond_names[0]
-  sum_names = marg_names + cond_names
+  # If all singleton, concatenate in dimension 0
+  if all([arg.ret_issingleton() for arg in args]):
+    unitsets = {key: isunitsetint(args[0].vals[key]) for key in sum_keys}
+    sum_dims = {key: None if unitsets[key] else 0 for key in sum_keys}
+    sum_vals = {key: 0 if unitsets[key] else [] for key in sum_keys}
+    sum_prob = []
+    for arg in args:
+      for key, val in arg.vals.items():
+        if unitsets[key]:
+          assert isunitsetint(val), \
+              "Cannot mix unspecified set and specified values"
+          sum_vals[key] += list(val)[0]
+        else:
+          assert not isunitsetint(val), \
+              "Cannot mix unspecified set and specified values"
+          sum_vals[key].append(val)
+      sum_prob.append(arg.prob)
+    for key in sum_keys:
+      if unitsets[key]:
+        sum_vals[key] = {sum_vals[key]}
+      else:
+        sum_vals[key] = np.ravel(sum_vals[key])
+    sum_prob = np.ravel(sum_prob)
+    return Dist(sum_name, sum_vals, sum_dims, sum_prob, pscale)
 
-  # Find concatenation dimension
-  sum_name = args[0].ret_name()
-  sum_pscale = args.ret_pscale[0]
-  sum_vals = collections.OrderedDict(vals[0])
-  sum_dim = [None] * (len(args) - 1)
+  # 2. all identical but in one dimension: concatenate in that dimension
+  # TODO: fix the remaining code of this function below
+  sum_vals = collections.OrderedDict(args[0].vals)
+  sum_dims = [None] * (len(args) - 1)
   for i, arg in enumerate(args):
     if i == 0:
       continue
-    for key in marg_names:
-      if sum_dim[i-1] is not None:
+    for key in marg_keys:
+      if sum_dims[i-1] is not None:
         continue
-      elif not arg.ret_isssingleton(key):
+      elif not arg.ret_is_singleton(key):
         key_vals = arg.vals[key]
         if key_vals.size == sum_vals[key].size:
           if np.allclose(key_vals, sum_vals[key]):
             continue
-        sum_dim[i-1] = arg.ret_dimension(key)
-  
-  assert len(set(sum_dim)) == 1, "Cannot find unique concatenation axis"
-  key = marg_names[sum_dim]
-  sum_dim = sum_dim[0]
+        sum_dims[i-1] = arg.ret_dimension(key)
+  assert len(set(sum_dims)) > 1, "Cannot find unique concatenation axis"
+  sum_dim = sum_dims[0]
+  sum_dims = args[0].dims
+  key = marg_keys[sum_dim]
   sum_prob = np.copy(probs[0])
   for i, val in enumerate(vals):
     if i == 0:
       continue
     sum_vals[key] = np.concatenate([sum_vals[key], val[key]], axis=sum_dim)
-    sub_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
+    sum_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
+  return Dist(sum_name, sum_vals, sum_dims, sum_prob, pscale)
 
-  return Dist(sum_name, sum_vals, sum_prob, sum_pscale)
+
 
 #-------------------------------------------------------------------------------
 def iterdict(dicts):

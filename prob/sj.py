@@ -572,15 +572,6 @@ class SJ:
     """ Returns a proposal distribution p(args[0]) for values """
     pred_vals, succ_vals = None, None 
     suffix = "'" if 'suffix' not in kwds else kwds.pop('suffix')
-    if len(args) == 1:
-      if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
-        pred_vals, succ_vals = args[0][0], args[0][1]
-      else:
-        pred_vals = args[0]
-    elif len(args) == 2:
-      pred_vals, succ_vals = args[0], args[1]
-    if succ_vals is not None or self._step is not None or self._tran is not None:
-      return self.step(*args, **kwds)
     values = self.parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values, suffix)
     vals, dims = self.eval_vals(values, _skip_parsing=True)
@@ -610,8 +601,11 @@ class SJ:
         pred_vals = args[0]
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
-    if succ_vals is None and self._step is not None:
-      succ_vals = self._step
+    if succ_vals is None:
+      if self._step is not None:
+        succ_vals = self._step
+      elif issingleton(pred_vals):
+        succ_vals = {0}
 
     # Evaluate predecessor values
     pred_vals = self.parse_args(pred_vals)

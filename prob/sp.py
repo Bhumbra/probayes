@@ -8,6 +8,8 @@ import numpy as np
 import collections
 from prob.sc import SC
 from prob.func import Func
+from prob.dist import Dist
+from prob.dist_ops import summate
 from prob.sp_utils import sample_generator, \
                           metropolis_scores, metropolis_thresh, metropolis_update, \
                           hastings_scores, hastings_thresh, hastings_update \
@@ -113,6 +115,51 @@ class SP (SC):
     self.__counter = counter
 
 #-------------------------------------------------------------------------------
+  def __call__(self, *args, **kwds):
+    if not len(args) or len(kwds) or not isinstance(args[0], (list, tuple)):
+      return super().__call__(*args, **kwds)
+    samples = args[0]
+    if not len(samples):
+      return super().__call__(*args, **kwds)
+
+    # Summating distributions is straightforward
+    if isinstance(samples[0], Dist):
+      for sample in samples[1:]:
+        assert isinstance(samples, Dist),\
+            "If using distributions, all samples must be distributions"
+      if isinstance(samples, list):
+        samples = tuple(samples)
+      return summate(*samples)
+
+    opqrstu = collections.OrderedDict({key: None for key in \
+        ['o', 'p', 'q', 'r', 's', 't', 'u']})
+    opqrstu['u'] = []
+
+    def _maybe_append(element, key):
+      if element is not None:
+        if opqrstu[key] is None:
+          opqrstu[key] = []
+        opqrstu[key].append(element)
+
+    for sample in samples:
+      assert isinstance(sample, self.opqrstu), \
+          "Sample must be outputted from sampler: {}".format(self._id)
+      if sample.u == False:
+        continue
+      opqrstu['u'].append(sample.u)
+      _maybe_append(sample.o, 'o')
+      _maybe_append(sample.p, 'p')
+      _maybe_append(sample.q, 'q')
+      _maybe_append(sample.r, 'r')
+      _maybe_append(sample.s, 's')
+      _maybe_append(sample.t, 't')
+          
+    for key in ['o', 'p', 'q', 'r']:
+      if opqrstu[key] is not None:
+        opqrstu[key] = summate(*tuple(opqrstu[key]))
+    return self.opqrstu(**opqrstu)
+
+#-------------------------------------------------------------------------------
   def ret_last(self):
     return self.__last
 
@@ -135,17 +182,20 @@ class SP (SC):
         return opqr
 
     # Otherwise refeed last proposals into sample function
-    elif len(args) < 2:
-      opqr = self.sample(self.__last, **kwds)
     else:
-      args = tuple(self._list + list(args[1:]))
-      opqr = self.sample(*args, **kwds)
+      last = self.__last if self._tran is not None or self._step is not None \
+             else {0}
+      if len(args) < 2:
+        opqr = self.sample(last, **kwds)
+      else:
+        args = tuple(last + list(args[1:]))
+        opqr = self.sample(*args, **kwds)
 
     # Set to last if accept is not False
     stu = self.stu(self.eval_func(self._scores, opqr),
                    self.eval_func(self._thresh),
                    None)
-    update = self._eval_func(self._update, stu)
+    update = self.eval_func(self._update, stu)
     if self.__last is None or update:
       self.__last = opqr
     return self.opqrstu(opqr.o, opqr.p, opqr.q, opqr.r, stu.s, stu.t, update)

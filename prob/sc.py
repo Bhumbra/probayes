@@ -92,7 +92,7 @@ class SC (SJ):
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
     ids = [_id for _id in [marg_id, cond_id] if _id]
-    self._id = 'with'.join(ids)
+    self._id = '_with_'.join(ids)
     self.eval_length()
     prop_obj = self._cond if self._cond is not None else self._marg
     self.set_prop_obj(prop_obj)
@@ -235,13 +235,13 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
-    if self._prop_obj is None:
+    if self._step is not None or self._prop_obj is None:
       return super().step(*args, **kwds)
     return self._prop_obj.step(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):
-    if self._prop_obj is None:
+    if self._prop is not None or self._prop_obj is None:
       return super().propose(*args, **kwds)
     return self._prop_obj.propose(*args, **kwds)
 
@@ -307,7 +307,7 @@ class SC (SJ):
   def _sample_prop(self, *args, **kwds):
 
     # Extract suffix status; it is latter popped by propose()
-    suffix = "'" if suffix not in kwds else kwds['suffix'] 
+    suffix = "'" if 'suffix' not in kwds else kwds['suffix'] 
 
     # Non-opqr argument requires no parsing
     if not isinstance(args[0], self.opqr):

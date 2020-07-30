@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.dist_ops import str_margcond, margcond_str, product, rekey_dict
+from prob.dist_ops import str_margcond, margcond_str, product, summate, rekey_dict
 from prob.vtypes import issingleton, isscalar
 from prob.pscales import eval_pscale, rescale, iscomplex
 from prob.pscales import prod_pscale, prod_rule, div_prob
@@ -459,7 +459,7 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def __add__(self, other):
-    return sum_dist(*tuple([self, other]))
+    return summate(*tuple([self, other]))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
