@@ -1,6 +1,6 @@
 """
-An abstract probability class supporting probability distributions without
-any specification of a variable alphabet set.
+A probability class supporting probability distributions without specification 
+of a variable set.
 """
 
 #-------------------------------------------------------------------------------
@@ -26,7 +26,7 @@ def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
   return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
-class _Prob (ABC):
+class Prob:
 
   # Protected
   _prob = None      # Probability distribution function
@@ -161,6 +161,12 @@ class _Prob (ABC):
     return self.__pset
 
 #-------------------------------------------------------------------------------
+  def rescale(self, probs, **kwds):
+    if 'pscale' not in kwds:
+      return probs
+    return rescale(probs, self._pscale, kwds['pscale'])
+
+#-------------------------------------------------------------------------------
   def eval_prob(self, *args, **kwds):
     """ keys can include pscale """
 
@@ -177,14 +183,7 @@ class _Prob (ABC):
     return probs
 
 #-------------------------------------------------------------------------------
-  def rescale(self, probs, **kwds):
-    if 'pscale' not in kwds:
-      return probs
-    return rescale(probs, self._pscale, kwds['pscale'])
-
-#-------------------------------------------------------------------------------
-  @abstractmethod
   def __call__(self, *args, **kwds):
-    pass
+    return eval_prob(*args, **kwds)
 
 #-------------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+from prob.domain import Domain
 from prob.rv import RV
 from prob.sj import SJ
 from prob.sc import SC

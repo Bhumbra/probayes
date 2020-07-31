@@ -4,8 +4,8 @@
 import collections
 import numpy as np
 import scipy.stats
-from prob.vals import _Vals
-from prob.prob import _Prob, is_scipy_stats_cont
+from prob.domain import Domain
+from prob.prob import Prob, is_scipy_stats_cont
 from prob.dist import Dist
 from prob.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
@@ -22,13 +22,9 @@ asscociated probability distribution function (prob).
 """
 
 #-------------------------------------------------------------------------------
-class RV (_Vals, _Prob):
-
-  # Public
-  delta = None      # A named tuple generator
+class RV (Domain, Prob):
 
   # Protected
-  _name = "rv"      # Name of the random variable
   _tran = None      # Transitional prob - can be a matrix
   _tfun = None      # Like pfun for transitional conditionals
 
@@ -51,18 +47,8 @@ class RV (_Vals, _Prob):
 
 #-------------------------------------------------------------------------------
   def set_name(self, name):
-    # Identifier name required
-    self._name = name
-    assert isinstance(self._name, str), \
-        "Mandatory RV name must be a string: {}".format(self._name)
-    assert self._name.isidentifier(), \
-        "RV name must ba a valid identifier: {}".format(self._name)
-    self.delta = collections.namedtuple('ð', [self._name])
+    super().set_name(name)
     self.__prime_key = self._name + "'"
-
-#-------------------------------------------------------------------------------
-  def ret_name(self):
-    return self._name
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
@@ -183,10 +169,6 @@ class RV (_Vals, _Prob):
   def eval_prob(self, values=None):
     if not self.ret_isscalar():
       return super().eval_prob(values)
-    watch =  nominal_uniform_prob(values, 
-                                prob=self._prob(), 
-                                inside=self._inside,
-                                pscale=self._pscale)
     return nominal_uniform_prob(values, 
                                 prob=self._prob(), 
                                 inside=self._inside,
@@ -204,44 +186,18 @@ class RV (_Vals, _Prob):
     return dist_str
 
 #-------------------------------------------------------------------------------
-  def apply_delta(self, pred_vals, succ_delta):
-    delta_vals = succ_delta
-    delta_type = None
-    if isinstance(delta_vals, self.delta):
-      delta_vals = delta_vals[0]
-    if isinstance(delta_vals, list):
-      delta_type = list
-      delta_vals = delta_vals[0]
-    elif isinstance(delta_vals, tuple):
-      delta_type = tuple
-      delta_vals = delta_vals[0]
-    if isinstance(delta_vals, set):
-      assert np.isfinite(self._length), \
-          "Length is infinite and therefore precludes scaling along length"
-      delta_vals = list(delta_vals)[0] * self._length
-    prop_vals = pred_vals + delta_vals if self._vfun is None else \
-                self._vfun[1](self._vfun[0](pred_vals) + delta_vals)
-    if delta_type is None:
-      succ_vals = prop_vals
-    elif delta_type is list:
-      succ_vals = np.maximum(self._lims[0], np.minimum(self._lims[1],
-                                                       prop_vals))
-    elif delta_type is tuple:
-      succ_vals = prop_vals if self._inside(prop_vals) else pred_vals
-    return succ_vals
-
-#-------------------------------------------------------------------------------
   def eval_step(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals and transitional probability """
 
     assert self._tran is not None, "No transitional function specified"
-    kwargs = dict() # dictionary to passover to eval_tran
-    delta_type = None
+    kwargs = dict() # to pass over to eval_tran()
     if succ_vals is None:
-      succ_vals = {0} if isscalar(pred_vals) else pred_vals
-
-    # Handle deltas by type
-    elif isinstance(succ_vals, self.delta):
+      if self._delta is None:
+        succ_vals = {0} if isscalar(pred_vals) else pred_vals
+      else:
+        delta = self.eval_delta()
+        succ_vals = self.apply_delta(pred_vals, delta)
+    elif not isinstance(succ_vals, type(pred_vals)):
       succ_vals = self.apply_delta(pred_vals, succ_vals)
 
     #---------------------------------------------------------------------------

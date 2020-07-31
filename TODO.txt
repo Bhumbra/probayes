@@ -1,4 +1,4 @@
-Code SP functions for scores, thresholds, and update facilities.
-Provide methods to handle deltas for int and bool vtypes
+Provide methods to handle deltas for spherical and uniform sampling
 Code a two-dimensional MH-MCMC toy example
 Introduce indexable containers to SP
+Rename repo to probayes and register package to PyPI.

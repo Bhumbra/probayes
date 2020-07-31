@@ -1,37 +1,58 @@
 """
-An abstract values class that defines a variable support set along and supports
-invertible transformations.
+A domain defines a variable set over which a function can be defined. It thus
+comprises a name and variable set. The function itself is not supported although
+invertible variable transformations are.
 """
 
 #-------------------------------------------------------------------------------
-from abc import ABC, abstractmethod
 import numpy as np
-from prob.vtypes import eval_vtype, isunitsetint, uniform, VTYPES
+import collections
+from prob.vtypes import eval_vtype, isunitsetint, isunitset, isscalar, \
+                        revtype, uniform, VTYPES
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
 DEFAULT_VSET = {False, True}
 
 #-------------------------------------------------------------------------------
-class _Vals (ABC):
+class Domain:
 
-  # Protected
-  _vset = None      # Variable set (array or 2-length tuple range)
-  _vtype = None     # Variable type
-  _vfun = None      # 2-length tuple of mutually inverting functions
-  _lims = None      # Numpy array of bounds of vset
-  _limits = None    # Transformed self._lims
-  _length = None    # Difference in self._limits
-  _inside = None    # Lambda function for defining inside vset
+  # Public
+  delta = None       # A named tuple generator
+                    
+  # Protected       
+  _name = "var"      # Name of the variable
+  _vset = None       # Variable set (array or 2-length tuple range)
+  _vtype = None      # Variable type
+  _vfun = None       # 2-length tuple of mutually inverting functions
+  _lims = None       # Numpy array of bounds of vset
+  _limits = None     # Transformed self._lims
+  _length = None     # Difference in self._limits
+  _inside = None     # Lambda function for defining inside vset
+  _delta = None      # Default delta operation
+  _delta_args = None # Optional delta arguments 
+  _delta_kwds = None # Optional delta keywords 
 
 #-------------------------------------------------------------------------------
-  def __init__(self, vset=None, 
+  def __init__(self, name=None,
+                     vset=None, 
                      vtype=None,
                      vfun=None,
                      *args,
                      **kwds):
+    self.set_name(name)
     self.set_vset(vset, vtype)
     self.set_vfun(vfun, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def set_name(self, name):
+    # Identifier name required
+    self._name = name
+    assert isinstance(self._name, str), \
+        "Mandatory variable name must be a string: {}".format(self._name)
+    assert self._name.isidentifier(), \
+        "Variable name must ba a valid identifier: {}".format(self._name)
+    self.delta = collections.namedtuple('ð', [self._name])
 
 #-------------------------------------------------------------------------------
   def set_vset(self, vset=None, vtype=None):
@@ -150,6 +171,39 @@ class _Vals (ABC):
     self._eval_lims()
 
 #-------------------------------------------------------------------------------
+  def set_delta(self, delta=None, *args, **kwds):
+    """ Input argument delta may be:
+
+    1. A callable function (for which args and kwds are passed on as usual).
+    2. An rv.delta instance (this defaults all RV deltas).
+    3. A scalar that may contained in a list:
+      a) No container - the scalar is treated as a fixed delta.
+      b) List - delta is uniformly sampled from [-scalar to +scalar].
+
+      Optional keywords are (default False):
+        'scale': Flag to denote scaling deltas to RV lengths
+        'bound': Flag to constrain delta effects to RV bounds (None bounces)
+    """
+    self._delta = delta
+    self._delta_args = args
+    self._delta_kwds = dict(kwds)
+    if self._delta is None:
+      return
+    elif callable(self._delta):
+      self._delta = Func(self._delta, *args, **kwds)
+      return
+
+    # Default scale and bound
+    if 'scale' not in self._delta_kwds:
+      self._delta_kwds.update({'scale': False})
+    if 'bound' not in self._delta_kwds:
+      self._delta_kwds.update({'bound': False})
+
+#-------------------------------------------------------------------------------
+  def ret_name(self):
+    return self._name
+
+#-------------------------------------------------------------------------------
   def ret_vtype(self):
     return self._vtype
 
@@ -172,6 +226,10 @@ class _Vals (ABC):
 #-------------------------------------------------------------------------------
   def ret_length(self):
     return self._length
+
+#-------------------------------------------------------------------------------
+  def ret_delta(self):
+    return self._delta
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values=None):
@@ -215,9 +273,65 @@ class _Vals (ABC):
         return self.ret_vfun(1)(values)
     return values
    
+
 #-------------------------------------------------------------------------------
-  @abstractmethod
-  def __call__(self, *args, **kwds):
-    pass
+  def __call__(self, values=None):
+    return eval_vals(values)
+
+#------------------------------------------------------------------------------- 
+  def eval_delta(self, delta=None):
+    # Evaluates the delta but does not apply it
+    delta = delta or self._delta
+    if delta is None:
+      return None
+    if isinstance(delta, Func):
+      if delta.ret_callable():
+        return delta
+      delta = delta()
+    if isinstance(delta, self.delta):
+      delta = delta[0]
+    urand = isinstance(delta, list)
+    if urand:
+      assert len(delta) == 1, "List delta must contain one element"
+      delta = delta[0]
+      if self._vtype in VTYPES[bool]:
+        delta = np.random.randint(0, int(delta))
+      elif self._vtype in VTYPES[int]:
+        delta = np.random.randint(-delta, delta)
+      else:
+        delta = np.random.uniform(-delta, delta)
+    assert isscalar(delta), "Unrecognised delta type: {}".format(delta)
+    if self._delta_kwds['scale']:
+      assert np.isfinite(self._length), "Cannot scale by infinite length"
+      delta *= self._length
+    return self.delta(delta)
+
+#------------------------------------------------------------------------------- 
+  def apply_delta(self, values, delta=None):
+    # Applies the delta - needs re-evaluation if a list is given
+    delta = delta or self._delta
+    if isinstance(delta, Func):
+      if delta.ret_callable():
+        return delta(values)
+      delta = delta()
+    if isinstance(delta, self.delta):
+      delta = delta[0]
+    if delta is None:
+      return values
+    if isinstance(delta, list):
+      delta = self.eval_delta(delta)
+    bound = self._delta_kwds['bound']
+    sum_vals = values + delta
+    if bound is not None:
+      if bound:
+        sum_vals = np.maximum(self._lims[0], np.minimum(self._lims[1], sum_vals))
+      return sum_vals
+    elif isscalar(sum_vals):
+      if self._inside(sum_vals):
+        return sum_vals
+      return values
+    outside = np.logical_not(self._inside(sum_vals))
+    sum_vals[outside] = values[outside]
+    return sum_vals
 
 #-------------------------------------------------------------------------------

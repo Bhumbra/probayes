@@ -341,7 +341,7 @@ class SC (SJ):
 
     # Non-opqr argument requires no parsing
     if not isinstance(args[0], self.opqr):
-      prop = self.propose(args[0], **kwds)
+      prop = self.step(args[0], **kwds)
 
     # Otherwise parse successor:
     else:
@@ -350,7 +350,7 @@ class SC (SJ):
       assert dist is not None, \
           "An input opqr argument must contain a non-None value for opqr.q"
       vals = get_suffixed(dist.vals)
-      prop = self.propose(vals, **kwds)
+      prop = self.step(vals, **kwds)
 
     # Extract values evaluating probability
     vals = get_suffixed(prop.vals)

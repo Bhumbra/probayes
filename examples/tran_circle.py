@@ -11,7 +11,7 @@ n_steps = 6000
 cols = {False: 'r', True: 'b'}
 
 # SETUP CIRCLE FUNCTION AND RVs
-def isinside(x, y): 
+def inside(x, y): 
   return x**2 + y**2 <= radius**2
 
 xy_range = [-radius, radius]
@@ -22,7 +22,7 @@ y = prob.RV("y", xy_range)
 xy = x * y
 delta = xy.Delta((0.15*radius,))
 xy.set_step(delta)
-xy.set_prop(isinside, order={'x': None, 'y': None, "x'": 0, "y'": 1})
+xy.set_prop(inside, order={'x': None, 'y': None, "x'": 0, "y'": 1})
 steps = [None] * n_steps
 pred = [None] * n_steps
 succ = [None] * n_steps
@@ -38,7 +38,7 @@ for i in range(n_steps):
   x_succ, y_succ = steps[i]["x'"], steps[i]["y'"]
   pred[i] = {'x': x_pred, 'y': y_pred}
   succ[i] = {'x': x_succ, 'y': y_succ}
-  cond[i] = isinside(x_pred, y_pred)
+  cond[i] = inside(x_pred, y_pred)
 print('...done')
 xy_pred = prob.iterdict(pred)
 xy_succ = prob.iterdict(succ)
@@ -51,7 +51,7 @@ state = None
 for i in range(n_steps):
   x_pred, y_pred = xy_pred['x'][i], xy_pred['y'][i]
   x_succ, y_succ = xy_succ['x'][i], xy_succ['y'][i]
-  current_state = isinside(x_pred, y_pred)
+  current_state = inside(x_pred, y_pred)
   plot_xy = i < n_steps - 1
   if state is None:
     xx = [x_pred]

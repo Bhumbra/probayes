@@ -8,7 +8,7 @@ import collections
 import numpy as np
 from prob.rv import RV
 from prob.dist import Dist
-from prob.vtypes import isscalar, isunitsetint, issingleton
+from prob.vtypes import isscalar, isunitsetint, issingleton, revtype
 from prob.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
 from prob.sp_utils import sample_generator, \
@@ -57,22 +57,25 @@ class SJ:
   delta = None
 
   # Protected
-  _name = None      # Cannot be set externally
-  _rvs = None       # Dict of random variables
-  _nrvs = None
-  _keys = None
-  _keyset = None
-  _defiid = None
-  _pscale = None
-  _prob = None
-  _pscale = None
-  _prop = None      # Non-transitional proposition function
-  _step = None      # Step specification: None denotes independent
-  _tran = None      # Transitional proposition function
-  _tfun = None      # CDF/IDF of transition function
-  _cfun = None      # Covariance function
-  _length = None    # Length of junction
-  _lengths = None   # Lengths of RVs
+  _name = None       # Cannot be set externally
+  _rvs = None        # Dict of random variables
+  _nrvs = None      
+  _keys = None      
+  _keyset = None    
+  _defiid = None    
+  _pscale = None    
+  _prob = None      
+  _pscale = None    
+  _prop = None       # Non-transitional proposition function
+  _delta = None      # Delta function (to replace step)
+  _delta_args = None # Optional delta args (must be dictionaries)
+  _delta_kwds = None # Optional delta kwds
+  _step = None       # Step function
+  _tran = None       # Transitional proposition function
+  _tfun = None       # CDF/IDF of transition function
+  _cfun = None       # Covariance function
+  _length = None     # Length of junction
+  _lengths = None    # Lengths of RVs
 
   # Private
   __isscalar = None
@@ -85,6 +88,7 @@ class SJ:
     self.set_rvs(*args)
     self.set_prob()
     self.set_prop()
+    self.set_delta()
     self.set_step()
     self.set_tran()
     self.set_cfun()
@@ -172,6 +176,95 @@ class SJ:
   def set_step(self, step=None):
     # Set transitioning specification
     self._step = step
+
+#-------------------------------------------------------------------------------
+  def set_delta(self, delta=None, *args, **kwds):
+    """ Input argument delta may be:
+
+    1. A callable function (for which args and kwds are passed on as usual).
+    2. An sj.delta instance (this defaults all RV deltas).
+    3. A dictionary for RVs, this is converted to an sj.delta.
+    4. A scalar that may contained in a list or tuple:
+      a) No container - the scalar is treated as a fixed delta.
+      b) List - delta is uniformly and independently sampled across RVs.
+      c) Tuple - delta is spherically sampled across RVs.
+
+      For non-tuples, an optional argument (args[0]) can be included as a 
+      dictionary to specify by RV-name deltas following the above conventions
+      except their values are not subject to scaling even if 'scale' is given,
+      but they are subject to bounding if 'bound' is specified.
+
+      Optional keywords for tuples and non-tuples are (default False):
+        'scale': Flag to denote scaling deltas to RV lengths
+        'bound': Flag to constrain delta effects to RV bounds (None bounces)
+      
+    """
+    self._delta = delta
+    self._delta_args = args
+    self._delta_kwds = dict(kwds)
+    if self._delta is None:
+      return
+    elif callable(self._delta):
+      self._delta = Func(self._delta, *args, **kwds)
+      return
+
+    # Default scale and bound
+    if 'scale' not in self._delta_kwds:
+      self._delta_kwds.update({'scale': False})
+    if 'bound' not in self._delta_kwds:
+      self._delta_kwds.update({'bound': False})
+
+    # Handle deltas and dictionaries
+    if isinstance(self._delta, dict):
+      self._delta = self.delta(**self._delta)
+    if isinstance(delta, self.delta):
+      assert not args and not kwds, \
+        "Optional args and kwds prohibited for dict/delta instance inputs"
+      rvs = self.ret_rvs(aslist=True)
+      for i, rv in enumerate(rvs):
+        rv.set_delta(self._delta[i])
+      return
+
+    # Default scale and bound
+    scale = self._delta_kwds['scale']
+    bound = self._delta_kwds['bound']
+
+    # Non tuples can be converted to deltas
+    if not isinstance(self._delta, tuple):
+      delta = self._delta 
+      urand = isinstance(delta, list)
+      if urand:
+        assert len(delta) == 1, "List delta requires a single element"
+        delta = delta[0]
+      deltas = {key: delta for key in self._keys}
+      unscale = {}
+      if args:
+        assert len(args) == 1, \
+            "Optional positional arguments must comprises a single dict"
+        unscale = args[0]
+        assert isinstance(unscale, dict), \
+            "Optional positional arguments must comprises a single dict"
+      deltas.update(unscale)
+      self._delta = collections.OrderedDict(deltas)
+      for key, val in deltas.items():
+        delta = val
+        if scale and key not in unscale:
+          delta = {val}
+        if urand:
+          delta = collections.deque([delta])
+        if bound != False:
+          delta = [delta]
+          if bound is None:
+            delta = tuple(delta)
+        self._delta[key] = delta
+      self._delta = self.delta(**self._delta)
+      rvs = self.ret_rvs(aslist=True)
+      for i, rv in enumerate(rvs):
+        rv.set_delta(self._delta[i])
+      return
+
+    # Tuple deltas must be evaluated on-the-fly
+    assert not args, "Optional arguments prohibited for tuple deltas"
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
@@ -416,7 +509,8 @@ class SJ:
     return self._prob(values)
 
 #-------------------------------------------------------------------------------
-  def eval_delta(self, delta):
+  def eval_delta(self, delta=None):
+    delta = delta or self._delta
 
     if isinstance(delta, self.delta):
       return delta
@@ -533,7 +627,7 @@ class SJ:
           "Only callable transitional functions supported for multidimensionals"
       prob = self._tran if not self._tran.ret_istuple() else \
              self._tran[int(reverse)]
-      cond = prob(**vals)
+      cond = prob(values)
     return cond
 
 #-------------------------------------------------------------------------------
@@ -570,7 +664,6 @@ class SJ:
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):
     """ Returns a proposal distribution p(args[0]) for values """
-    pred_vals, succ_vals = None, None 
     suffix = "'" if 'suffix' not in kwds else kwds.pop('suffix')
     values = self.parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values, suffix)

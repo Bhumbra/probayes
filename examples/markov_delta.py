@@ -1,6 +1,7 @@
 """ Example of a Markov chain random walk simulation 
 using a continuous transition function.
 """
+import collections
 import prob
 import numpy as np
 import scipy.stats
@@ -29,6 +30,7 @@ def ticdf(succ, pred):
 x = prob.RV('x', set_lims)
 x.set_tran(tran, order={'x': 'pred', "x'": 'succ'})
 x.set_tfun((tcdf, ticdf), order={'x': 'pred', "x'": 'succ'})
+x.set_delta([0.1], scale=True, bound=None)
 
 cond = [None] * n_steps
 pred = np.empty(n_steps, dtype=float)
@@ -39,8 +41,7 @@ for i in range(n_steps):
   if i == 0:
     cond[i] = x.step(0.)
   else:
-    dx = x.delta(({np.random.uniform(-0.1, 0.1)},))
-    cond[i] = x.step(succ[i-1], dx)
+    cond[i] = x.step(succ[i-1])
   pred[i] = cond[i].vals['x']
   succ[i] = cond[i].vals["x'"]
   prob[i] = cond[i].prob

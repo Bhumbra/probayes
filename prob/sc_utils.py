@@ -26,6 +26,7 @@ def get_suffixed(values, unsuffix=True, suffix="'"):
     if key[-1] == suffix:
       vals_key = key[:-1] if unsuffix else key
       vals.update({vals_key: val})
+  return vals
 
 #-------------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
 
 import numpy as np
 from prob.vtypes import isscalar
-from prob.pscales import iscomplex, log_prob, div_prob
+from prob.pscales import iscomplex, rescale, log_prob, div_prob
 
 #-------------------------------------------------------------------------------
 def sample_generator(sp, *args, stop=None, **kwds):

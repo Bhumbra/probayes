@@ -84,6 +84,18 @@ def issingleton(var):
   return isscalar(var)
 
 #-------------------------------------------------------------------------------
+def revtype(var, vtype=None):
+  if vtype is None:
+    return var
+  vtype = eval_vtype(vtype)
+  vartype = eval_vtype(var)
+  if vtype == vartype:
+    return var
+  if isscalar(var):
+    return vtype(var)
+  return np.array(var, dtype=vtype)
+
+#-------------------------------------------------------------------------------
 def uniform(v_0=0, 
             v_1=1, 
             n=None,
