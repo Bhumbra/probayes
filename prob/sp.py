@@ -183,7 +183,7 @@ class SP (SC):
 
     # Otherwise refeed last proposals into sample function
     else:
-      last = self.__last if self._tran is not None or self._step is not None \
+      last = self.__last if self._tran is not None or self._delta is not None \
              else {0}
       if len(args) < 2:
         opqr = self.sample(last, **kwds)

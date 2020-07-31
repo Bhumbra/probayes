@@ -20,7 +20,7 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 n_steps = 10000
-step_size = 0.1
+max_step_size = 1.
 
 def q(**kwds):
   x, xprime = kwds['x'], kwds["x'"]
@@ -31,7 +31,7 @@ process = prob.SP(x)
 process.set_prob(scipy.stats.norm.pdf, loc=2, scale=np.sqrt(2),
                  order={'x': 0})
 process.set_tran(q)
-process.set_step(process.Delta(step_size))
+process.set_delta([max_step_size])
 process.set_scores('hastings')
 process.set_update('metropolis')
 sampler = process.sampler({'x': 0.}, stop=n_steps)

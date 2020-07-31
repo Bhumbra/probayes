@@ -7,7 +7,7 @@ invertible variable transformations are.
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-from prob.vtypes import eval_vtype, isunitsetint, isunitset, isscalar, \
+from prob.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES
 from prob.func import Func
 
@@ -43,6 +43,7 @@ class Domain:
     self.set_name(name)
     self.set_vset(vset, vtype)
     self.set_vfun(vfun, *args, **kwds)
+    self.set_delta()
 
 #-------------------------------------------------------------------------------
   def set_name(self, name):
@@ -182,7 +183,7 @@ class Domain:
 
       Optional keywords are (default False):
         'scale': Flag to denote scaling deltas to RV lengths
-        'bound': Flag to constrain delta effects to RV bounds (None bounces)
+        'bound': Flag to constrain delta effects to RV bounds
     """
     self._delta = delta
     self._delta_args = args
@@ -307,8 +308,9 @@ class Domain:
     return self.delta(delta)
 
 #------------------------------------------------------------------------------- 
-  def apply_delta(self, values, delta=None):
-    # Applies the delta - needs re-evaluation if a list is given
+  def apply_delta(self, values, delta=None, bound=None):
+
+    # Call eval_delta() if values is a list and return values if delta is None
     delta = delta or self._delta
     if isinstance(delta, Func):
       if delta.ret_callable():
@@ -316,22 +318,57 @@ class Domain:
       delta = delta()
     if isinstance(delta, self.delta):
       delta = delta[0]
-    if delta is None:
-      return values
     if isinstance(delta, list):
       delta = self.eval_delta(delta)
-    bound = self._delta_kwds['bound']
-    sum_vals = values + delta
-    if bound is not None:
-      if bound:
-        sum_vals = np.maximum(self._lims[0], np.minimum(self._lims[1], sum_vals))
-      return sum_vals
-    elif isscalar(sum_vals):
-      if self._inside(sum_vals):
-        return sum_vals
+    if delta is None:
       return values
-    outside = np.logical_not(self._inside(sum_vals))
-    sum_vals[outside] = values[outside]
-    return sum_vals
+
+    # Apply the delta
+    if self._vfun is None:
+      vals = values + delta
+    else:
+      vals = self.ret_vfun(1)(self.ret_vfun(0)(values) + delta)
+    vals = revtype(values + delta, self._vtype)
+
+    # Apply bounds
+    if bound is None:
+      bound = False if 'bound' not in self._delta_kwds \
+             else self._delta_kwds['bound']
+    if not bound:
+      return vals
+    maybe_bounce = [False] if self._vtype not in VTYPES[float] else \
+                   [isinstance(self._vset[0], tuple), 
+                    isinstance(self._vset[1], tuple)]
+    if not any(maybe_bounce):
+      return np.maximum(self._lims[0], np.minimum(self._lims[1], vals))
+
+    # Bouncing scalars and arrays without and with boolean indexing respectively
+    if isscalar(vals):
+      if all(maybe_bounce):
+        if not self._inside(vals):
+          vals = values
+      elif maybe_bounce[0]:
+        if vals < self._lims[0]:
+          vals = values
+        else:
+          vals = np.minimum(self._lims[1], vals)
+      else:
+        if vals > self._lims[1]:
+          vals = values
+        else:
+          vals = np.maximum(self._lims[0], vals)
+    else:
+      if all(maybe_bounce):
+        outside = np.logical_not(self._inside(vals))
+        vals[outside] = values[outside]
+      elif maybe_bounce[0]:
+        outside = vals <= self._lims[0]
+        vals[outside] = values[outside]
+        vals = np.minimum(self._lims[1], vals)
+      else:
+        outside = vals >= self._lims[1]
+        vals[outside] = values[outside]
+        vals = np.maximum(self._lims[0], vals)
+    return vals
 
 #-------------------------------------------------------------------------------

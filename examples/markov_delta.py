@@ -10,7 +10,7 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 n_steps = 2000
-set_lims = {-np.pi, np.pi}
+set_lims = (-np.pi, np.pi)
 
 def tran(succ, pred):
   loc = -np.sin(pred)
@@ -30,7 +30,7 @@ def ticdf(succ, pred):
 x = prob.RV('x', set_lims)
 x.set_tran(tran, order={'x': 'pred', "x'": 'succ'})
 x.set_tfun((tcdf, ticdf), order={'x': 'pred', "x'": 'succ'})
-x.set_delta([0.1], scale=True, bound=None)
+x.set_delta([0.1], scale=True, bound=True)
 
 cond = [None] * n_steps
 pred = np.empty(n_steps, dtype=float)

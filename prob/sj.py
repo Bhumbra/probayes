@@ -53,7 +53,6 @@ def rv_prod_rule(*args, rvs, pscale=None):
 #-------------------------------------------------------------------------------
 class SJ:
   # Public
-  Delta = None
   delta = None
 
   # Protected
@@ -70,7 +69,6 @@ class SJ:
   _delta = None      # Delta function (to replace step)
   _delta_args = None # Optional delta args (must be dictionaries)
   _delta_kwds = None # Optional delta kwds
-  _step = None       # Step function
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function
   _cfun = None       # Covariance function
@@ -82,6 +80,7 @@ class SJ:
   __callable = None
   __sym_tran = None
   __cfun_lud = None
+  __spherise = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -89,7 +88,6 @@ class SJ:
     self.set_prob()
     self.set_prop()
     self.set_delta()
-    self.set_step()
     self.set_tran()
     self.set_cfun()
 
@@ -173,11 +171,6 @@ class SJ:
     self._prop = Func(self._prop, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def set_step(self, step=None):
-    # Set transitioning specification
-    self._step = step
-
-#-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
     """ Input argument delta may be:
 
@@ -194,14 +187,15 @@ class SJ:
       except their values are not subject to scaling even if 'scale' is given,
       but they are subject to bounding if 'bound' is specified.
 
-      Optional keywords for tuples and non-tuples are (default False):
-        'scale': Flag to denote scaling deltas to RV lengths
-        'bound': Flag to constrain delta effects to RV bounds (None bounces)
+    For setting types 2-4, optional keywords are (default False):
+      'scale': Flag to denote scaling deltas to RV lengths
+      'bound': Flag to constrain delta effects to RV bounds (None bounces)
       
     """
     self._delta = delta
     self._delta_args = args
     self._delta_kwds = dict(kwds)
+    self.__spherise = {}
     if self._delta is None:
       return
     elif callable(self._delta):
@@ -218,53 +212,59 @@ class SJ:
     if isinstance(self._delta, dict):
       self._delta = self.delta(**self._delta)
     if isinstance(delta, self.delta):
-      assert not args and not kwds, \
-        "Optional args and kwds prohibited for dict/delta instance inputs"
+      assert not args, \
+        "Optional args prohibited for dict/delta instance inputs"
       rvs = self.ret_rvs(aslist=True)
       for i, rv in enumerate(rvs):
-        rv.set_delta(self._delta[i])
+        rv.set_delta(self._delta[i], scale=scale, bound=bound)
       return
 
-    # Default scale and bound
+    # Default scale and bound and check args
     scale = self._delta_kwds['scale']
     bound = self._delta_kwds['bound']
+    if self._delta_args:
+      assert len(self._delta_args) == 1, \
+          "Optional positional arguments must comprises a single dict"
+      unscale = self._delta_args[0]
+      assert isinstance(unscale, dict), \
+          "Optional positional arguments must comprises a single dict"
 
-    # Non tuples can be converted to deltas
+    # Non tuples can be converted to deltas; can pre-scale here
     if not isinstance(self._delta, tuple):
+      scaling = self._lengths
       delta = self._delta 
       urand = isinstance(delta, list)
       if urand:
         assert len(delta) == 1, "List delta requires a single element"
         delta = delta[0]
       deltas = {key: delta for key in self._keys}
-      unscale = {}
-      if args:
-        assert len(args) == 1, \
-            "Optional positional arguments must comprises a single dict"
-        unscale = args[0]
-        assert isinstance(unscale, dict), \
-            "Optional positional arguments must comprises a single dict"
+      unscale = {} if not self._delta_args else self._delta_args[0]
       deltas.update(unscale)
-      self._delta = collections.OrderedDict(deltas)
-      for key, val in deltas.items():
+      delta_dict = collections.OrderedDict(deltas)
+      for i, (key, val) in enumerate(deltas.items()):
         delta = val
         if scale and key not in unscale:
-          delta = {val}
+          assert np.isfinite(self._lengths[i]), \
+              "Cannot scale by infinite length for RV {}".format(key)
+          delta = val * self._lengths[i]
         if urand:
-          delta = collections.deque([delta])
-        if bound != False:
           delta = [delta]
-          if bound is None:
-            delta = tuple(delta)
-        self._delta[key] = delta
-      self._delta = self.delta(**self._delta)
+        delta_dict.update({key: delta})
+      self._delta = self.delta(**delta_dict)
       rvs = self.ret_rvs(aslist=True)
       for i, rv in enumerate(rvs):
-        rv.set_delta(self._delta[i])
-      return
+        rv.set_delta(self._delta[i], scale=False, bound=bound)
 
-    # Tuple deltas must be evaluated on-the-fly
-    assert not args, "Optional arguments prohibited for tuple deltas"
+    # Tuple deltas must be evaluated on-the-fly and cannot be pre-scaled
+    else:
+      unscale = {} if not self._delta_args else self._delta_args[0]
+      self.__spherise = {}
+      for i, key in enumerate(self._keys):
+        if key not in unscale.keys():
+          length = self._lengths[i]
+          assert np.isfinite(length), \
+              "Cannot spherise RV {} with infinite length".format(key)
+          self.__spherise.update({key: length})
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
@@ -510,56 +510,95 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):
-    delta = delta or self._delta
 
-    if isinstance(delta, self.delta):
-      return delta
-    assert isinstance(delta, self.Delta),\
-        "Unknown delta specification type: {}".format(delta)
+    # Handle native delta types within RV deltas
+    if delta is None: 
+      if self._delta is None:
+        return None
+      elif isinstance(self._delta, self.delta):
+        delta_dict = collections.OrderedDict()
+        rvs = self.ret_rvs(aslist=True)
+        for i, key in enumerate(self._keys):
+          delta_dict.update({key: rvs[i].eval_delta()})
+        delta = self.delta(**delta_dict)
+      else:
+        delta = self._delta
+    elif isinstance(delta, self.delta):
+      delta_dict = collections.OrderedDict()
+      rvs = self.ret_rvs(aslist=True)
+      for i, key in enumerate(self._keys):
+        delta_dict.update({key: rvs[i].eval_delta(delta[i])})
+      delta = self.delta(**delta_dict)
 
-    # Determine delta type, extract delta_scale and use random number generator
-    delta_val = delta[0]
-    delta_type = None
-    if isinstance(delta, list):
-      delta_type = list
-      delta_val = delta_val[0]
-    elif isinstance(delta_val, tuple):
-      delta_type = tuple
-      delta_val = delta_val[0]
-    if isinstance(delta_val, set):
-      assert np.isfinite(self._length), \
-          "Length is infinite and therefore precludes scaling along length"
-      delta_val = list(delta_val)[0]
-      delta_lim = abs(delta_val) * float(self._length)
-    else:
-      delta_lim = abs(delta_val)
-    deltas = np.random.uniform(-delta_lim, delta_lim, size=self._nrvs)
+    # Non spherical case
+    if isinstance(delta, self.delta): # i.e. non-spherical
+      if self._cfun is None:
+        return delta
+      elif self.__cfun_lud is not None:
+        delta = np.ravel(delta)
+        delta = self.__cfun_lud.dot(delta)
+        return self.delta(*delta)
+      else:
+        delta = self._cfun(delta)
+        assert isinstance(delta, self.delta), \
+            "User supplied cfun did not output delta typoe {}".format(self.delta)
+        return delta
 
-    # Either scale with positive delta_val denoting hyperspherical step...
-    if self._cfun is None:
-      if delta_val > 0.:
-        root_sum_squares = real_sqrt(np.sum(deltas ** 2))
-        deltas = deltas * delta_lim / root_sum_squares
-    
-    # ...or multiply the LUD with the deltas...
-    elif self.__cfun_lud is not None:
-      deltas = self.__cfun_lud.dot(deltas)
 
-    # ...or call supplied covariance function...
-    else:
-      deltas = np._cfun(deltas)
+    # Rule out possibility of all RVs contained in unscaling argument
+    assert isinstance(delta, tuple), \
+        "Unknown delta type: {}".format(delta)
+    unscale = {} if not self._delta_args else self._delta_args
+    if not len(self.__spherise):
+      return self.delta(**unscale)
 
-    # Package RV deltas by delta type
-    delta_args = [None] * self._nrvs
+    # Spherical version
+    delta = delta[0]
+    spherise = self.__spherise
+    rss = real_sqrt(np.sum(np.array(list(spherise.values()))**2))
+    if self._delta_kwds['scale']:
+      delta *= rss
+    deltas = np.random.uniform(-delta, delta, size=len(spherise))
+    rss_deltas = real_sqrt(np.sum(deltas ** 2.))
+    deltas = (deltas * delta) / rss_deltas
+    delta_dict = collections.OrderedDict()
+    rvs = self.ret_rvs(aslist=True)
+    idx = 0
     for i, key in enumerate(self._keys):
-      arg = deltas[i]
-      if delta_type is list:
-        arg = [arg]
-      elif delta_type is tuple:
-        arg = (arg,)
-      delta_args[i] = arg
+      if key in unscale:
+        val = unscale[key]
+      else:
+        val = deltas[idx]
+        idx += 1
+        if self._delta_kwds['scale']:
+          val *= self._lengths[i]
+      delta_dict.update({key: val})
+    delta = self.delta(**delta_dict)
+    if self._cfun is None:
+      return delta
+    elif self.__cfun_lud is not None:
+      delta = self.__cfun_lud.dot(np.array(delta, dtype=float))
+      return self.delta(*deltas)
+    else:
+      delta = self._cfun(delta)
+      assert isinstance(delta, self.delta), \
+          "User supplied cfun did not output delta type {}".format(self.delta)
+      return delta
 
-    return self.delta(*tuple(delta_args))
+#-------------------------------------------------------------------------------
+  def apply_delta(self, values, delta=None):
+    delta = delta or self._delta
+    if delta is None:
+      return values
+    assert isinstance(delta, self.delta), \
+          "Cannot apply delta without providing delta type {}".format(self.delta)
+    bound = False if 'bound' not in self._delta_kwds \
+           else self._delta_kwds['bound']
+    vals = collections.OrderedDict(values)
+    rvs = self.ret_rvs(aslist=True)
+    for i, key in enumerate(self._keys):
+      vals.update({key: rvs[i].apply_delta(values[key], delta[i], bound=bound)})
+    return vals
 
 #-------------------------------------------------------------------------------
   def eval_prop(self, values, **kwargs):
@@ -576,16 +615,16 @@ class SJ:
 #-------------------------------------------------------------------------------
   def eval_step(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals """
-    rvs = self.ret_rvs(aslist=True)
-    if isinstance(succ_vals, self.Delta):
+
+    # Evaluate deltas if required
+    if succ_vals is None:
+      succ_vals = self.eval_delta()
+    elif isinstance(succ_vals, (tuple, self.delta)):
       succ_vals = self.eval_delta(succ_vals)
-    succ_delta = None
+
+    # Apply deltas or (TODO: sample)
     if isinstance(succ_vals, self.delta):
-      succ_values = collections.OrderedDict()
-      for i, key in enumerate(self._keys):
-        succ_values[key] = rvs[i].apply_delta(pred_vals[key], 
-                                              getattr(succ_vals, key))
-      succ_vals =  succ_values
+      succ_vals = self.apply_delta(pred_vals, succ_vals)
     elif isunitsetint(succ_vals):
       assert self._tfun is not None and self._tfun_ret_callable(),\
           "Transitional CDF calling requires callable tfun"
@@ -695,9 +734,9 @@ class SJ:
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
     if succ_vals is None:
-      if self._step is not None:
-        succ_vals = self._step
-      elif issingleton(pred_vals):
+      if self._delta is not None:
+        succ_vals = self._delta
+      elif issingleton(pred_vals) and self._delta is None:
         succ_vals = {0}
 
     # Evaluate predecessor values

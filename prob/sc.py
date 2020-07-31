@@ -105,7 +105,6 @@ class SC (SJ):
     if self._prop_obj is None:
       return
     self.delta = self._prop_obj.delta
-    self.Delta = self._prop_obj.Delta
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
@@ -118,14 +117,14 @@ class SC (SJ):
     return self._prop
 
 #-------------------------------------------------------------------------------
-  def set_step(self, step=None, *args, **kwds):
-    if not isinstance(step, str) and step not in self._marg_cond.values(): 
-      return super().set_step(step, *args, **kwds)
-    if isinstance(step, str):
-      step = self._marg_cond[tran]
-    self.set_prop_obj(step)
-    self._step = step._step
-    return self._step
+  def set_delta(self, delta=None, *args, **kwds):
+    if not isinstance(delta, str) and delta not in self._marg_cond.values(): 
+      return super().set_delta(delta, *args, **kwds)
+    if isinstance(delta, str):
+      delta = self._marg_cond[delta]
+    self.set_prop_obj(delta)
+    self._delta = delta._delta
+    return self._delta
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
@@ -235,7 +234,7 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
-    if self._step is not None or self._prop_obj is None:
+    if self._delta is not None or self._prop_obj is None:
       return super().step(*args, **kwds)
     return self._prop_obj.step(*args, **kwds)
 
@@ -262,7 +261,7 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):
     """ A function for unconditional and conditional sampling. For conditional
-    sampling, use SC.set_step() to set the step specification. if neither
+    sampling, use SC.set_delta() to set the delta specification. if neither
     set_prob() nor set_tran() are set, then opqr inputs are disallowed and this
     function outputs a normal __call__(). Otherwise this function returns a 
     namedtuple-generated opqr object that can be accessed using opqr.p or 

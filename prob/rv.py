@@ -44,6 +44,7 @@ class RV (Domain, Prob):
     self.set_vset(vset, vtype)
     self.set_prob(prob, pscale, *args, **kwds)
     self.set_vfun()
+    self.set_delta()
 
 #-------------------------------------------------------------------------------
   def set_name(self, name):
@@ -197,8 +198,6 @@ class RV (Domain, Prob):
       else:
         delta = self.eval_delta()
         succ_vals = self.apply_delta(pred_vals, delta)
-    elif not isinstance(succ_vals, type(pred_vals)):
-      succ_vals = self.apply_delta(pred_vals, succ_vals)
 
     #---------------------------------------------------------------------------
     def _reshape_vals(pred, succ):
@@ -206,20 +205,20 @@ class RV (Domain, Prob):
       ndim = 0
 
       # Now reshape the values according to succ > prev dimensionality
-      if issingleton(succ_vals):
+      if issingleton(succ):
         dims.update({self._name+"'": None})
       else:
         dims.update({self._name+"'": ndim})
         ndim += 1
-      if issingleton(pred_vals):
+      if issingleton(pred):
         dims.update({self._name: None})
       else:
         dims.update({self._name: ndim})
         ndim += 1
 
       if ndim == 2: # pred_vals distributed along inner dimension:
-        pred = pred.reshape([1, pred_vals.size])
-        succ = succ.reshape([succ_vals.size, 1])
+        pred = pred.reshape([1, pred.size])
+        succ = succ.reshape([succ.size, 1])
       return pred, succ, dims
 
     #---------------------------------------------------------------------------

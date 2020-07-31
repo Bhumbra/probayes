@@ -14,14 +14,13 @@ cols = {False: 'r', True: 'b'}
 def inside(x, y): 
   return x**2 + y**2 <= radius**2
 
-xy_range = [-radius, radius]
+xy_range = (-radius, radius)
 x = prob.RV("x", xy_range)
 y = prob.RV("y", xy_range)
 
 # DEFINE STOCHASTIC JUNCTION
 xy = x * y
-delta = xy.Delta((0.15*radius,))
-xy.set_step(delta)
+xy.set_delta((0.15*radius,), bound=True)
 xy.set_prop(inside, order={'x': None, 'y': None, "x'": 0, "y'": 1})
 steps = [None] * n_steps
 pred = [None] * n_steps
