@@ -1,3 +1,6 @@
+Support domain.delta(0.5,) tuple spec for polarity randomisation.
+Code a one-dimension-data mean+stdv MCMC example.
 Code a two-dimensional MH-MCMC toy example
+Support distribution quantile estimatation.
 Code a Gibbs sampler
 Rename repo to probayes and register package to PyPI.
