@@ -180,6 +180,7 @@ class Domain:
     3. A scalar that may contained in a list:
       a) No container - the scalar is treated as a fixed delta.
       b) List - delta is uniformly sampled from [-scalar to +scalar].
+      c) Tuple - operation is +/-delta within the polarity randomised
 
       Optional keywords are (default False):
         'scale': Flag to denote scaling deltas to RV lengths
@@ -291,12 +292,18 @@ class Domain:
       delta = delta()
     if isinstance(delta, self.delta):
       delta = delta[0]
+    orand = isinstance(delta, tuple)
     urand = isinstance(delta, list)
-    if urand:
+    if orand:
+      assert len(delta) == 1, "Tuple delta must contain one element"
+      delta = delta[0]
+      if self._vtype not in VTYPES[bool]:
+        delta = delta if np.random.uniform() > 0.5 else -delta
+    elif urand:
       assert len(delta) == 1, "List delta must contain one element"
       delta = delta[0]
       if self._vtype in VTYPES[bool]:
-        delta = np.random.randint(0, int(delta))
+        pass
       elif self._vtype in VTYPES[int]:
         delta = np.random.randint(-delta, delta)
       else:
@@ -316,19 +323,36 @@ class Domain:
       if delta.ret_callable():
         return delta(values)
       delta = delta()
+    elif self._vtype not in VTYPES[bool]:
+      if isinstance(delta, (list, tuple)):
+        delta = self.eval_delta(delta)
     if isinstance(delta, self.delta):
       delta = delta[0]
-    if isinstance(delta, list):
-      delta = self.eval_delta(delta)
     if delta is None:
       return values
 
-    # Apply the delta
-    if self._vfun is None:
+    # Apply the delta, treating bool as a special case
+    if self._vtype in VTYPES[bool]:
+      orand = isinstance(delta, tuple)
+      urand = isinstance(delta, list)
+      if orand or urand:
+        assert len(delta) == 1, "Tuple/list delta must contain one element"
+        delta = delta[0]
+        if isscalar(values) or orand:
+          vals = values if delta > np.random.uniform() > 0.5 \
+                 else np.logical_not(values)
+        else:
+          flip = delta > np.random.uniform(size=values.shape)
+          vals = np.copy(values)
+          vals[flip] = np.logical_not(vals[flip])
+      else:
+        vals = np.array(values, dtype=int) + np.array(delta, dtype=int)
+        vals = np.array(np.mod(vals, 2), dtype=bool)
+    elif self._vfun is None:
       vals = values + delta
     else:
       vals = self.ret_vfun(1)(self.ret_vfun(0)(values) + delta)
-    vals = revtype(values + delta, self._vtype)
+    vals = revtype(vals, self._vtype)
 
     # Apply bounds
     if bound is None:

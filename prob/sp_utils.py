@@ -46,13 +46,24 @@ def hastings_scores(opqr, pscale=None):
   assert isscalar(succ.prob), message 
   if pred is None:
     return None
-  assert isscalar(pred.prob), "Preceding probability distribution non-scalar"
-  if prop is not None:
-    assert isscalar(prop.prob), "Proposal probability distirbution non-scalar"
+  assert isscalar(pred.prob), "Preceding probability non-scalar"
+  if prop is None:
+    return None
+  else:
+    assert isscalar(prop.prob), "Proposal probability non-scalar"
     prop = rescale(prop.prob, pscale, 1.)
     if prop <= 0.:
       return None
-    return min(1., div_prob(succ.prob, pred.prob, pscale, pscale, pscale=1.))
+    if revp is None:
+      return min(1., div_prob(succ.prob, pred.prob, pscale, pscale, pscale=1.))
+    else:
+      assert isscalar(revp.prob), "Reverse proposal probability non-scalar"
+      revp = rescale(revp.prob, pscale, 1.)
+      if revp <= 0.:
+        return 1.
+      return min(1., div_prob(succ.prob * prop.prob, 
+                              pred.prob * revp.prob, 
+                              pscale, pscale, pscale=1.))
 
 #-------------------------------------------------------------------------------
 def hastings_thresh(*args, **kwds):
