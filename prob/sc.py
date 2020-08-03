@@ -128,6 +128,7 @@ class SC (SJ):
     self._delta_args = delta._delta_args
     self._delta_kwds = delta._delta_kwds
     self._delta_type = delta._delta_type
+    self._spherise = delta._spherise
     return self._delta
 
 #-------------------------------------------------------------------------------
@@ -158,6 +159,7 @@ class SC (SJ):
       cfun = self._marg_cond[cfun]
     self.set_prop_obj(cfun)
     self._cfun = cfun._cfun
+    self._cfun_lud = cfun._cfun_lud
     return self._cfun
 
 #-------------------------------------------------------------------------------

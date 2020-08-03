@@ -6,6 +6,7 @@ participate in a joint probability distribution function.
 import warnings
 import collections
 import numpy as np
+import scipy.stats
 from prob.rv import RV
 from prob.dist import Dist
 from prob.vtypes import isscalar, isunitsetint, issingleton, revtype
@@ -14,6 +15,9 @@ from prob.pscales import iscomplex, real_sqrt, prod_rule, \
 from prob.sp_utils import sample_generator, \
                           metropolis_scores, hastings_scores, metropolis_update
 from prob.func import Func
+
+#-------------------------------------------------------------------------------
+SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
 
 #-------------------------------------------------------------------------------
 def rv_prod_rule(*args, rvs, pscale=None):
@@ -80,6 +84,7 @@ class SJ:
   _spherise = None
 
   # Private
+  __pset = None     # Set of pdfs/logpdfs/cdfs/icdfs
   __isscalar = None
   __callable = None
 
@@ -143,9 +148,13 @@ class SJ:
       self.set_pscale(pscale)
     self.__callable = None
     self.__isscalar = None
+    self.__pset = None
     self._prob = prob
     if self._prob is None:
       return self.__callable
+    if self._prob in SCIPY_STATS_MVAR:
+      self.__pset = self._prob(*kwds)
+      self._prob = self.eval_pset
     self._prob = Func(self._prob, *args, **kwds)
     self.__callable = self._prob.ret_callable()
     self.__isscalar = self._prob.ret_isscalar()
@@ -510,6 +519,12 @@ class SJ:
     return self._prob(values)
 
 #-------------------------------------------------------------------------------
+  def eval_pset(self, *args, **kwds):
+    assert self.__pset is not None and self.__pset in SCIPY_STATS_MVAR, \
+        "Cannot evaluate pset object: {}".format(self.__pset)
+    return self.__pset.pdf(np.dstack(np.meshgrid(*args)))
+
+#-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):
 
     # Handle native delta types within RV deltas
@@ -561,6 +576,7 @@ class SJ:
     # Spherical version
     delta = delta[0]
     spherise = self._spherise
+    keys = self._spherise.keys()
     rss = real_sqrt(np.sum(np.array(list(spherise.values()))**2))
     if self._delta_kwds['scale']:
       delta *= rss
@@ -568,9 +584,9 @@ class SJ:
     rss_deltas = real_sqrt(np.sum(deltas ** 2.))
     deltas = (deltas * delta) / rss_deltas
     delta_dict = collections.OrderedDict()
-    rvs = self.ret_rvs(aslist=True)
+    rvs = [self[key] for key in keys]
     idx = 0
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(keys):
       if key in unscale:
         val = unscale[key]
       else:
@@ -601,8 +617,9 @@ class SJ:
     bound = False if 'bound' not in self._delta_kwds \
            else self._delta_kwds['bound']
     vals = collections.OrderedDict(values)
-    rvs = self.ret_rvs(aslist=True)
-    for i, key in enumerate(self._keys):
+    keys = delta._fields
+    rvs = [self[key] for key in keys]
+    for i, key in enumerate(keys):
       vals.update({key: rvs[i].apply_delta(values[key], delta[i], bound=bound)})
     return vals
 

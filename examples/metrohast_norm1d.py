@@ -29,7 +29,7 @@ sigma.set_vfun((np.log, np.exp))
 params = prob.SJ(mu, sigma)
 stats = prob.SJ(x)
 process = prob.SP(stats, params)
-params.set_tran(lambda x: 1.)
+params.set_tran(lambda **x: 1.)
 params.set_delta(step_size)
 process.set_tran(params)
 process.set_delta(params)
@@ -39,5 +39,5 @@ init_state = {'x': data, 'mu': mu_lims[0], 'sigma': sigma_lims[0]}
 sampler = process.sampler(init_state, stop=n_steps, iid=True)
 samples = [sample for sample in sampler]
 summary = process(samples)
-mu, sigma = summary.p.vals['mu'], summary.p.vals['sigma']
+mu, sigma = summary.v.vals['mu'], summary.v.vals['sigma']
 
