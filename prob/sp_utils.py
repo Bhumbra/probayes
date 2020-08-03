@@ -39,8 +39,6 @@ def metropolis_update(stu):
 #-------------------------------------------------------------------------------
 def hastings_scores(opqr, pscale=None):
   pred, succ, prop, revp = opqr.o, opqr.p, opqr.q, opqr.r
-  if revp is not None:
-    raise NotImplementedError("Non-symmetrical transitions not yet supported")
   message = "No valid scalar probability distribution found"
   assert succ is not None, message
   assert isscalar(succ.prob), message 

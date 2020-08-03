@@ -18,8 +18,8 @@ from prob.sp_utils import sample_generator, \
 class SP (SC):
 
   # Public
-  stu = None     # scores + thresholds + update
-  opqrstu = None # opqr + stu
+  stuv = None     # scores + thresholds + update + veridct
+  opqrstuv = None # opqr + stuv
 
   # Protected
   _scores = None # Scores function used for the basis of acceptance
@@ -40,9 +40,9 @@ class SP (SC):
     super()._refresh()
     if self._marg is None and self._cond is None:
       return
-    self.stu = collections.namedtuple(self._id, ['s', 't', 'u'])
-    self.opqrstu = collections.namedtuple(self._id, 
-                       ['o', 'p', 'q', 'r', 's', 't', 'u'])
+    self.stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
+    self.opqrstuv = collections.namedtuple(self._id, 
+                        ['o', 'p', 'q', 'r', 's', 't', 'u', 'v'])
 
 #-------------------------------------------------------------------------------
   def set_scores(self, scores=None, *args, **kwds):
@@ -131,33 +131,36 @@ class SP (SC):
         samples = tuple(samples)
       return summate(*samples)
 
-    opqrstu = collections.OrderedDict({key: None for key in \
-        ['o', 'p', 'q', 'r', 's', 't', 'u']})
-    opqrstu['u'] = []
+    opqrstuv = collections.OrderedDict({key: None for key in \
+        ['o', 'p', 'q', 'r', 's', 't', 'u', 'v']})
+
+    # We exclude update=False from the summation
+    opqrstuv['u'] = []
 
     def _maybe_append(element, key):
       if element is not None:
-        if opqrstu[key] is None:
-          opqrstu[key] = []
-        opqrstu[key].append(element)
+        if opqrstuv[key] is None:
+          opqrstuv[key] = []
+        opqrstuv[key].append(element)
 
     for sample in samples:
-      assert isinstance(sample, self.opqrstu), \
+      assert isinstance(sample, self.opqrstuv), \
           "Sample must be outputted from sampler: {}".format(self._id)
       if sample.u == False:
         continue
-      opqrstu['u'].append(sample.u)
+      opqrstuv['u'].append(sample.u)
       _maybe_append(sample.o, 'o')
       _maybe_append(sample.p, 'p')
       _maybe_append(sample.q, 'q')
       _maybe_append(sample.r, 'r')
       _maybe_append(sample.s, 's')
       _maybe_append(sample.t, 't')
+      _maybe_append(sample.v, 'v')
           
-    for key in ['o', 'p', 'q', 'r']:
-      if opqrstu[key] is not None:
-        opqrstu[key] = summate(*tuple(opqrstu[key]))
-    return self.opqrstu(**opqrstu)
+    for key in ['o', 'p', 'q', 'r', 'v']:
+      if opqrstuv[key] is not None:
+        opqrstuv[key] = summate(*tuple(opqrstuv[key]))
+    return self.opqrstuv(**opqrstuv)
 
 #-------------------------------------------------------------------------------
   def ret_last(self):
@@ -192,13 +195,17 @@ class SP (SC):
         opqr = self.sample(*args, **kwds)
 
     # Set to last if accept is not False
-    stu = self.stu(self.eval_func(self._scores, opqr),
-                   self.eval_func(self._thresh),
-                   None)
-    update = self.eval_func(self._update, stu)
+    stuv = self.stuv(self.eval_func(self._scores, opqr),
+                     self.eval_func(self._thresh),
+                     None,
+                     None)
+    update = self.eval_func(self._update, stuv)
+    verdit = opqr.o
     if self.__last is None or update:
       self.__last = opqr
-    return self.opqrstu(opqr.o, opqr.p, opqr.q, opqr.r, stu.s, stu.t, update)
+      verdit = opqr.p
+    return self.opqrstuv(opqr.o, opqr.p, opqr.q, opqr.r, 
+                         stuv.s, stuv.t, update, verdit)
 
 #-------------------------------------------------------------------------------
   def sampler(self, *args, **kwds):

@@ -69,18 +69,19 @@ class SJ:
   _delta = None      # Delta function (to replace step)
   _delta_args = None # Optional delta args (must be dictionaries)
   _delta_kwds = None # Optional delta kwds
+  _delta_type = None # Same as delta
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function
   _cfun = None       # Covariance function
   _length = None     # Length of junction
   _lengths = None    # Lengths of RVs
+  _sym_tran = None
+  _cfun_lud = None
+  _spherise = None
 
   # Private
   __isscalar = None
   __callable = None
-  __sym_tran = None
-  __cfun_lud = None
-  __spherise = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -127,8 +128,8 @@ class SJ:
     self._name = ','.join(self._keys)
     self._id = '_and_'.join(self._keys)
     if self._id:
-      self.Delta = collections.namedtuple(self._id, 'ð')
       self.delta = collections.namedtuple('ð', self._keys)
+      self._delta_type = self.delta
     self.set_pscale()
     self.eval_length()
     return self._nrvs
@@ -195,7 +196,7 @@ class SJ:
     self._delta = delta
     self._delta_args = args
     self._delta_kwds = dict(kwds)
-    self.__spherise = {}
+    self._spherise = {}
     if self._delta is None:
       return
     elif callable(self._delta):
@@ -210,8 +211,8 @@ class SJ:
 
     # Handle deltas and dictionaries
     if isinstance(self._delta, dict):
-      self._delta = self.delta(**self._delta)
-    if isinstance(delta, self.delta):
+      self._delta = self._delta_type(**self._delta)
+    if isinstance(delta, self._delta_type):
       assert not args, \
         "Optional args prohibited for dict/delta instance inputs"
       rvs = self.ret_rvs(aslist=True)
@@ -250,7 +251,7 @@ class SJ:
         if urand:
           delta = [delta]
         delta_dict.update({key: delta})
-      self._delta = self.delta(**delta_dict)
+      self._delta = self._delta_type(**delta_dict)
       rvs = self.ret_rvs(aslist=True)
       for i, rv in enumerate(rvs):
         rv.set_delta(self._delta[i], scale=False, bound=bound)
@@ -258,25 +259,25 @@ class SJ:
     # Tuple deltas must be evaluated on-the-fly and cannot be pre-scaled
     else:
       unscale = {} if not self._delta_args else self._delta_args[0]
-      self.__spherise = {}
+      self._spherise = {}
       for i, key in enumerate(self._keys):
         if key not in unscale.keys():
           length = self._lengths[i]
           assert np.isfinite(length), \
               "Cannot spherise RV {} with infinite length".format(key)
-          self.__spherise.update({key: length})
+          self._spherise.update({key: length})
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
     # Set transition function
     self._tran = tran
-    self.__sym_tran = False
+    self._sym_tran = False
     if self._tran is None:
       return
     assert self._prop is None, \
         "Cannot assign both proposition and transition probabilities"
     self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = self._tran.ret_istuple()
+    self._sym_tran = self._tran.ret_istuple()
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -293,7 +294,7 @@ class SJ:
   def set_cfun(self, cfun=None, *args, **kwds):
     # Set covariance function for kernel-based sampling
     self._cfun = cfun
-    self.__cfun_lud = None
+    self._cfun_lud = None
     if self._cfun is None:
       return
     self._cfun = Func(self._cfun, *args, **kwds)
@@ -303,7 +304,7 @@ class SJ:
       assert isinstance(cfun, np.ndarray), message
       assert cfun.ndim == 2, message
       assert np.all(np.array(cfun.shape) == self._nrvs), message
-      self.__cfun_lud = np.linalg.cholesky(cfun)
+      self._cfun_lud = np.linalg.cholesky(cfun)
 
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
@@ -515,33 +516,38 @@ class SJ:
     if delta is None: 
       if self._delta is None:
         return None
-      elif isinstance(self._delta, self.delta):
+      elif isinstance(self._delta, Func):
+        delta = self._delta()
+      elif isinstance(self._delta, self._delta_type):
         delta_dict = collections.OrderedDict()
         rvs = self.ret_rvs(aslist=True)
         for i, key in enumerate(self._keys):
           delta_dict.update({key: rvs[i].eval_delta()})
-        delta = self.delta(**delta_dict)
+        delta = self._delta_type(**delta_dict)
       else:
         delta = self._delta
-    elif isinstance(delta, self.delta):
+    elif isinstance(delta, Func):
+      delta = delta()
+    elif isinstance(delta, self._delta_type):
       delta_dict = collections.OrderedDict()
       rvs = self.ret_rvs(aslist=True)
       for i, key in enumerate(self._keys):
         delta_dict.update({key: rvs[i].eval_delta(delta[i])})
-      delta = self.delta(**delta_dict)
+      delta = self._delta_type(**delta_dict)
 
     # Non spherical case
-    if isinstance(delta, self.delta): # i.e. non-spherical
+    if not isinstance(self._delta_type, Func) and \
+         isinstance(delta, self._delta_type): # i.e. non-spherical
       if self._cfun is None:
         return delta
-      elif self.__cfun_lud is not None:
+      elif self._cfun_lud is not None:
         delta = np.ravel(delta)
-        delta = self.__cfun_lud.dot(delta)
-        return self.delta(*delta)
+        delta = self._cfun_lud.dot(delta)
+        return self._delta_type(*delta)
       else:
         delta = self._cfun(delta)
-        assert isinstance(delta, self.delta), \
-            "User supplied cfun did not output delta typoe {}".format(self.delta)
+        assert isinstance(delta, self._delta_type), \
+            "User supplied cfun did not output delta typoe {}".format(self._delta_type)
         return delta
 
 
@@ -549,12 +555,12 @@ class SJ:
     assert isinstance(delta, tuple), \
         "Unknown delta type: {}".format(delta)
     unscale = {} if not self._delta_args else self._delta_args
-    if not len(self.__spherise):
-      return self.delta(**unscale)
+    if not len(self._spherise):
+      return self._delta_type(**unscale)
 
     # Spherical version
     delta = delta[0]
-    spherise = self.__spherise
+    spherise = self._spherise
     rss = real_sqrt(np.sum(np.array(list(spherise.values()))**2))
     if self._delta_kwds['scale']:
       delta *= rss
@@ -573,16 +579,16 @@ class SJ:
         if self._delta_kwds['scale']:
           val *= self._lengths[i]
       delta_dict.update({key: val})
-    delta = self.delta(**delta_dict)
+    delta = self._delta_type(**delta_dict)
     if self._cfun is None:
       return delta
-    elif self.__cfun_lud is not None:
-      delta = self.__cfun_lud.dot(np.array(delta, dtype=float))
-      return self.delta(*deltas)
+    elif self._cfun_lud is not None:
+      delta = self._cfun_lud.dot(np.array(delta, dtype=float))
+      return self._delta_type(*deltas)
     else:
       delta = self._cfun(delta)
-      assert isinstance(delta, self.delta), \
-          "User supplied cfun did not output delta type {}".format(self.delta)
+      assert isinstance(delta, self._delta_type), \
+          "User supplied cfun did not output delta type {}".format(self._delta_type)
       return delta
 
 #-------------------------------------------------------------------------------
@@ -590,8 +596,8 @@ class SJ:
     delta = delta or self._delta
     if delta is None:
       return values
-    assert isinstance(delta, self.delta), \
-          "Cannot apply delta without providing delta type {}".format(self.delta)
+    assert isinstance(delta, self._delta_type), \
+          "Cannot apply delta without providing delta type {}".format(self._delta_type)
     bound = False if 'bound' not in self._delta_kwds \
            else self._delta_kwds['bound']
     vals = collections.OrderedDict(values)
@@ -619,11 +625,12 @@ class SJ:
     # Evaluate deltas if required
     if succ_vals is None:
       succ_vals = self.eval_delta()
-    elif isinstance(succ_vals, (tuple, self.delta)):
+    elif isinstance(succ_vals, Func) or \
+        isinstance(succ_vals, (tuple, self._delta_type)):
       succ_vals = self.eval_delta(succ_vals)
 
     # Apply deltas or (TODO: sample)
-    if isinstance(succ_vals, self.delta):
+    if isinstance(succ_vals, self._delta_type):
       succ_vals = self.apply_delta(pred_vals, succ_vals)
     elif isunitsetint(succ_vals):
       assert self._tfun is not None and self._tfun_ret_callable(),\
@@ -768,6 +775,8 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
+    if not self._name:
+      return super().__repr__()
     return super().__repr__() + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------

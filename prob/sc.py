@@ -105,6 +105,7 @@ class SC (SJ):
     if self._prop_obj is None:
       return
     self.delta = self._prop_obj.delta
+    self._delta_type = self._prop_obj._delta_type
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
@@ -124,6 +125,9 @@ class SC (SJ):
       delta = self._marg_cond[delta]
     self.set_prop_obj(delta)
     self._delta = delta._delta
+    self._delta_args = delta._delta_args
+    self._delta_kwds = delta._delta_kwds
+    self._delta_type = delta._delta_type
     return self._delta
 
 #-------------------------------------------------------------------------------
