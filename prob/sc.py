@@ -96,9 +96,13 @@ class SC (SJ):
     self._id = '_with_'.join(ids)
     self.set_pscale()
     self.eval_length()
-    self._def_prop_obj = self._cond if self._cond is not None else self._marg
-    self.set_prop_obj(None)
     self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
+
+    # Set the default proposal object and default the delta accordingly
+    self._def_prop_obj = self._cond if self._cond is not None else self._marg
+    self.delta = self._def_prop_obj.delta
+    self._delta_type = self._def_prop_obj._delta_type
+    self.set_prop_obj(None)
 
 #-------------------------------------------------------------------------------
   def set_prop_obj(self, prop_obj=None):

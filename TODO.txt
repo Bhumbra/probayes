@@ -1,4 +1,3 @@
-Code a two-dimensional MH-MCMC toy example
 Support distribution quantile estimatation.
 Code a Gibbs sampler
 Rename repo to probayes and register package to PyPI.
