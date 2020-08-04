@@ -232,12 +232,19 @@ class Func:
     if self.__index is not None:
       index = self.__index
       self.__index = None
+    vals = args[0]
     if index < 4:
       if len(args) == 1 and isinstance(args[0], dict):
-        args = tuple(list(args[0].values())[::-1])
+        args = [np.ravel(val) for val in args[0].values()]
       elif not len(args) and len(kwds):
-        args = tuple(list(dict(kwds).values())[::-1])
-      return self.__scipycalls[index](np.dstack(np.meshgrid(*args)), **kwds)
+        args = list(collections.OrderedDict(**kwds).values())
+      if isinstance(args, list):
+        args = args[::-1]
+        if len(args) > 2:
+          args = args[1:] + [args[0]]
+        args = tuple(args)
+      return self.__scipycalls[index](np.stack(np.meshgrid(*args), axis=-1), 
+                                      **kwds)
     return self.__scipycalls[index](*args, **kwds)
 
 #-------------------------------------------------------------------------------
