@@ -8,7 +8,23 @@ making also a disallowed keyword.
 Func may be a tuple of callable/uncallable functions
 '''
 import numpy as np
+import scipy.stats
 from prob.vtypes import isscalar
+
+#-------------------------------------------------------------------------------
+""" 
+Scipy calls is supported a special case for following call convention:"
+func() pdf
+func[0]() pdf
+func[1]() logpdf
+func[2]() cdf
+func[3]() logcdf
+func[4]() rvs
+"""
+SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
+#-------------------------------------------------------------------------------
+def is_scipy_stats_mvar(arg, scipy_stats_mvar=SCIPY_STATS_MVAR):
+  return isinstance(arg, tuple(scipy_stats_mvar))
 
 #-------------------------------------------------------------------------------
 class Func:
@@ -21,7 +37,10 @@ class Func:
   # Private
   __istuple = None
   __isscalar = None # not of interest to Func but to objects that call Func
+  __isscipy = None
   __callable = None
+  __scipyobj = None
+  __scipycalls = None
   __order = None
   __delta = None
   __index = None
@@ -38,6 +57,8 @@ class Func:
     self.__order = None
     self.__delta = None
     self.__callable = None
+    self.__scipyobj = None
+    self.__isscipy = False
 
     # Sanity check func
     if self._func is None:
@@ -61,6 +82,16 @@ class Func:
         self.__isscalar = func_isscalar[0]
       if not self.__callable:
         assert not args and not kwds, "No optional args with uncallable function"
+    if is_scipy_stats_mvar(self._func):
+      self.__isscipy = True
+      self.__scipyobj = self._func(*args, **kwds)
+      self.__scipycalls = {
+                           0: self.__scipyobj.pdf,
+                           1: self.__scipyobj.logpdf,
+                           2: self.__scipyobj.cdf,
+                           3: self.__scipyobj.logcdf,
+                           4: self.__scipyobj.rvs,
+                          }
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
@@ -72,6 +103,8 @@ class Func:
     if self.__order is None:
       return
     assert self.__delta is None, "Cannot set both order and delta"
+    assert self.__scipyobj is None, \
+        "Optional 'order' keyword prohibited for scipy objectts"
     self._check_mapping(self.__order)
 
 #-------------------------------------------------------------------------------
@@ -80,6 +113,8 @@ class Func:
     if self.__delta is None:
       return
     assert self.__order is None, "Cannot set both order and delta"
+    assert self.__scipyobj is None, \
+        "Optional 'delta' keyword prohibited for scipy objectts"
     self._check_mapping(self.__delta)
 
 #-------------------------------------------------------------------------------
@@ -119,7 +154,17 @@ class Func:
     return self.__istuple
 
 #-------------------------------------------------------------------------------
+  def ret_isscipy(self):
+    return self.__isscipy
+
+#-------------------------------------------------------------------------------
   def _call(self, *args, **kwds):
+
+    # Handle scipy objects separately
+    if self.__isscipy:
+      return self._call_scipy(*args, **kwds)
+
+    # Check for indexing and reset if necessary
     func = self._func
     if self.__index is not None:
       func = func[self.__index]
@@ -182,13 +227,29 @@ class Func:
     return func(*tuple(args), **kwds)
 
 #-------------------------------------------------------------------------------
+  def _call_scipy(self, *args, **kwds):
+    index = 0
+    if self.__index is not None:
+      index = self.__index
+      self.__index = None
+    if index < 4:
+      if len(args) == 1 and isinstance(args[0], dict):
+        args = tuple(list(args[0].values())[::-1])
+      elif not len(args) and len(kwds):
+        args = tuple(list(dict(kwds).values())[::-1])
+      return self.__scipycalls[index](np.dstack(np.meshgrid(*args)), **kwds)
+    return self.__scipycalls[index](*args, **kwds)
+
+#-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-   assert not self.__istuple, "Cannot call with func tuple, use FuncWrap[]"
+   assert not self.__istuple or self.__isscipy, \
+       "Cannot call with func tuple, use FuncWrap[]"
    return self._call(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, index=None):
-   assert self.__istuple, "Cannot index without single func, use FuncWrap()"
+   assert self.__istuple or self.__isscipy, \
+     "Cannot index without single func, use FuncWrap()"
    self.__index = index
    return self._call
 

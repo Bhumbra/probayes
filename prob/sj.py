@@ -17,9 +17,6 @@ from prob.sp_utils import sample_generator, \
 from prob.func import Func
 
 #-------------------------------------------------------------------------------
-SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
-
-#-------------------------------------------------------------------------------
 def rv_prod_rule(*args, rvs, pscale=None):
   """ Returns the probability product treating all rvs as independent.
   Values (=args[0]) are keyed by RV name and rvs are a list of RVs.
@@ -84,7 +81,6 @@ class SJ:
   _spherise = None
 
   # Private
-  __pset = None     # Set of pdfs/logpdfs/cdfs/icdfs
   __isscalar = None
   __callable = None
 
@@ -148,13 +144,9 @@ class SJ:
       self.set_pscale(pscale)
     self.__callable = None
     self.__isscalar = None
-    self.__pset = None
     self._prob = prob
     if self._prob is None:
       return self.__callable
-    if self._prob in SCIPY_STATS_MVAR:
-      self.__pset = self._prob(*kwds)
-      self._prob = self.eval_pset
     self._prob = Func(self._prob, *args, **kwds)
     self.__callable = self._prob.ret_callable()
     self.__isscalar = self._prob.ret_isscalar()
@@ -516,13 +508,10 @@ class SJ:
     # Otherwise distinguish between uncallable and callables
     if not self.__callable:
       return self._prob()
+    elif isinstance(self._prob, Func) and self._prob.ret_isscipy():
+      index = 1 if iscomplex(self._pscale) else 0
+      return self._prob[index](values)
     return self._prob(values)
-
-#-------------------------------------------------------------------------------
-  def eval_pset(self, *args, **kwds):
-    assert self.__pset is not None and self.__pset in SCIPY_STATS_MVAR, \
-        "Cannot evaluate pset object: {}".format(self.__pset)
-    return self.__pset.pdf(np.dstack(np.meshgrid(*args)))
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):
