@@ -365,10 +365,14 @@ class Dist (Manifold):
     dims = collections.OrderedDict(self.dims)
     for i, key in enumerate(self._keys):
       if key in keys:
-        sum_axes.append(self.dims[key])
+        if self.dims[key] is not None:
+          sum_axes.append(self.dims[key])
         dims[key] = None
     prob = rescale(self.prob, self._pscale, 1.)
-    sum_prob = np.sum(prob, axis=tuple(set(sum_axes)), keepdims=False)
+    if sum_axes:
+      sum_prob = np.sum(prob, axis=tuple(set(sum_axes)), keepdims=False)
+    else:
+      sum_prob = np.sum(prob)
     vals = collections.OrderedDict()
     for i, key in enumerate(self._keys):
       if key in keys:

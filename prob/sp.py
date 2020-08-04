@@ -191,7 +191,7 @@ class SP (SC):
       if len(args) < 2:
         opqr = self.sample(last, **kwds)
       else:
-        args = tuple(last + list(args[1:]))
+        args = tuple([last] + list(args[1:]))
         opqr = self.sample(*args, **kwds)
 
     # Set to last if accept is not False

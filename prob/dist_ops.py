@@ -146,7 +146,7 @@ def product(*args, **kwds):
   if maybe_fasttrack:
     marg_same = True
     cond_same = True
-    if marg_sets is not None: # no need to recheck
+    if marg_sets is None: # no need to recheck if not None (I think)
       marg_same = True
       for name in marg_names[1:]:
         if marg_names[0] != name:
@@ -278,7 +278,7 @@ def product(*args, **kwds):
   # Fast-track scalar products
   if maybe_fasttrack and prod_ndims == 0:
      prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-     return dist(prod_name, prod_vals, {}, prob, pscale)
+     return Dist(prod_name, prod_vals, {}, prob, pscale)
 
   # Reshape values - they require no axes swapping
   ones_ndims = np.ones(prod_ndims, dtype=int)

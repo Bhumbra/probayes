@@ -357,6 +357,8 @@ class SJ:
     """ Returns (values, iid) from *args and **kwds """
     args = tuple(args)
     kwds = dict(kwds)
+    pass_all = False if 'pass_all' not in kwds else kwds.pop('pass_all')
+    
     if not args and not kwds:
       args = (None,)
     if args:
@@ -384,12 +386,18 @@ class SJ:
           values.update({key: [val] * (count_comma+1)})
       else:
         seen_keys.append(key)
-      assert seen_keys[-1] in self._keys, \
-          "Unrecognised key {} among available RVs {}".format(
-              seen_keys[-1], self._keys)
+      if not pass_all:
+        assert seen_keys[-1] in self._keys, \
+            "Unrecognised key {} among available RVs {}".format(
+                seen_keys[-1], self._keys)
     for key in self._keys:
       if key not in seen_keys:
         values.update({key: None})
+    if pass_all:
+      list_keys = list(values.keys())
+      for key in list_keys:
+        if key not in self._keys:
+          values.pop(key)
 
     return values
 
@@ -669,10 +677,11 @@ class SJ:
       pred_vals = dict()
       succ_vals = dict()
       for key, val in values.items():
-        if key[-1] == "'":
-          succ_vals.update({key[:-1]: val})
-        else:
-          pred_vals.update({key: val})
+        if key in self._keys:
+          if key[-1] == "'":
+            succ_vals.update({key[:-1]: val})
+          else:
+            pred_vals.update({key: val})
       cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)
     else:
       assert self._tran.ret_callable(), \
@@ -753,7 +762,7 @@ class SJ:
         succ_vals = {0}
 
     # Evaluate predecessor values
-    pred_vals = self.parse_args(pred_vals)
+    pred_vals = self.parse_args(pred_vals, pass_all=True)
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals, pred_dims = self.eval_vals(pred_vals)
 
