@@ -6,6 +6,8 @@ iteratively samples a stochastic condition.
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
+import inspect
+import warnings
 from prob.sc import SC
 from prob.func import Func
 from prob.dist import Dist
@@ -27,8 +29,9 @@ class SP (SC):
   _update = None # Update function (output True, None, or False)
 
   # Private
-  __last = None    # Last accepted Dist or OPQR object
-  __counter = None # Step counter
+  __samplers = None # List of samplers
+  __counter = None  # Step counter
+  __last = None     # Last argument ordereddict
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args, **kwds):
@@ -110,13 +113,27 @@ class SP (SC):
     return func(*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def reset(self, last=None, counter=None): # this allows optional preservation
-    self.__last = last
-    self.__counter = counter
+  def reset(self, sampler_id=None, reset_last=True): # Leave option to preseve
+    if self.__samplers is None or sampler_id is None:
+      self.__samplers = []
+    if self.__counter is None:
+      self.__counter = collections.Counter()
+    if self.__last is None:
+      self.__last = collections.OrderedDict()
+    if sampler_id is None:
+      return
+    sampler = self.ret_sampler(sampler_id)
+    self.__counter[sampler] = 0
+    if sampler not in self.__last:
+      self.__last[sampler] = None
+    elif reset_last:
+      self.__last[sampler] = None
+    return self.__samplers, self.__counter, self.__last
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    if not len(args) or len(kwds) or not isinstance(args[0], (list, tuple)):
+    if not len(args) or len(kwds) or \
+        not isinstance(args[0], (list, tuple, collections.deque)):
       return super().__call__(*args, **kwds)
     samples = args[0]
     if not len(samples):
@@ -127,7 +144,7 @@ class SP (SC):
       for sample in samples[1:]:
         assert isinstance(samples, Dist),\
             "If using distributions, all samples must be distributions"
-      if isinstance(samples, list):
+      if isinstance(samples, (list, collections.deque)):
         samples = tuple(samples)
       return summate(*samples)
 
@@ -163,30 +180,42 @@ class SP (SC):
     return self.opqrstuv(**opqrstuv)
 
 #-------------------------------------------------------------------------------
-  def ret_last(self):
-    return self.__last
+  def ret_sampler(self, sampler_id=None):
+    if sampler_id is None:
+      return self.__samplers
+    if type(sampler_id) is int:
+      return self.__samplers[sampler_id]
+    return sampler_id
 
 #-------------------------------------------------------------------------------
-  def ret_counter(self):
-    return self.__counter
+  def ret_counter(self, sampler_id=None):
+    if sampler_id is None:
+      return self.__counter
+    return self.__counter[self.ret_sampler(sampler_id)]
 
 #-------------------------------------------------------------------------------
-  def next(self, *args, **kwds):
+  def ret_last(self, sampler_id=None):
+    if sampler_id is None:
+      return self.__last
+    return self.__last[self.ret_sampler(sampler_id)]
+
+#-------------------------------------------------------------------------------
+  def next(self, sampler_id, *args, **kwds):
 
     # Reset counters
-    if self.__counter is None:
-      self.reset(self.ret_last(), 0)
-    self.__counter += 1
+    sampler = self.ret_sampler(sampler_id)
+    self.__counter[sampler] += 1
+    last = self.__last[sampler]
 
     # Treat sampling without proposals as a distribution call
-    if self.__last is None or (self._tran is None and self._prop is None):
+    if last is None or (self._tran is None and self._prop is None):
       opqr = self.sample(*args, **kwds)
       if self._tran is None and self._prop is None:
         return opqr
 
     # Otherwise refeed last proposals into sample function
     else:
-      last = self.__last if self._tran is not None or self._delta is not None \
+      last = last if self._tran is not None or self._delta is not None \
              else {0}
       if len(args) < 2:
         opqr = self.sample(last, **kwds)
@@ -201,21 +230,48 @@ class SP (SC):
                      None)
     update = self.eval_func(self._update, stuv)
     verdit = opqr.o
-    if self.__last is None or update:
-      self.__last = opqr
+    if self.__last[sampler] is None or update:
+      self.__last[sampler] = opqr
       verdit = opqr.p
     return self.opqrstuv(opqr.o, opqr.p, opqr.q, opqr.r, 
                          stuv.s, stuv.t, update, verdit)
 
 #-------------------------------------------------------------------------------
   def sampler(self, *args, **kwds):
-    self.reset()
+    if self.__samplers is None:
+      self.reset()
     if not args:
       args = {0},
     elif len(args) == 1 and type(args[0]) is int and 'stop' not in kwds:
       kwds.update({'stop': args[0]})
       args = {0},
     stop = None if 'stop' not in kwds else kwds.pop('stop')
-    return sample_generator(self, *args, stop=stop, **kwds)
+    sampler = sample_generator(self, 
+                               len(self.__samplers), 
+                               *args, 
+                               stop=stop, 
+                               **kwds)
+    self.__samplers.append(sampler)
+    self.__counter[sampler] = 0
+    self.__last[sampler] = None
+    return sampler
 
 #-------------------------------------------------------------------------------
+  def walk(self, sampler, stop=None):
+    gen_vars = inspect.getgeneratorlocals(sampler)
+    assert 'stop' in gen_vars, \
+        'Sampler must be a sampler_generator instance returned by SP.sampler()'
+    if stop is None and gen_vars['stop'] is None:
+      warnings.warn(
+        "No stop specification set - this walk may proceed indefinitely")
+    if stop is None: 
+      return collections.deque([sample for sample in sampler])
+    steps = collections.deque()
+    for sample in sampler:
+      if len(steps) >= stop:
+        break
+      steps.append(sample)
+    return steps
+
+#-------------------------------------------------------------------------------
+

@@ -5,15 +5,15 @@ from prob.vtypes import isscalar
 from prob.pscales import iscomplex, rescale, log_prob, div_prob
 
 #-------------------------------------------------------------------------------
-def sample_generator(sp, *args, stop=None, **kwds):
+def sample_generator(sp, sampler_id, *args, stop=None, **kwds):
   if stop is None:
     while True:
-      yield sp.next(*args, **kwds)
+      yield sp.next(sampler_id, *args, **kwds)
   else:
-    while sp.ret_counter() is None or sp.ret_counter() < stop:
-      yield sp.next(*args, **kwds)
+    while sp.ret_counter(sampler_id) < stop:
+      yield sp.next(sampler_id, *args, **kwds)
     else:
-      sp.reset(sp.ret_last())
+      sp.reset(sampler_id)
 
 #-------------------------------------------------------------------------------
 def metropolis_scores(opqr, pscale=None):

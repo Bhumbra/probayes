@@ -14,7 +14,7 @@ rand_size = 60
 rand_mean = 50.
 rand_stdv = 10.
 n_steps = 5000
-step_size = (0.002,)
+step_size = (0.005,)
 mu_lims = (40, 60)
 sigma_lims = (5, 20.)
 
@@ -39,9 +39,11 @@ process.set_scores('hastings')
 process.set_update('metropolis')
 init_state = {'mu': np.mean(mu_lims), 'sigma': np.mean(sigma_lims)}
 sampler = process.sampler(init_state, {'x': data}, stop=n_steps, iid=True, joint=True)
-samples = [sample for sample in sampler]
+#samples = [sample for sample in sampler] # <- use list comprehension or process.walk
+samples = process.walk(sampler)
 summary = process(samples)
 inference = summary.v.rescaled()
+n_accept = summary.u.count(True)
 mu, sigma, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
 
 # PLOT DATA
