@@ -14,7 +14,7 @@ rand_size = 60
 rand_mean = 50.
 rand_stdv = 10.
 n_steps = 5000
-step_size = (0.001,)
+step_size = (0.002,)
 mu_lims = (40, 60)
 sigma_lims = (5, 20.)
 

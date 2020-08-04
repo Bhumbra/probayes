@@ -21,6 +21,7 @@ class SC (SJ):
   _marg = None
   _cond = None
   _marg_cond = None    # {'marg': marg, 'cond': cond}
+  _def_prop_obj = None
   _prop_obj = None
 
   # Private
@@ -95,8 +96,8 @@ class SC (SJ):
     self._id = '_with_'.join(ids)
     self.set_pscale()
     self.eval_length()
-    prop_obj = self._cond if self._cond is not None else self._marg
-    self.set_prop_obj(prop_obj)
+    self._def_prop_obj = self._cond if self._cond is not None else self._marg
+    self.set_prop_obj(None)
     self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
 
 #-------------------------------------------------------------------------------
@@ -241,15 +242,19 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
-    if self._prop_obj is None:
+    prop_obj = self._prop_obj
+    if prop_obj is None and (self._tran is not None or self._prop is not None):
       return super().step(*args, **kwds)
-    return self._prop_obj.step(*args, **kwds)
+    prop_obj = prop_obj or self._def_prop_obj
+    return prop_obj.step(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):
-    if self._prop_obj is None:
+    prop_obj = self._prop_obj
+    if prop_obj is None and (self._tran is not None or self._prop is not None):
       return super().propose(*args, **kwds)
-    return self._prop_obj.propose(*args, **kwds)
+    prop_obj = prop_obj or self._def_prop_obj
+    return prop_obj.propose(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def parse_pred_args(self, arg):

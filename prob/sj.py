@@ -676,10 +676,12 @@ class SJ:
       rvs = self.ret_rvs(aslist=True)
       pred_vals = dict()
       succ_vals = dict()
-      for key, val in values.items():
+      for key_, val in values.items():
+        prime = key_[-1] == "'"
+        key = key_[:-1] if prime else key_
         if key in self._keys:
-          if key[-1] == "'":
-            succ_vals.update({key[:-1]: val})
+          if prime:
+            succ_vals.update({key: val})
           else:
             pred_vals.update({key: val})
       cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)

@@ -30,7 +30,6 @@ process.set_prob(inside)
 
 # DEFINE PROPOSAL DENSITY AND COEFFICIENT VARIABLE
 process.set_prop(norm2d)
-process.propose()
 process.set_scores(lambda opqr: opqr.p.prob)
 coef_max = float(norm2d(radius, 1.))
 process.set_thresh(np.random.uniform, low=0., high=coef_max)
