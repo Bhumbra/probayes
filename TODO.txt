@@ -1,3 +1,4 @@
+Support full Hastings ratio evaluation.
 Support cross-sectional tfun sampling.
 Code a Gibbs sampler
 Support distribution quantile estimation.
