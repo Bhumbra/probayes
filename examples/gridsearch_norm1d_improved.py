@@ -24,7 +24,7 @@ sigma = prob.RV('sigma', sigma_lims, vtype=float)
 x = prob.RV('x', {-np.inf, np.inf}, vtype=float)
 
 # Set reciprocal prior for  sigma
-sigma.set_vfun((np.log, np.exp))
+sigma.set_mfun((np.log, np.exp))
 
 # Set up params and models
 params = prob.SJ(mu, sigma)

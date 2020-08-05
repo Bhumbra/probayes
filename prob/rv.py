@@ -43,7 +43,7 @@ class RV (Domain, Prob):
     self.set_name(name)
     self.set_vset(vset, vtype)
     self.set_prob(prob, pscale, *args, **kwds)
-    self.set_vfun()
+    self.set_mfun()
     self.set_delta()
 
 #-------------------------------------------------------------------------------
@@ -90,18 +90,18 @@ class RV (Domain, Prob):
 #-------------------------------------------------------------------------------
   def set_pfun(self, *args, **kwds):
     super().set_pfun(*args, **kwds)
-    if self._vfun is None or self._pfun is None:
+    if self._mfun is None or self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
         self.ret_pfun(1) != scipy.stats.uniform.ppf:
-      assert self._vfun is None, \
+      assert self._mfun is None, \
         "Cannot assign non-uniform distribution alongside " + \
         "values transformation functions"
 
 #-------------------------------------------------------------------------------
-  def set_vfun(self, *args, **kwds):
-    super().set_vfun(*args, **kwds)
-    if self._vfun is None:
+  def set_mfun(self, *args, **kwds):
+    super().set_mfun(*args, **kwds)
+    if self._mfun is None:
       return
 
     # Recalibrate scalar probabilities for floating point vtypes
@@ -233,8 +233,8 @@ class RV (Domain, Prob):
         cdf_val = list(succ_vals)[0]
         lo, hi = min(self._limits), max(self._limits)
         succ_val = lo*(1.-cdf_val) + hi*cdf_val
-        if self._vfun is not None:
-          succ_val = self.ret_vfun(1)(succ_val)
+        if self._mfun is not None:
+          succ_val = self.ret_mfun(1)(succ_val)
 
       prob = self._tran()
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)

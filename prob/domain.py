@@ -24,7 +24,7 @@ class Domain:
   _name = "var"      # Name of the variable
   _vset = None       # Variable set (array or 2-length tuple range)
   _vtype = None      # Variable type
-  _vfun = None       # 2-length tuple of mutually inverting functions
+  _mfun = None       # 2-length tuple of monotonic mutually inverting functions
   _lims = None       # Numpy array of bounds of vset
   _limits = None     # Transformed self._lims
   _length = None     # Difference in self._limits
@@ -37,12 +37,12 @@ class Domain:
   def __init__(self, name=None,
                      vset=None, 
                      vtype=None,
-                     vfun=None,
+                     mfun=None,
                      *args,
                      **kwds):
     self.set_name(name)
     self.set_vset(vset, vtype)
-    self.set_vfun(vfun, *args, **kwds)
+    self.set_mfun(mfun, *args, **kwds)
     self.set_delta()
 
 #-------------------------------------------------------------------------------
@@ -135,8 +135,8 @@ class Domain:
       vset = vset[::-1]
       self._vset = vset
     self._lims = np.sort(lims)
-    self._limits = self._lims if self._vfun is None \
-                   else self.ret_vfun(0)(self._lims)
+    self._limits = self._lims if self._mfun is None \
+                   else self.ret_mfun(0)(self._lims)
     self._length = max(self._limits) - min(self._limits)
 
     # Now set inside function
@@ -157,18 +157,18 @@ class Domain:
                                               x < self._lims[1])
 
 #-------------------------------------------------------------------------------
-  def set_vfun(self, vfun=None, *args, **kwds):
-    self._vfun = vfun
-    if self._vfun is None:
+  def set_mfun(self, mfun=None, *args, **kwds):
+    self._mfun = mfun
+    if self._mfun is None:
       return
 
     assert self._vtype in VTYPES[float], \
         "Values transformation function only supported for floating point"
-    message = "Input vfun be a two-sized tuple of callable functions"
-    assert isinstance(self._vfun, tuple), message
-    assert len(self._vfun) == 2, message
-    assert callable(self._vfun[0]), message
-    assert callable(self._vfun[1]), message
+    message = "Input mfun be a two-sized tuple of callable functions"
+    assert isinstance(self._mfun, tuple), message
+    assert len(self._mfun) == 2, message
+    assert callable(self._mfun[0]), message
+    assert callable(self._mfun[1]), message
     self._eval_lims()
 
 #-------------------------------------------------------------------------------
@@ -210,12 +210,12 @@ class Domain:
     return self._vtype
 
 #-------------------------------------------------------------------------------
-  def ret_vfun(self, index=None):
-    if self._vfun is None:
+  def ret_mfun(self, index=None):
+    if self._mfun is None:
       return lambda x:x
     if index is None:
-      return self._vfun
-    return self._vfun[index]
+      return self._mfun
+    return self._mfun[index]
 
 #-------------------------------------------------------------------------------
   def ret_lims(self):
@@ -270,11 +270,10 @@ class Domain:
                            isinstance(self._vset[1], tuple)
                         )
 
-      # Only use vfun when isunitsetint(values)
-      if self._vfun:
-        return self.ret_vfun(1)(values)
+      # Only use mfun when isunitsetint(values)
+      if self._mfun:
+        return self.ret_mfun(1)(values)
     return values
-   
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
@@ -348,10 +347,10 @@ class Domain:
       else:
         vals = np.array(values, dtype=int) + np.array(delta, dtype=int)
         vals = np.array(np.mod(vals, 2), dtype=bool)
-    elif self._vfun is None:
+    elif self._mfun is None:
       vals = values + delta
     else:
-      vals = self.ret_vfun(1)(self.ret_vfun(0)(values) + delta)
+      vals = self.ret_mfun(1)(self.ret_mfun(0)(values) + delta)
     vals = revtype(vals, self._vtype)
 
     # Apply bounds
