@@ -59,8 +59,8 @@ def hastings_scores(opqr, pscale=None):
       revp = rescale(revp.prob, pscale, 1.)
       if revp <= 0.:
         return 1.
-      return min(1., div_prob(succ.prob * prop.prob, 
-                              pred.prob * revp.prob, 
+      return min(1., div_prob(succ.prob * prop, 
+                              pred.prob * revp, 
                               pscale, pscale, pscale=1.))
 
 #-------------------------------------------------------------------------------

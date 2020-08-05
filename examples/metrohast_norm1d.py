@@ -31,7 +31,8 @@ stats = prob.SJ(x)
 process = prob.SP(stats, params)
 process.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'})
-params.set_tran(lambda **x: 1.)
+tran = lambda **x: 1.
+params.set_tran((tran, tran))
 params.set_delta(step_size, scale=True)
 process.set_tran(params)
 process.set_delta(params)

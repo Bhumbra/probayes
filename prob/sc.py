@@ -351,8 +351,10 @@ class SC (SJ):
     assert 'suffix' not in kwds, \
         "Disallowed keyword 'suffix' when using set_tran()"
 
-    # Original probability distribution defaults to None
+    # Original probability distribution, proposal, and revp defaults to None
     orig = None
+    prop = None
+    revp = None
 
     # Non-opqr argument requires no parsing
     if not isinstance(args[0], self.opqr):
@@ -367,6 +369,10 @@ class SC (SJ):
       vals = get_suffixed(dist.vals)
       prop = self.step(vals, **kwds)
 
+    # Evaluate reverse proposal if transition function not symmetric
+    if not self._sym_tran:
+      revp = self.reval_tran(prop)
+
     # Extract values evaluating probability
     vals = get_suffixed(prop.vals)
     if len(args) > 1:
@@ -374,9 +380,9 @@ class SC (SJ):
           "Second argument must be dictionary type, not {}".format(
               type(args[1]))
       vals.update(args[1])
-    call = self.__call__(vals, **kwds)
+    prob = self.__call__(vals, **kwds)
 
-    return self.opqr(orig, call, prop, None)
+    return self.opqr(orig, prob, prop, revp)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

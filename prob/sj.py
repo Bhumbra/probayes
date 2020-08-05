@@ -9,6 +9,7 @@ import numpy as np
 import scipy.stats
 from prob.rv import RV
 from prob.dist import Dist
+from prob.dist_ops import margcond_str
 from prob.vtypes import isscalar, isunitsetint, issingleton, revtype
 from prob.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
@@ -278,7 +279,7 @@ class SJ:
     assert self._prop is None, \
         "Cannot assign both proposition and transition probabilities"
     self._tran = Func(self._tran, *args, **kwds)
-    self._sym_tran = self._tran.ret_istuple()
+    self._sym_tran = not self._tran.ret_istuple()
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -688,10 +689,25 @@ class SJ:
     else:
       assert self._tran.ret_callable(), \
           "Only callable transitional functions supported for multidimensionals"
-      prob = self._tran if not self._tran.ret_istuple() else \
-             self._tran[int(reverse)]
-      cond = prob(values)
+      cond = self._tran(values) if self._sym_tran else \
+             self._tran[int(reverse)](values)
     return cond
+
+#-------------------------------------------------------------------------------
+  def reval_tran(self, dist):
+    """ Evaluates the conditional reverse-transition function for corresponding 
+    transition conditional distribution dist. This requires a tuple input for
+    self.set_tran() to evaluate a new conditional.
+    """
+    assert isinstance(dist, Dist), \
+        "Input must be a distribution, not {} type.".format(type(dist))
+    marg, cond = dist.cond, dist.marg
+    name = margcond_str(marg, cond)
+    vals = dist.vals
+    dims = dist.dims
+    prob = dist.prob if self._sym_tran else self._tran[1](dist.vals)
+    pscale = dist.ret_pscale()
+    return Dist(name, vals, dims, prob, pscale)
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):

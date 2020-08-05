@@ -250,13 +250,13 @@ class Func:
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
    assert not self.__istuple or self.__isscipy, \
-       "Cannot call with func tuple, use FuncWrap[]"
+       "Cannot call with tuple func, use Func[]"
    return self._call(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, index=None):
    assert self.__istuple or self.__isscipy, \
-     "Cannot index without single func, use FuncWrap()"
+     "Cannot index without single func, use Func()"
    self.__index = index
    return self._call
 

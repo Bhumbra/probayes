@@ -10,6 +10,7 @@ Simple Metropolis Hastings sampler taken from Hogg and Foreman-MacKey(2018):
   the sampler for more than 10000 steps. Plot the results 
   as a histogram with the true density overplotted sensibly.
   
+  From Problem 4a:
   Redo Problem 2, but now with an input density that is a 
   function of two variables (x, y). For the density function use
   two different functions. (a) The first density function is a
@@ -17,7 +18,14 @@ Simple Metropolis Hastings sampler taken from Hogg and Foreman-MacKey(2018):
   tensor: V = [[2.0, 1.2], [1.2, 2.0]] ... For the proposal
   distribution q (x',y'∣x, y) use a two-dimensional Gaussian
   density with mean at [x, y] and variance tensor set to the
-  two-dimensional identity matrix. 
+  two-dimensional identity matrix.
+  
+  Redo Problem 4(a) with a proposal q (x'∣x) with a stupidly 
+  shifted mean of x + 2 and see what happens. Bonus points: 
+  modify the acceptance–rejection criterion to deal with the 
+  messed-up q (x'∣x) and show that everything works once again.
+
+  (Solution used here: Use full 
 
 """
 
@@ -35,15 +43,22 @@ def q(**kwds):
   x, xprime = kwds['x'], kwds["x'"]
   y, yprime = kwds['y'], kwds["y'"]
   return scipy.stats.norm.pdf(yprime, loc=y, scale=prop_stdv) * \
-         scipy.stats.norm.pdf(xprime, loc=x, scale=prop_stdv)
+         scipy.stats.norm.pdf(xprime, loc=x+2., scale=prop_stdv)
+
+
+def r(**kwds):
+  x, xprime = kwds['x'], kwds["x'"]
+  y, yprime = kwds['y'], kwds["y'"]
+  return scipy.stats.norm.pdf(yprime, loc=y, scale=prop_stdv) * \
+         scipy.stats.norm.pdf(xprime, loc=x-2., scale=prop_stdv)
 
 x = prob.RV('x', (-np.inf, np.inf), vtype=float)
 y = prob.RV('y', (-np.inf, np.inf), vtype=float)
 process = prob.SP(x*y)
 process.set_prob(scipy.stats.multivariate_normal, [0., 0.],
                  [[2.0, 1.2], [1.2, 2.0]])
-process.set_tran(q)
-lambda_delta = lambda : process.delta(x=scipy.stats.norm.rvs(loc=0., scale=prop_stdv),
+process.set_tran((q, r))
+lambda_delta = lambda : process.delta(x=scipy.stats.norm.rvs(loc=-2, scale=prop_stdv),
                                       y=scipy.stats.norm.rvs(loc=0., scale=prop_stdv))
 process.set_delta(lambda_delta)
 process.set_scores('hastings')
