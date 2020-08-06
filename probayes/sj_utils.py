@@ -40,7 +40,7 @@ def call_scipy_tfun(*args, scipyobj=None, pscale=None, inverse=None, **kwds):
     cov = scipyobj.cov
     std = np.sqrt(np.diag(cov).real)
     co_std = cov[inv_idx] / std
-    mean = np.sum(co_std * diff) + means[inv_idx] 
+    mean = np.sqrt(np.sum(co_std * diff)) + means[inv_idx] 
     stdv = std[inv_idx]
     return scipy.stats.norm.ppf(cdf, loc=mean, scale=stdv)
 
