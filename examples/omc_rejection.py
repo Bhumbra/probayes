@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 from matplotlib.colors import Normalize
 from pylab import *; ion()
-import prob
+import probayes as pb
 
 # PARAMETERS
 radius = 1.
@@ -20,8 +20,8 @@ def norm2d(x, y, loc=0., scale=radius):
          scipy.stats.norm.pdf(y, loc=loc, scale=scale)
 
 xy_range = [-radius, radius]
-x = prob.RV("x", xy_range)
-y = prob.RV("y", xy_range)
+x = pb.RV("x", xy_range)
+y = pb.RV("y", xy_range)
 
 # DEFINE STOCHASTIC CONDITION
 xy = x * y
@@ -30,7 +30,7 @@ xy.set_prob(inside)
 # DEFINE PROPOSAL DENSITY AND COEFFICIENT VARIABLE
 xy.set_prop(norm2d)
 coef_max = float(norm2d(radius, 1.))
-coef = prob.RV('coef', {0., coef_max})
+coef = pb.RV('coef', {0., coef_max})
 coefs = coef(set_size)
 p_prop = xy.propose({'x,y': set_size}, suffix=False)
 thresholds = coefs.vals['coef'] * p_prop.prob

@@ -4,14 +4,14 @@
 import collections
 import numpy as np
 import scipy.stats
-from prob.domain import Domain
-from prob.prob import Prob, is_scipy_stats_cont
-from prob.dist import Dist
-from prob.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
+from probayes.domain import Domain
+from probayes.prob import Prob, is_scipy_stats_cont
+from probayes.dist import Dist
+from probayes.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from prob.pscales import div_prob, rescale, eval_pscale
-from prob.func import Func
-from prob.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
+from probayes.pscales import div_prob, rescale, eval_pscale
+from probayes.func import Func
+from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
 
 """
@@ -359,8 +359,8 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    from prob.sj import SJ
-    from prob.sc import SC
+    from probayes.sj import SJ
+    from probayes.sc import SC
     if isinstance(other, SC):
       marg = [self] + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
@@ -377,8 +377,8 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from prob.sj import SJ
-    from prob.sc import SC
+    from probayes.sj import SJ
+    from probayes.sc import SC
     if isinstance(other, SC):
       marg = [self] + other.ret_cond().ret_rvs()
       cond = other.ret_marg().ret_rvs()

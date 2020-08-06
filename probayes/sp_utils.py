@@ -1,8 +1,8 @@
 """ A utility module for stochasptic process classes """
 
 import numpy as np
-from prob.vtypes import isscalar
-from prob.pscales import iscomplex, rescale, log_prob, div_prob
+from probayes.vtypes import isscalar
+from probayes.pscales import iscomplex, rescale, log_prob, div_prob
 
 #-------------------------------------------------------------------------------
 def sample_generator(sp, sampler_id, *args, stop=None, **kwds):

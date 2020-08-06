@@ -3,7 +3,7 @@ transition matrix defined using a continuous transition
 function. Probability multiplications are performed using 
 summations in log-space.
 """
-import prob
+import probayes as pb
 import numpy as np
 import scipy.stats
 import matplotlib
@@ -20,7 +20,7 @@ def tran(succ, pred):
   logdx = np.log((max(set_lims) - min(set_lims)) / list(set_size)[0])
   return logdx+scipy.stats.norm.logpdf(succ, loc=loc, scale=scale)
 
-x = prob.RV('x', set_lims, pscale='log')
+x = pb.RV('x', set_lims, pscale='log')
 x.set_tran(tran, order={"x'": 0, 'x': 1})
 cond = x.step(set_size)
 conds = [None] * n_steps

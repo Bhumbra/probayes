@@ -3,13 +3,13 @@ import scipy.stats
 import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
-import prob
+import probayes as pb
 
 set_lims = (-3., 3.)
 set_size_0 = {200}
 set_size_1 = {300}
-rv_0 = prob.RV("norm_0", set_lims, pscale='log')
-rv_1 = prob.RV("norm_1", set_lims, pscale='log')
+rv_0 = pb.RV("norm_0", set_lims, pscale='log')
+rv_1 = pb.RV("norm_1", set_lims, pscale='log')
 norm2d = rv_0 * rv_1
 norm2d.set_prob(scipy.stats.multivariate_normal, \
              [0., 0.], [[2.0, -0.3], [-0.3, 0.5]])

@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
-import prob
+import probayes as pb
 
 # PARAMETERS
 radius = 1.
@@ -15,8 +15,8 @@ def inside(x, y):
   return x**2 + y**2 <= radius**2
 
 xy_range = (-radius, radius)
-x = prob.RV("x", xy_range)
-y = prob.RV("y", xy_range)
+x = pb.RV("x", xy_range)
+y = pb.RV("y", xy_range)
 
 # DEFINE STOCHASTIC JUNCTION
 xy = x * y

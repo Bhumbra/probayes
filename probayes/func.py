@@ -9,7 +9,7 @@ Func may be a tuple of callable/uncallable functions
 '''
 import numpy as np
 import scipy.stats
-from prob.vtypes import isscalar
+from probayes.vtypes import isscalar
 
 #-------------------------------------------------------------------------------
 """ 

@@ -4,11 +4,11 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from prob.dist_ops import str_margcond, margcond_str, product, summate, rekey_dict
-from prob.vtypes import issingleton, isscalar
-from prob.pscales import eval_pscale, rescale, iscomplex
-from prob.pscales import prod_pscale, prod_rule, div_prob
-from prob.manifold import Manifold
+from probayes.dist_ops import str_margcond, margcond_str, product, summate, rekey_dict
+from probayes.vtypes import issingleton, isscalar
+from probayes.pscales import eval_pscale, rescale, iscomplex
+from probayes.pscales import prod_pscale, prod_rule, div_prob
+from probayes.manifold import Manifold
 
 #-------------------------------------------------------------------------------
 class Dist (Manifold):

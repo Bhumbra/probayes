@@ -4,7 +4,7 @@
 import numpy as np
 import collections
 import warnings
-from prob.vtypes import issingleton
+from probayes.vtypes import issingleton
 
 #-------------------------------------------------------------------------------
 class Manifold:

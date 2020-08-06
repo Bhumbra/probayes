@@ -8,9 +8,9 @@ from abc import ABC, abstractmethod
 import warnings
 import numpy as np
 import scipy.stats
-from prob.vtypes import isscalar
-from prob.pscales import eval_pscale, rescale, iscomplex
-from prob.func import Func
+from probayes.vtypes import isscalar
+from probayes.pscales import eval_pscale, rescale, iscomplex
+from probayes.func import Func
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}

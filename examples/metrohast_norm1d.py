@@ -2,7 +2,7 @@
 Simple Metropolis Hastings sampler for evaluating posterior for mean and stdv
 """
 
-import prob
+import probayes as pb
 import numpy as np
 import scipy.stats
 import matplotlib
@@ -22,9 +22,9 @@ sigma_lims = (5, 20.)
 data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 
 # SET UP MODEL AND SAMPLER
-mu = prob.RV('mu', mu_lims, vtype=float, pscale='log')
-sigma = prob.RV('sigma', sigma_lims, vtype=float, pscale='log')
-x = prob.RV('x', (-np.inf, np.inf), vtype=float)
+mu = pb.RV('mu', mu_lims, vtype=float, pscale='log')
+sigma = pb.RV('sigma', sigma_lims, vtype=float, pscale='log')
+x = pb.RV('x', (-np.inf, np.inf), vtype=float)
 sigma.set_mfun((np.log, np.exp))
 params = prob.SJ(mu, sigma)
 stats = prob.SJ(x)

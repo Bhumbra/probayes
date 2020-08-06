@@ -7,15 +7,15 @@ import warnings
 import collections
 import numpy as np
 import scipy.stats
-from prob.rv import RV
-from prob.dist import Dist
-from prob.dist_ops import margcond_str
-from prob.vtypes import isscalar, isunitsetint, issingleton, revtype
-from prob.pscales import iscomplex, real_sqrt, prod_rule, \
+from probayes.rv import RV
+from probayes.dist import Dist
+from probayes.dist_ops import margcond_str
+from probayes.vtypes import isscalar, isunitsetint, issingleton, revtype
+from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
-from prob.sp_utils import sample_generator, \
+from probayes.sp_utils import sample_generator, \
                           metropolis_scores, hastings_scores, metropolis_update
-from prob.func import Func
+from probayes.func import Func
 
 #-------------------------------------------------------------------------------
 def rv_prod_rule(*args, rvs, pscale=None):

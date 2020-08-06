@@ -1,13 +1,13 @@
 """ Simple example program using deltas in 3 dimensions """
-import prob
+import probayes as pb
 import numpy as np
 set_lims = [-0.5, 0.5]
 num_deltas = 20000
 delta = (0.1,)
 
-x = prob.RV('x', set_lims, vtype=float)
-y = prob.RV('y', set_lims, vtype=float)
-z = prob.RV('z', set_lims, vtype=float)
+x = pb.RV('x', set_lims, vtype=float)
+y = pb.RV('y', set_lims, vtype=float)
+z = pb.RV('z', set_lims, vtype=float)
 
 xyz = x * y * z
 xyz.set_delta(delta, scale=True)

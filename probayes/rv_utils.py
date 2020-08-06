@@ -1,8 +1,8 @@
 import numpy as np
-from prob.vtypes import isunitsetint, isunitsetfloat, isunitset, isscalar, \
+from probayes.vtypes import isunitsetint, isunitsetfloat, isunitset, isscalar, \
                         uniform, eval_vtype, VTYPES
 
-from prob.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_INF
+from probayes.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_INF
 """
 A module to provide functional support to rv.py
 """

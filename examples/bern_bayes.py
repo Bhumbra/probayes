@@ -1,4 +1,4 @@
-import prob
+import probayes as pb
 import numpy as np
 """
 Consider a disease with a prevalence 1\% in a given population. 
@@ -14,8 +14,8 @@ sym_if_dis = 0.98
 sym_if_undis = 0.1
 
 # SET UP RANDOM VARIABLES
-dis = prob.RV('dis', prob=prevalence)
-sym = prob.RV('sym')
+dis = pb.RV('dis', prob=prevalence)
+sym = pb.RV('sym')
 
 # SET UP STOCHASTIC CONDITION
 sym_given_dis = sym / dis

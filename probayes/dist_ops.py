@@ -5,8 +5,8 @@
 import collections
 import functools
 import numpy as np
-from prob.vtypes import isscalar, issingleton, isunitsetint, isunitset
-from prob.pscales import rescale, prod_pscale, prod_rule, iscomplex
+from probayes.vtypes import isscalar, issingleton, isunitsetint, isunitset
+from probayes.pscales import rescale, prod_pscale, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
 def str2key(string):
@@ -87,7 +87,7 @@ def product(*args, **kwds):
   2. Conditional variables must be identical unless contained as marginal from
      another distribution.
   """
-  from prob.dist import Dist
+  from probayes.dist import Dist
 
   # Check pscales, scalars, possible fasttrack
   if not len(args):
@@ -331,7 +331,7 @@ def product(*args, **kwds):
 #-------------------------------------------------------------------------------
 def summate(*args):
   """ Quick and dirty concatenation """
-  from prob.dist import Dist
+  from probayes.dist import Dist
   if not len(args):
     return None
   pscales = [arg.ret_pscale() for arg in args]

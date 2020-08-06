@@ -2,7 +2,7 @@
 
 import numpy as np
 import scipy.stats
-import prob
+import probayes as pb
 import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
@@ -19,17 +19,17 @@ resolution = {'mu': {128}, 'sigma': {192}}
 data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 
 # Declare RVs
-mu = prob.RV('mu', mu_lims, vtype=float)
-sigma = prob.RV('sigma', sigma_lims, vtype=float)
-x = prob.RV('x', {-np.inf, np.inf}, vtype=float)
+mu = pb.RV('mu', mu_lims, vtype=float)
+sigma = pb.RV('sigma', sigma_lims, vtype=float)
+x = pb.RV('x', {-np.inf, np.inf}, vtype=float)
 
 # Set reciprocal prior for  sigma
 sigma.set_mfun((np.log, np.exp))
 
 # Set up params and models
-params = prob.SJ(mu, sigma)
-stats = prob.SJ(x)
-model = prob.SC(stats, params)
+params = pb.SJ(mu, sigma)
+stats = pb.SJ(x)
+model = pb.SC(stats, params)
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')

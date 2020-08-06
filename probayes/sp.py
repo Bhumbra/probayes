@@ -8,11 +8,11 @@ import numpy as np
 import collections
 import inspect
 import warnings
-from prob.sc import SC
-from prob.func import Func
-from prob.dist import Dist
-from prob.dist_ops import summate
-from prob.sp_utils import sample_generator, \
+from probayes.sc import SC
+from probayes.func import Func
+from probayes.dist import Dist
+from probayes.dist_ops import summate
+from probayes.sp_utils import sample_generator, \
                           metropolis_scores, metropolis_thresh, metropolis_update, \
                           hastings_scores, hastings_thresh, hastings_update \
 

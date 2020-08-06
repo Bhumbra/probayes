@@ -1,9 +1,9 @@
 # Sampling program to test simple 1-D sampling
-import prob
+import probayes as pb
 num_samples = 10
 
-x = prob.RV('x', vtype=float)
-p = prob.SP(x)
+x = pb.RV('x', vtype=float)
+p = pb.SP(x)
 
 # Method one
 sampler_0 = p.sampler()

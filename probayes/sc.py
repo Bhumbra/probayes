@@ -6,11 +6,11 @@ probability distribution function.
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-from prob.sj import SJ
-from prob.func import Func
-from prob.dist import Dist
-from prob.dist_ops import product
-from prob.sc_utils import desuffix, get_suffixed
+from probayes.sj import SJ
+from probayes.func import Func
+from probayes.dist import Dist
+from probayes.dist_ops import product
+from probayes.sc_utils import desuffix, get_suffixed
 
 #-------------------------------------------------------------------------------
 class SC (SJ):

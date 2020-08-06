@@ -19,9 +19,9 @@ resolution = {'mu': {128}, 'sigma': {192}}
 data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 
 # Declare RVs
-mu = prob.RV('mu', mu_lims, vtype=float)
-sigma = prob.RV('sigma', sigma_lims, vtype=float)
-x = prob.RV('x', (-np.inf, np.inf), vtype=float)
+mu = pb.RV('mu', mu_lims, vtype=float)
+sigma = pb.RV('sigma', sigma_lims, vtype=float)
+x = pb.RV('x', (-np.inf, np.inf), vtype=float)
 
 # Set reciprocal prior for  sigma
 sigma.set_prob(lambda x: 1./x)

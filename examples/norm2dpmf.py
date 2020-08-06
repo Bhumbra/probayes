@@ -3,14 +3,14 @@ import scipy.stats
 import matplotlib
 matplotlib.use("Qt5Agg")
 from pylab import *; ion()
-import prob
+import probayes as pb
 
 set_lims = (-3., 3.)
 set_size_0 = {200}
 set_size_1 = {300}
-rv_0 = prob.RV("norm_0", set_lims, prob=scipy.stats.norm, 
+rv_0 = pb.RV("norm_0", set_lims, prob=scipy.stats.norm, 
                pscale='log', loc=0, scale=1)
-rv_1 = prob.RV("norm_1", set_lims, prob=scipy.stats.norm, 
+rv_1 = pb.RV("norm_1", set_lims, prob=scipy.stats.norm, 
                pscale='log', loc=0, scale=1)
 l_0 = rv_0(set_size_0)
 l_1 = rv_1(set_size_1)

@@ -7,9 +7,9 @@ invertible variable transformations are.
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-from prob.vtypes import eval_vtype, isunitsetint, isscalar, \
+from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES
-from prob.func import Func
+from probayes.func import Func
 
 #-------------------------------------------------------------------------------
 DEFAULT_VSET = {False, True}

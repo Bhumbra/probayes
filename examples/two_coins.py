@@ -1,7 +1,7 @@
 # Example of a joint PMF for two coins
-import prob
-h0 = prob.RV('c0', prob=0.7)
-h1 = prob.RV('c1', prob=0.4)
+import probayes as pb
+h0 = pb.RV('c0', prob=0.7)
+h1 = pb.RV('c1', prob=0.4)
 hh = h0 * h1
 HH = hh()
 m0 = HH({'c0':True})

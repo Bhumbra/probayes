@@ -21,7 +21,7 @@ Simple Metropolis Hastings sampler taken from Hogg and Foreman-MacKey(2018):
 
 """
 
-import prob
+import probayes as pb
 import numpy as np
 import scipy.stats
 import matplotlib
@@ -37,9 +37,9 @@ def q(**kwds):
   return scipy.stats.norm.pdf(yprime, loc=y, scale=prop_stdv) * \
          scipy.stats.norm.pdf(xprime, loc=x, scale=prop_stdv)
 
-x = prob.RV('x', (-np.inf, np.inf), vtype=float)
-y = prob.RV('y', (-np.inf, np.inf), vtype=float)
-process = prob.SP(x*y)
+x = pb.RV('x', (-np.inf, np.inf), vtype=float)
+y = pb.RV('y', (-np.inf, np.inf), vtype=float)
+process = pb.SP(x*y)
 process.set_prob(scipy.stats.multivariate_normal, [0., 0.],
                  [[2.0, 1.2], [1.2, 2.0]])
 process.set_tran(q)
