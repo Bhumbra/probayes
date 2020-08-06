@@ -9,7 +9,7 @@ import collections
 from probayes.sj import SJ
 from probayes.func import Func
 from probayes.dist import Dist
-from probayes.dist_ops import product
+from probayes.dist_utils import product
 from probayes.sc_utils import desuffix, get_suffixed
 
 #-------------------------------------------------------------------------------

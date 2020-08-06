@@ -1,5 +1,3 @@
-Support full Hastings ratio evaluation.
 Support cross-sectional tfun sampling.
 Code a Gibbs sampler
 Support distribution quantile estimation.
-Rename repo to probayes and register package to PyPI.

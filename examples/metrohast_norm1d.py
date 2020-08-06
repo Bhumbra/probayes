@@ -26,9 +26,9 @@ mu = pb.RV('mu', mu_lims, vtype=float, pscale='log')
 sigma = pb.RV('sigma', sigma_lims, vtype=float, pscale='log')
 x = pb.RV('x', (-np.inf, np.inf), vtype=float)
 sigma.set_mfun((np.log, np.exp))
-params = prob.SJ(mu, sigma)
-stats = prob.SJ(x)
-process = prob.SP(stats, params)
+params = pb.SJ(mu, sigma)
+stats = pb.SJ(x)
+process = pb.SP(stats, params)
 process.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'})
 tran = lambda **x: 1.

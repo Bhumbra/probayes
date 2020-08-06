@@ -22,7 +22,7 @@ func[3]() logcdf
 func[4]() rvs
 """
 SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
-#-------------------------------------------------------------------------------
+#------------------------------------------------------------------------------- 
 def is_scipy_stats_mvar(arg, scipy_stats_mvar=SCIPY_STATS_MVAR):
   return isinstance(arg, tuple(scipy_stats_mvar))
 
@@ -158,6 +158,10 @@ class Func:
     return self.__isscipy
 
 #-------------------------------------------------------------------------------
+  def ret_scipyobj(self):
+    return self.__scipyobj
+
+#-------------------------------------------------------------------------------
   def _call(self, *args, **kwds):
 
     # Handle scipy objects separately
@@ -238,6 +242,7 @@ class Func:
         args = [np.ravel(val) for val in args[0].values()]
       elif not len(args) and len(kwds):
         args = list(collections.OrderedDict(**kwds).values())
+        kwds = {}
       if isinstance(args, list):
         args = args[::-1]
         if len(args) > 2:
@@ -255,6 +260,8 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, index=None):
+   if index is None:
+     return self._func
    assert self.__istuple or self.__isscipy, \
      "Cannot index without single func, use Func()"
    self.__index = index

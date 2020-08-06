@@ -9,12 +9,11 @@ import numpy as np
 import scipy.stats
 from probayes.rv import RV
 from probayes.dist import Dist
-from probayes.dist_ops import margcond_str
+from probayes.dist_utils import margcond_str
 from probayes.vtypes import isscalar, isunitsetint, issingleton, revtype
 from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
-from probayes.sp_utils import sample_generator, \
-                          metropolis_scores, hastings_scores, metropolis_update
+from probayes.sj_utils import call_scipy_prob
 from probayes.func import Func
 
 #-------------------------------------------------------------------------------
@@ -280,6 +279,16 @@ class SJ:
         "Cannot assign both proposition and transition probabilities"
     self._tran = Func(self._tran, *args, **kwds)
     self._sym_tran = not self._tran.ret_istuple()
+    if self._tran.ret_isscipy():
+      scipy_tfun = call_scipy_tfun if self._sym_tran else \
+                   (call_scipy_tfun, call_scipy_tfun)
+      scipyobj = self._tran.ret_scipyobj()
+      ccm = scipyobj.cov
+      std = np.sqrt(np.diag(ccm).real)
+      ccm /= std[:, None]
+      ccm /= std[None, :]
+      self.set_tfun(scipy_tfun, scipyobj=self._tran.ret_scipyobj(), 
+                                pscale=self._pscale, ccm=ccm)
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -290,7 +299,6 @@ class SJ:
     raise NotImplemented(
         "Multidimensional transitional CDF sampling not yet implemented")
     assert self._tfun.ret_istuple(), "Tuple of two functions required"
-    assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
@@ -518,8 +526,7 @@ class SJ:
     if not self.__callable:
       return self._prob()
     elif isinstance(self._prob, Func) and self._prob.ret_isscipy():
-      index = 1 if iscomplex(self._pscale) else 0
-      return self._prob[index](values)
+      return call_scipy_prob(self._prob, self._pscale, values)
     return self._prob(values)
 
 #-------------------------------------------------------------------------------
@@ -650,8 +657,35 @@ class SJ:
     elif isunitsetint(succ_vals):
       assert self._tfun is not None and self._tfun_ret_callable(),\
           "Transitional CDF calling requires callable tfun"
-
-    # TODO: to increase capability of this section to cope beyond scalars
+      number = list(succ_vals)[0]
+      succ_vals = collections.OrderedDict()
+      succ_lims = collections.OrderedDict()
+      succ_vset = collections.OrderedDict()
+      for key in self.keys:
+        if key in pred_vals:
+          succ_vals.update({key: pred_vals[key]})
+          lims = self[key].ret_lims()
+          assert np.all(np.isfinite(lims)), \
+              "Cannot sample RV {} exhibiting limits {}".\
+              format(key, lims)
+          succ_vals.update({key: pred_vals[key]})
+          succ_lims.update({key: lims})
+          succ_vset.update({key: self[key].ret_vset()})
+      keys = succ_vals.keys()
+      if self._tfun.ret_istuple():
+        for key in keys:
+          succ_vals[key] = succ_lims[key]
+          vset = succ_vset[key]
+          clims = self._tfun[int(reverse)](succ_vals)
+          succ_vals[key] = uniform(clims[0], clims[1], number)
+          succ_vals[key] = self._tfun(succ_vals, inverse=key)
+      else:
+        for key in keys:
+          succ_vals[key] = succ_lims[key]
+          vset = succ_vset[key]
+          clims = self._tfun[int(reverse)](succ_vals)
+          succ_vals[key] = uniform(clims[0], clims[1], number)
+          succ_vals[key] = self._tfun(succ_vals, inverse=key)
 
     # Initialise outputs with predecessor values
     dims = {}

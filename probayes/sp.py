@@ -11,7 +11,7 @@ import warnings
 from probayes.sc import SC
 from probayes.func import Func
 from probayes.dist import Dist
-from probayes.dist_ops import summate
+from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, \
                           metropolis_scores, metropolis_thresh, metropolis_update, \
                           hastings_scores, hastings_thresh, hastings_update \

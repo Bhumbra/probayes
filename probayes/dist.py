@@ -4,7 +4,7 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from probayes.dist_ops import str_margcond, margcond_str, product, summate, rekey_dict
+from probayes.dist_utils import str_margcond, margcond_str, product, summate, rekey_dict
 from probayes.vtypes import issingleton, isscalar
 from probayes.pscales import eval_pscale, rescale, iscomplex
 from probayes.pscales import prod_pscale, prod_rule, div_prob

@@ -4,4 +4,4 @@ from probayes.sj import SJ
 from probayes.sc import SC
 from probayes.sp import SP
 from probayes.dist import Dist
-from probayes.dist_ops import product, iterdict
+from probayes.dist_utils import product, summate, iterdict
