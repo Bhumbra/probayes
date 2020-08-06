@@ -8,7 +8,7 @@ def call_scipy_prob(func, pscale, *arg, **kwds):
   return func[index](*args, **kwds)
 
 #-------------------------------------------------------------------------------
-def call_scipy_tfun(*args, scipyobj=None, pscale=None, inverse=None, ccm=None, **kwds):
+def call_scipy_tfun(*args, scipyobj=None, pscale=None, inverse=None, **kwds):
     vals = args[0]
     inv_idx = None
     assert scipyobj, \
@@ -39,11 +39,8 @@ def call_scipy_tfun(*args, scipyobj=None, pscale=None, inverse=None, ccm=None, *
     diff = args - means
     cov = scipyobj.cov
     std = np.sqrt(np.diag(cov).real)
-    if ccm is None:
-      ccm /= std[:, None]
-      ccm /= std[None, :]
-    wdiff = ccm[inv_idx] * diff
-    mean = np.sum(wdiff) + means[inv_idx] 
+    co_std = cov[inv_idx] / std
+    mean = np.sum(co_std * diff) + means[inv_idx] 
     stdv = std[inv_idx]
     return scipy.stats.norm.ppf(cdf, loc=mean, scale=stdv)
 

@@ -283,12 +283,8 @@ class SJ:
       scipy_tfun = call_scipy_tfun if self._sym_tran else \
                    (call_scipy_tfun, call_scipy_tfun)
       scipyobj = self._tran.ret_scipyobj()
-      ccm = scipyobj.cov
-      std = np.sqrt(np.diag(ccm).real)
-      ccm /= std[:, None]
-      ccm /= std[None, :]
       self.set_tfun(scipy_tfun, scipyobj=self._tran.ret_scipyobj(), 
-                                pscale=self._pscale, ccm=ccm)
+                                pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
