@@ -1,2 +1,2 @@
 # probayes
-Probability repository supporting multiple Bayesian methods including MCMC
+Probability package supporting multiple Bayesian methods including MCMC
