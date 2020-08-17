@@ -10,11 +10,13 @@ import scipy.stats
 from probayes.rv import RV
 from probayes.dist import Dist
 from probayes.dist_utils import margcond_str
-from probayes.vtypes import isscalar, isunitsetint, issingleton, revtype
+from probayes.vtypes import isscalar, isunitsetint, issingleton, \
+                            revtype, uniform
 from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
-from probayes.sj_utils import call_scipy_prob
+from probayes.sj_utils import call_scipy_prob, sample_cond_cov
 from probayes.func import Func
+from probayes.cond_cov import CondCov
 
 #-------------------------------------------------------------------------------
 def rv_prod_rule(*args, rvs, pscale=None):
@@ -83,6 +85,8 @@ class SJ:
   # Private
   __isscalar = None
   __callable = None
+  __cond_mod = None
+  __cond_cov = None
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
@@ -280,21 +284,27 @@ class SJ:
     self._tran = Func(self._tran, *args, **kwds)
     self._sym_tran = not self._tran.ret_istuple()
     if self._tran.ret_isscipy():
-      scipy_tfun = call_scipy_tfun if self._sym_tran else \
-                   (call_scipy_tfun, call_scipy_tfun)
       scipyobj = self._tran.ret_scipyobj()
-      self.set_tfun(scipy_tfun, scipyobj=self._tran.ret_scipyobj(), 
-                                pscale=self._pscale)
+      self.set_tfun(self._tran, scipyobj=self._tran.ret_scipyobj())
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
     # Set cdf and inverse cdf of transitional for conditional sampling
-    self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
+    scipyobj = None if 'scipyobj' not in kwds else kwds['scipyobj']
+    self._tfun = tfun 
     if self._tfun is None:
       return
-    raise NotImplemented(
-        "Multidimensional transitional CDF sampling not yet implemented")
-    assert self._tfun.ret_istuple(), "Tuple of two functions required"
+    if scipyobj is None:
+       self._tfun = Func(self._tfun, *args, **kwds)
+       return
+    rvs = self.ret_rvs(aslist=True)
+    lims = np.array([rv.ret_lims() for rv in rvs])
+    mean = scipyobj.mean
+    cov = scipyobj.cov
+    self._cond_cov = CondCov(mean, cov, lims)
+    scipy_cond = sample_cond_cov if self._sym_tran else \
+                 (sample_cond_cov, sample_cond_cov)
+    self._tfun = Func(scipy_cond, cond_cov=self._cond_cov)
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
@@ -648,16 +658,17 @@ class SJ:
       succ_vals = self.eval_delta(succ_vals)
 
     # Apply deltas or (TODO: sample)
+    cond = None
     if isinstance(succ_vals, self._delta_type):
       succ_vals = self.apply_delta(pred_vals, succ_vals)
     elif isunitsetint(succ_vals):
-      assert self._tfun is not None and self._tfun_ret_callable(),\
+      assert self._tfun is not None and self._tfun.ret_callable(),\
           "Transitional CDF calling requires callable tfun"
       number = list(succ_vals)[0]
       succ_vals = collections.OrderedDict()
       succ_lims = collections.OrderedDict()
       succ_vset = collections.OrderedDict()
-      for key in self.keys:
+      for key in self._keys:
         if key in pred_vals:
           succ_vals.update({key: pred_vals[key]})
           lims = self[key].ret_lims()
@@ -667,25 +678,32 @@ class SJ:
           succ_vals.update({key: pred_vals[key]})
           succ_lims.update({key: lims})
           succ_vset.update({key: self[key].ret_vset()})
-      keys = succ_vals.keys()
+      keys = list(succ_vals.keys())
+
+      #"""
+      if self.__cond_mod is None:
+        self.__cond_mod = 0
+      # One variable at a time modification
+      keys = [keys[self.__cond_mod]]
+      self.__cond_mod += 1
+      if self.__cond_mod >= len(succ_vals):
+        self.__cond_mod = 0
+      #"""
+      cond = 1.
       if self._tfun.ret_istuple():
         for key in keys:
-          succ_vals[key] = succ_lims[key]
-          vset = succ_vset[key]
-          clims = self._tfun[int(reverse)](succ_vals)
-          succ_vals[key] = uniform(clims[0], clims[1], number)
-          succ_vals[key] = self._tfun(succ_vals, inverse=key)
+          succ_vals[key] = {0}
+          succ_vals[key] = self._tfun[int(reverse)](succ_vals)
       else:
         for key in keys:
-          succ_vals[key] = succ_lims[key]
-          vset = succ_vset[key]
-          clims = self._tfun[int(reverse)](succ_vals)
-          succ_vals[key] = uniform(clims[0], clims[1], number)
-          succ_vals[key] = self._tfun(succ_vals, inverse=key)
+          succ_vals[key] = {0}
+          succ_vals[key] = self._tfun(succ_vals)
 
     # Initialise outputs with predecessor values
     dims = {}
     kwargs = {'reverse': reverse}
+    if cond is not None:
+      kwargs = {'cond': cond}
     vals = collections.OrderedDict()
     for key in self._keys:
       vals.update({key: pred_vals[key]})
@@ -702,6 +720,8 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def eval_tran(self, values, **kwargs):
+    if 'cond' in kwargs:
+      return kwargs['cond']
     reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     if self._tran is None:
       rvs = self.ret_rvs(aslist=True)

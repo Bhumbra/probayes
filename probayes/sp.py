@@ -14,7 +14,8 @@ from probayes.dist import Dist
 from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, \
                           metropolis_scores, metropolis_thresh, metropolis_update, \
-                          hastings_scores, hastings_thresh, hastings_update \
+                          hastings_scores, hastings_thresh, hastings_update, \
+                          gibbs_update
 
 #-------------------------------------------------------------------------------
 class SP (SC):
@@ -100,6 +101,12 @@ class SP (SC):
           "Neither args nor kwds permitted with spec '{}'".format(self._update)
       self.set_update(hastings_update)
       return
+    elif self._update == 'gibbs':
+      assert not args and not kwds, \
+          "Neither args nor kwds permitted with spec '{}'".format(self._update)
+      self.set_update(gibbs_update)
+      return
+   
     self._update = Func(self._update, *args, **kwds)
 
 #-------------------------------------------------------------------------------

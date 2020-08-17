@@ -248,6 +248,7 @@ class Func:
         if len(args) > 2:
           args = args[1:] + [args[0]]
         args = tuple(args)
+      vals = args
       return self.__scipycalls[index](np.stack(np.meshgrid(*args), axis=-1), 
                                       **kwds)
     return self.__scipycalls[index](*args, **kwds)

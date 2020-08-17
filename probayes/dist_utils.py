@@ -1,5 +1,5 @@
 
-# A module to perform utility for Dist() instances.
+# A module to perform utility functions for Dist() instances.
 
 #-------------------------------------------------------------------------------
 import collections
