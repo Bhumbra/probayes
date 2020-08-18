@@ -7,8 +7,8 @@ import probayes as pb
 
 set_lims = (-10., 10.)
 nsteps = 2000
-means = [-0.5, 0.5]
-covar = [[1.0, -1.0], [-1.0, 3.0]]
+means = [-0.0, 0.0]
+covar = [[1.5, -1.0], [-1.0, 2.]]
 
 x = pb.RV('x', set_lims, vtype=float)
 y = pb.RV('y', set_lims, vtype=float)
@@ -31,7 +31,7 @@ figure()
 plot(x_t, y_t, '.')
 c_norm = Normalize(vmin=np.min(p_t), vmax=np.max(p_t))
 c_map = cm.jet(c_norm(p_t))
-#plot(x_t, y_t, '-', color=(0.7, 0.7, 0.7, 0.3))
+plot(x_t, y_t, '-', color=(0.7, 0.7, 0.7, 0.3))
 scatter(x_t, y_t, color=c_map, marker='.', alpha=1.)
 xlabel(r'$x$')
 ylabel(r'$y$')
