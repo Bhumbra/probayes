@@ -6,12 +6,14 @@ import scipy.stats
 from probayes.pscales import iscomplex, rescale
 
 #-------------------------------------------------------------------------------
-def call_scipy_prob(func, pscale, *arg, **kwds):
+def call_scipy_prob(func, pscale, *args, **kwds):
   index = 1 if iscomplex(pscale) else 0
   return func[index](*args, **kwds)
 
 #-------------------------------------------------------------------------------
 def sample_cond_cov(*args, cond_cov=None, **kwds):
+    kwds = dict(kwds)
+    cond_pdf = False if 'cond_pdf' not in kwds else kwds.pop('cond_pdf')
     assert cond_cov, "coveig object mandatory"
     if len(args) == 1 and isinstance(args[0], dict):
       vals = args[0]
@@ -21,6 +23,6 @@ def sample_cond_cov(*args, cond_cov=None, **kwds):
       vals = dict(kwds)
       idx = {key: i for i, key in enumerate(vals.keys())}
       args = list(kwds.values())
-    return cond_cov.interp(*args)
+    return cond_cov.interp(*args, cond_pdf=cond_pdf)
 
 #-------------------------------------------------------------------------------

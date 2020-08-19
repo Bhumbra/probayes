@@ -394,8 +394,8 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    from prob.rv import RV
-    from prob.sj import SJ
+    from probayes.rv import RV
+    from probayes.sj import SJ
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
     if isinstance(other, SC):
@@ -415,8 +415,8 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from prob.rv import RV
-    from prob.sj import SJ
+    from probayes.rv import RV
+    from probayes.sj import SJ
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
     if isinstance(other, SC):

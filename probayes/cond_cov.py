@@ -39,10 +39,11 @@ class CondCov:
                           for i, lim in enumerate(self._lims)])
 
 #-------------------------------------------------------------------------------
-  def interp(self, *args):
+  def interp(self, *args, cond_pdf=False):
     # args in order of mean - one must be a unitsetint
     idx = None
     dmu = np.empty((self._n, 1), dtype=float)
+    vals = [arg for arg in args]
     for i, arg in enumerate(args):
       if isunitsetint(arg):
         if idx is None:
@@ -58,6 +59,10 @@ class CondCov:
     cdf = uniform(lims[0], lims[1], number)
     mean = self._mean[idx] + float(self._coef[idx].dot(dmu))
     stdv = self._stdv[idx]
-    return scipy.stats.norm.ppf(cdf, loc=mean, scale=stdv)
+    vals = scipy.stats.norm.ppf(cdf, loc=mean, scale=stdv)
+    if not cond_pdf:
+      return vals
+    return vals, scipy.stats.norm.pdf(vals, loc=mean, scale=stdv)
+
 
 #-------------------------------------------------------------------------------

@@ -84,6 +84,15 @@ def issingleton(var):
   return isscalar(var)
 
 #-------------------------------------------------------------------------------
+def isunitary(var):
+  if isscalar(var):
+    return True
+  if isinstance(var, np.ndarray):
+    if var.size == 1:
+      return True
+  return False
+
+#-------------------------------------------------------------------------------
 def revtype(var, vtype=None):
   if vtype is None:
     return var

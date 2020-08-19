@@ -75,6 +75,7 @@ class SJ:
   _delta_type = None # Same as delta
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function
+  _t1vt = None       # Flag for transitional conditioning one variable at a time
   _cfun = None       # Covariance function
   _length = None     # Length of junction
   _lengths = None    # Lengths of RVs
@@ -96,6 +97,7 @@ class SJ:
     self.set_delta()
     self.set_tran()
     self.set_cfun()
+    self.set_t1vt()
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -305,6 +307,10 @@ class SJ:
     scipy_cond = sample_cond_cov if self._sym_tran else \
                  (sample_cond_cov, sample_cond_cov)
     self._tfun = Func(scipy_cond, cond_cov=self._cond_cov)
+
+#-------------------------------------------------------------------------------
+  def set_t1vt(self, t1vt=False):
+    self._t1vt = t1vt
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
@@ -576,7 +582,6 @@ class SJ:
             "User supplied cfun did not output delta typoe {}".format(self._delta_type)
         return delta
 
-
     # Rule out possibility of all RVs contained in unscaling argument
     assert isinstance(delta, tuple), \
         "Unknown delta type: {}".format(delta)
@@ -680,16 +685,17 @@ class SJ:
           succ_vset.update({key: self[key].ret_vset()})
       keys = list(succ_vals.keys())
 
-      #"""
-      if self.__cond_mod is None:
-        self.__cond_mod = 0
       # One variable at a time modification
-      keys = [keys[self.__cond_mod]]
-      self.__cond_mod += 1
-      if self.__cond_mod >= len(succ_vals):
-        self.__cond_mod = 0
-      #"""
-      cond = 1.
+      if self._t1vt:
+        if self.__cond_mod is None:
+          self.__cond_mod = 0
+        keys = [keys[self.__cond_mod]]
+        self.__cond_mod += 1
+        if self.__cond_mod >= len(succ_vals):
+          self.__cond_mod = 0
+
+      # Iterate through values
+      cond = np.nan
       if self._tfun.ret_istuple():
         for key in keys:
           succ_vals[key] = {0}
@@ -864,8 +870,8 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    from prob.rv import RV
-    from prob.sc import SC
+    from probayes.rv import RV
+    from probayes.sc import SC
     if isinstance(other, SC):
       marg = self.ret_rvs() + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
@@ -883,8 +889,8 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from prob.rv import RV
-    from prob.sc import SC
+    from probayes.rv import RV
+    from probayes.sc import SC
     if isinstance(other, SC):
       marg = self.ret_rvs() + other.ret_cond().ret_rvs()
       cond = other.ret_marg().ret_rvs()

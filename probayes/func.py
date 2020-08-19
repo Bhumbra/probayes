@@ -9,7 +9,7 @@ Func may be a tuple of callable/uncallable functions
 '''
 import numpy as np
 import scipy.stats
-from probayes.vtypes import isscalar
+from probayes.vtypes import isscalar, isunitary
 
 #-------------------------------------------------------------------------------
 """ 
@@ -22,6 +22,7 @@ func[3]() logcdf
 func[4]() rvs
 """
 SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
+
 #------------------------------------------------------------------------------- 
 def is_scipy_stats_mvar(arg, scipy_stats_mvar=SCIPY_STATS_MVAR):
   return isinstance(arg, tuple(scipy_stats_mvar))
@@ -243,12 +244,11 @@ class Func:
       elif not len(args) and len(kwds):
         args = list(collections.OrderedDict(**kwds).values())
         kwds = {}
-      if isinstance(args, list):
+      if isinstance(args, list) and not np.all([isunitary(arg) for arg in args]):
         args = args[::-1]
         if len(args) > 2:
           args = args[1:] + [args[0]]
         args = tuple(args)
-      vals = args
       return self.__scipycalls[index](np.stack(np.meshgrid(*args), axis=-1), 
                                       **kwds)
     return self.__scipycalls[index](*args, **kwds)

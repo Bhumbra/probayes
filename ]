@@ -5,20 +5,20 @@ matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import probayes as pb
 
-set_lims = (-5., 5.)
+set_lims = (-3., 3.)
 set_size_0 = {200}
 set_size_1 = {300}
 means = [0.5, -0.5]
 covar = [[1.5, -1.0], [-1.0, 2.]]
-x = pb.RV("x", set_lims, pscale='log')
-y = pb.RV("y", set_lims, pscale='log')
+x = pb.RV("norm_0", set_lims, pscale='log')
+y = pb.RV("norm_1", set_lims, pscale='log')
 xy = x * y
 xy.set_prob(scipy.stats.multivariate_normal, means, covar)
-pxy = xy({'x': set_size_0, 'y': set_size_1})
+pxy = xy({'x': set_size_0, 'norm_1': set_size_1})
 p_xy = pxy.rescaled()
-pmf = p_xy.prob[:-1, :-1]
+pmf = p_01.prob[:-1, :-1]
 figure()
-pcolor(np.ravel(p_xy.vals['y']), 
-       np.ravel(p_xy.vals['x']), 
+pcolor(np.ravel(p_01.vals['norm_1']), 
+       np.ravel(p_01.vals['norm_0']), 
        pmf, cmap=cm.jet)
 colorbar()

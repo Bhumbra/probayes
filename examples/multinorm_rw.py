@@ -7,7 +7,7 @@ import probayes as pb
 
 set_lims = (-10., 10.)
 nsteps = 2000
-means = [-0.0, 0.0]
+means = [0.5, -0.5]
 covar = [[1.5, -1.0], [-1.0, 2.]]
 
 x = pb.RV('x', set_lims, vtype=float)
@@ -23,15 +23,18 @@ for i in range(nsteps):
     cond = xy.step({'x':0., 'y':0.}, {0})
   else:
     cond = xy.step({'x': x_t[i-1], 'y': y_t[i-1]}, {0})
-  x_t[i], y_t[i], p_t[i] = cond.vals["x'"], cond.vals["y'"], cond.prob
+  x_t[i], y_t[i] = cond.vals["x'"], cond.vals["y'"]
+  p_xy = xy({'x': x_t[i], 'y': y_t[i]})
+  p_t[i] = p_xy.prob
 
 xy_t = np.array([x_t, y_t])
+amn_xy = np.mean(xy_t, axis=1)
 cov_xy = np.cov(xy_t)
+
 figure()
-plot(x_t, y_t, '.')
 c_norm = Normalize(vmin=np.min(p_t), vmax=np.max(p_t))
 c_map = cm.jet(c_norm(p_t))
 plot(x_t, y_t, '-', color=(0.7, 0.7, 0.7, 0.3))
-scatter(x_t, y_t, color=c_map, marker='.', alpha=1.)
+scatter(x_t, y_t, color=c_map, marker='.')
 xlabel(r'$x$')
 ylabel(r'$y$')
