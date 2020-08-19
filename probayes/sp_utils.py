@@ -72,7 +72,22 @@ def hastings_update(stu):
   return metropolis_update(stu)
 
 #-------------------------------------------------------------------------------
-def gibbs_update(stu):
+def gibbs_scores(*args, **kwds):
+  return np.nan
+
+#-------------------------------------------------------------------------------
+def gibbs_thresh(*args, **kwds):
+  return np.nan
+
+#-------------------------------------------------------------------------------
+def gibbs_update(*args, **kwds):
   return True
+
+#-------------------------------------------------------------------------------
+MCMC_SAMPLERS = {
+    'metropolis': (metropolis_scores, metropolis_thresh, metropolis_update),
+    'hastings': (hastings_scores, hastings_thresh, hastings_update),
+    'gibbs': (gibbs_scores, gibbs_thresh, gibbs_update),
+                }
 
 #-------------------------------------------------------------------------------

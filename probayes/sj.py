@@ -657,7 +657,10 @@ class SJ:
 
     # Evaluate deltas if required
     if succ_vals is None:
-      succ_vals = self.eval_delta()
+      if self._delta is None:
+        succ_vals = {0}
+      else:
+        succ_vals = self.eval_delta()
     elif isinstance(succ_vals, Func) or \
         isinstance(succ_vals, (tuple, self._delta_type)):
       succ_vals = self.eval_delta(succ_vals)

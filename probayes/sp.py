@@ -12,10 +12,7 @@ from probayes.sc import SC
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import summate
-from probayes.sp_utils import sample_generator, \
-                          metropolis_scores, metropolis_thresh, metropolis_update, \
-                          hastings_scores, hastings_thresh, hastings_update, \
-                          gibbs_update
+from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
 class SP (SC):
@@ -53,17 +50,11 @@ class SP (SC):
     self._scores = scores
     if self._scores is None:
       return
-    if self._scores == 'metropolis':
+    if self._scores in MCMC_SAMPLERS:
       assert not args and not kwds, \
           "Neither args nor kwds permitted with spec '{}'".format(self._scores)
-      self.set_scores(metropolis_scores, pscale=self._pscale)
-      self.set_thresh('metropolis')
-      return
-    elif self._scores == 'hastings':
-      assert not args and not kwds, \
-          "Neither args nor kwds permitted with spec '{}'".format(self._scores)
-      self.set_scores(hastings_scores, pscale=self._pscale)
-      self.set_thresh('hastings')
+      self.set_scores(MCMC_SAMPLERS[self._scores][0], pscale=self._pscale)
+      self.set_thresh(scores)
       return
     self._scores = Func(self._scores, *args, **kwds)
 
@@ -72,17 +63,11 @@ class SP (SC):
     self._thresh = thresh
     if self._thresh is None:
       return
-    if self._thresh == 'metropolis':
+    if self._thresh in MCMC_SAMPLERS:
       assert not args and not kwds, \
           "Neither args nor kwds permitted with spec '{}'".format(self._thresh)
-      self.set_thresh(metropolis_thresh)
-      self.set_update('metropolis')
-      return
-    elif self._thresh == 'hastings':
-      assert not args and not kwds, \
-          "Neither args nor kwds permitted with spec '{}'".format(self._thresh)
-      self.set_thresh(hastings_thresh)
-      self.set_update('hastings')
+      self.set_thresh(MCMC_SAMPLERS[self._thresh][1])
+      self.set_update(thresh)
       return
     self._thresh = Func(self._thresh, *args, **kwds)
 
@@ -91,22 +76,11 @@ class SP (SC):
     self._update = update
     if self._update is None:
       return
-    if self._update == 'metropolis':
+    if self._update in MCMC_SAMPLERS:
       assert not args and not kwds, \
           "Neither args nor kwds permitted with spec '{}'".format(self._update)
-      self.set_update(metropolis_update)
+      self.set_update(MCMC_SAMPLERS[self._update][2])
       return
-    elif self._update == 'hastings':
-      assert not args and not kwds, \
-          "Neither args nor kwds permitted with spec '{}'".format(self._update)
-      self.set_update(hastings_update)
-      return
-    elif self._update == 'gibbs':
-      assert not args and not kwds, \
-          "Neither args nor kwds permitted with spec '{}'".format(self._update)
-      self.set_update(gibbs_update)
-      return
-   
     self._update = Func(self._update, *args, **kwds)
 
 #-------------------------------------------------------------------------------
