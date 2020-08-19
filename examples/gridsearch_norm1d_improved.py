@@ -27,9 +27,9 @@ x = pb.RV('x', {-np.inf, np.inf}, vtype=float)
 sigma.set_mfun((np.log, np.exp))
 
 # Set up params and models
-params = pb.SJ(mu, sigma)
+paras = pb.SJ(mu, sigma)
 stats = pb.SJ(x)
-model = pb.SC(stats, params)
+model = pb.SC(stats, paras)
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')
@@ -39,16 +39,19 @@ posterior = model({'x': data, **resolution},
                   iid=True, joint=True).conditionalise('x')
 
 # Return posterior probability mass
-inference = posterior.rescaled().prob
+post_expt = posterior.expectation()
+post_expt.pop('x')
+post_prob = posterior.rescaled().prob
 
 # Plot posterior
 figure()
 pcolor(
        np.ravel(posterior.vals['sigma']), 
        np.ravel(posterior.vals['mu']), 
-       inference[:-1, :-1], cmap=cm.jet,
+       post_prob[:-1, :-1], cmap=cm.jet,
       )
 colorbar()
 xlabel(r'$\sigma$')
 ylabel(r'$\mu$')
+title(str(dict(post_expt)))
 xscale('log')

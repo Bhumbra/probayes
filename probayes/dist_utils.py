@@ -410,7 +410,15 @@ def summate(*args):
     sum_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
   return Dist(sum_name, sum_vals, sum_dims, sum_prob, pscale)
 
-
+#-------------------------------------------------------------------------------
+def ismonotonic(vals):
+  if issingleton(vals):
+    return True
+  vals = np.ravel(vals)
+  is_ge = vals[1:] >= vals[:-1]
+  if len(np.unique(is_ge)) == 1:
+    return True
+  return False
 
 #-------------------------------------------------------------------------------
 def iterdict(dicts):

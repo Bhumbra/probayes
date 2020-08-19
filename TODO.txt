@@ -1,3 +1,2 @@
-Support cross-sectional tfun sampling.
-Code a Gibbs sampler
 Support distribution quantile estimation.
+Support HMC.

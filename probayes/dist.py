@@ -4,7 +4,8 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from probayes.dist_utils import str_margcond, margcond_str, product, summate, rekey_dict
+from probayes.dist_utils import str_margcond, margcond_str, product, summate, \
+                                rekey_dict, ismonotonic
 from probayes.vtypes import issingleton, isscalar
 from probayes.pscales import eval_pscale, rescale, iscomplex
 from probayes.pscales import prod_pscale, prod_rule, div_prob
@@ -380,12 +381,61 @@ class Dist (Manifold):
         if self._aresingleton[i]:
           vals.update({key: val})
         else:
+          assert ismonotonic(val), \
+              "Values for '{}' are not monotonically ordered".format(key)
           expt_numerator = np.sum(prob*val, 
                                   axis=tuple(set(sum_axes)), keepdims=False)
           vals.update({key: div_prob(expt_numerator, sum_prob)})
       elif key in self.cond.keys():
         vals.update({key: self.vals[key]})
     return vals
+
+#-------------------------------------------------------------------------------
+  def quantile(self, q=0.5):
+    quants = [q] if isscalar(q) else q
+
+    # Deal with trivial scalar case
+    if self._issingleton:
+      quantiles = [self.vals] * len(quants)
+      if isscalar(q):
+        return quantiles[0]
+      return quantiles
+
+    # Check for monotonicity
+    for i, key in enumerate(self._keys):
+      if not self._aresingleton[i]:
+        assert ismonotonic(self.vals[key]), \
+            "Values for '{}' are not monotonically ordered".format(key)
+
+    # Evaluate quantiles from cumulative probability
+    ravprob = rescale(np.ravel(self.prob), self._pscale, 1.)
+    cumprob = np.cumsum(ravprob)
+    cumprob = div_prob(cumprob, cumprob[-1])
+    cum_idx = np.maximum(0, np.digitize(np.array(quants), cumprob)-1).tolist()
+
+    # Interpolate in last axis
+    quantiles = [None] * len(cum_idx)
+    for j, _cum_idx in enumerate(cum_idx):
+      rav_idx = int(_cum_idx)
+      unr_idx = np.unravel_index(rav_idx, self.shape)
+      quantiles[j] = collections.OrderedDict()
+      for i, key in enumerate(self._keys):
+        if self._aresingleton[i]:
+          quantiles[j].update({key: self.vals[key]})
+        else:
+          dim = self.dims[key]
+          val = np.ravel(self.vals[key])
+          idx = np.maximum(unr_idx[dim], len(val) - 1)
+          if dim < self.ndim - 1 or idx == len(val) - 1:
+            quantiles[j].update({key: val[idx]})
+          else:
+            vals = val[idx:idx+2]
+            cump = cumprob[rav_idx:_rav_idx+2]
+            interp_val = np.interp(quants[j], cump, vals)
+            quantiles[j].update({key: interp_val})
+    if isscalar(q):
+      return quantiles[0]
+    return quantiles
 
 #-------------------------------------------------------------------------------
   def ret_keyset(self):

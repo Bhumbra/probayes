@@ -27,29 +27,33 @@ x = pb.RV('x', (-np.inf, np.inf), vtype=float)
 sigma.set_prob(lambda x: 1./x)
 
 # Set up params and models
-params = mu * sigma
-model = x / params
+paras = mu * sigma
+model = x / paras
 model.set_prob(scipy.stats.norm.pdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'})
 
 # Evaluate log probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
-param_vals = likelihood.ret_cond_vals()
-prior = params(param_vals)
+para_vals = likelihood.ret_cond_vals()
+prior = paras(para_vals)
 prior_x_likelihood = prior * likelihood
 evidence = prior_x_likelihood.marginal('x')
 posterior = prior_x_likelihood / evidence
 
 # Return posterior probability mass
-inference = posterior.prob
+post_expt = posterior.expectation()
+post_medn = posterior.quantile()
+post_expt.pop('x')
+post_prob = posterior.prob
 
 # Plot posterior
 figure()
 pcolor(
        np.ravel(posterior.vals['sigma']), 
        np.ravel(posterior.vals['mu']), 
-       inference[:-1, :-1], cmap=cm.jet,
+       post_prob[:-1, :-1], cmap=cm.jet,
       )
 colorbar()
 xlabel(r'$\sigma$')
 ylabel(r'$\mu$')
+title(str(dict(post_expt)))
