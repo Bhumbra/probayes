@@ -1,1 +1,1 @@
-Support HMC.
+Support importance sampling.
