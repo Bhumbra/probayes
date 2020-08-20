@@ -42,8 +42,11 @@ posterior = prior_x_likelihood / evidence
 
 # Return posterior probability mass
 post_expt = posterior.expectation()
-post_medn = posterior.quantile()
 post_expt.pop('x')
+post_mean = posterior.marginal('mu')
+post_stdv = posterior.marginal('sigma')
+post_mean_medn = post_mean.quantile()
+post_stdv_medn = post_stdv.quantile()
 post_prob = posterior.prob
 
 # Plot posterior

@@ -658,7 +658,11 @@ class SJ:
     # Evaluate deltas if required
     if succ_vals is None:
       if self._delta is None:
-        succ_vals = {0}
+        pred_values = list(pred_vals.values())
+        if all([isscalar(pred_value) for pred_value in pred_values]):
+          succ_vals = {0}
+        else:
+          succ_vals = pred_vals
       else:
         succ_vals = self.eval_delta()
     elif isinstance(succ_vals, Func) or \
@@ -832,16 +836,19 @@ class SJ:
         pred_vals = args[0]
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
-    if succ_vals is None:
-      if self._delta is not None:
-        succ_vals = self._delta
-      elif issingleton(pred_vals) and self._delta is None:
-        succ_vals = {0}
 
     # Evaluate predecessor values
     pred_vals = self.parse_args(pred_vals, pass_all=True)
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals, pred_dims = self.eval_vals(pred_vals)
+
+    # Default successor values if None and delta is None
+    if succ_vals is None and self._delta is None:
+      pred_values = list(pred_vals.values())
+      if all([isscalar(pred_value) for pred_value in pred_values]):
+        succ_vals = {0}
+      else:
+        succ_vals = pred_vals
 
     # Evaluate successor evaluates
     vals, dims, kwargs = self.eval_step(pred_vals, succ_vals, reverse=reverse)

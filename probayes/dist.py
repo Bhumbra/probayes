@@ -425,12 +425,12 @@ class Dist (Manifold):
         else:
           dim = self.dims[key]
           val = np.ravel(self.vals[key])
-          idx = np.maximum(unr_idx[dim], len(val) - 1)
+          idx = np.minimum(unr_idx[dim], len(val) - 1)
           if dim < self.ndim - 1 or idx == len(val) - 1:
             quantiles[j].update({key: val[idx]})
           else:
             vals = val[idx:idx+2]
-            cump = cumprob[rav_idx:_rav_idx+2]
+            cump = cumprob[rav_idx:rav_idx+2]
             interp_val = np.interp(quants[j], cump, vals)
             quantiles[j].update({key: interp_val})
     if isscalar(q):
