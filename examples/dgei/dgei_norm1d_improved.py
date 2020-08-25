@@ -1,4 +1,4 @@
-# Example program to fit 1-dimensional gaussian data using grid search
+# Improved example to fit 1-dimensional gaussian data using exact grid enumeration
 
 import numpy as np
 import scipy.stats

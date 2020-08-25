@@ -1,4 +1,4 @@
-""" Example of ordinary Monte Carlo integration with rejection sampling """
+""" Example of ordinary Monte Carlo rejection sampling integrating circle area """
 import numpy as np
 import scipy.stats
 import matplotlib
@@ -9,7 +9,7 @@ import probayes as pb
 
 # PARAMETERS
 radius = 1.
-steps = 10000
+set_size = {-10000}
 
 # SETUP CIRCLE FUNCTION AND RVs
 def inside(x, y): 
@@ -23,37 +23,33 @@ xy_range = [-radius, radius]
 x = pb.RV("x", xy_range)
 y = pb.RV("y", xy_range)
 
-# DEFINE STOCHASTIC PROCESS
+# DEFINE STOCHASTIC CONDITION
 xy = x * y
-process = pb.SP(xy)
-process.set_prob(inside)
+xy.set_prob(inside)
 
 # DEFINE PROPOSAL DENSITY AND COEFFICIENT VARIABLE
-process.set_prop(norm2d)
-process.set_scores(lambda opqr: opqr.p.prob)
+xy.set_prop(norm2d)
 coef_max = float(norm2d(radius, 1.))
-process.set_thresh(np.random.uniform, low=0., high=coef_max)
-process.set_update(lambda stu: stu.s >= stu.t)
+coef = pb.RV('coef', {0., coef_max})
+coefs = coef(set_size)
+p_prop = xy.propose({'x,y': set_size}, suffix=False)
+thresholds = coefs.vals['coef'] * p_prop.prob
 
-# SAMPLE AND SUMMARISE
-sampler = process.sampler({0}, stop=steps)
-samples = [sample for sample in sampler]
-summary = process(samples)
-expectation = summary.p.size / steps
+# CALL TARGET DENSITY AND APPLY REJECTION SAMPLING
+xy_vals = p_prop.ret_marg_vals()
+p_xy = xy(xy_vals)
+accept = p_xy.prob >= thresholds
+reject = np.logical_not(accept)
+expectation = np.mean(accept)
 square_area = 4. * radius**2
 circle_area = square_area * expectation
 
 # PLOT DATA
 figure()
-xy_vals = np.array([(sample.p.vals['x'], sample.p.vals['y']) \
-                    for sample in samples])
-p_prop = np.array([sample.q.prob for sample in samples])
-accept = np.array([sample.u for sample in samples])
-reject = np.logical_not(accept)
-x_accept, x_reject = xy_vals[accept, 0], xy_vals[reject, 0]
-y_accept, y_reject = xy_vals[accept, 1], xy_vals[reject, 1]
-c_norm = Normalize(vmin=np.min(p_prop), vmax=np.max(p_prop))
-c_map = cm.jet(c_norm(p_prop))
+x_accept, x_reject = xy_vals['x,y'][0][accept], xy_vals['x,y'][0][reject]
+y_accept, y_reject = xy_vals['x,y'][1][accept], xy_vals['x,y'][1][reject]
+c_norm = Normalize(vmin=np.min(p_prop.prob), vmax=np.max(p_prop.prob))
+c_map = cm.jet(c_norm(p_prop.prob))
 c_accept, c_reject = c_map[accept], c_map[reject]
 scatter(x_accept, y_accept, color=c_accept, marker='.', linewidths=0.5)
 scatter(x_reject, y_reject, color=c_reject, marker='x', linewidths=0.5)

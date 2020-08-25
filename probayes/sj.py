@@ -488,7 +488,8 @@ class SJ:
         ndim += 1
 
     # Reshape
-    ndims = max([dim for dim in dims.values() if dim is not None]) + 1 or 0
+    vdims = [dim for dim in dims.values() if dim is not None]
+    ndims = max(vdims) + 1 if len(vdims) else 0
     ones_ndims = np.ones(ndims, dtype=int)
     vals = collections.OrderedDict()
     rvs = self.ret_rvs(aslist=True)

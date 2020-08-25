@@ -1,4 +1,4 @@
-""" Example of ordinary Monte Carlo integration with random walk uniform sampling """
+""" Example of ordinary Monte Carlo random walk sampling to integrate circle area """
 import numpy as np
 import matplotlib
 matplotlib.use("Qt5Agg")
@@ -39,8 +39,8 @@ for i in range(n_steps):
   succ[i] = {'x': x_succ, 'y': y_succ}
   cond[i] = inside(x_pred, y_pred)
 print('...done')
-xy_pred = prob.iterdict(pred)
-xy_succ = prob.iterdict(succ)
+xy_pred = np.array([np.array([xy['x'], xy['y']]) for xy in pred])
+xy_succ = np.array([np.array([xy['x'], xy['y']]) for xy in succ])
 square_area = 4. * radius**2
 circle_area = square_area * np.mean(cond)
 
@@ -48,8 +48,8 @@ circle_area = square_area * np.mean(cond)
 figure()
 state = None
 for i in range(n_steps):
-  x_pred, y_pred = xy_pred['x'][i], xy_pred['y'][i]
-  x_succ, y_succ = xy_succ['x'][i], xy_succ['y'][i]
+  x_pred, y_pred = xy_pred[i, 0], xy_pred[i, 1]
+  x_succ, y_succ = xy_succ[i, 0], xy_succ[i, 1]
   current_state = inside(x_pred, y_pred)
   plot_xy = i < n_steps - 1
   if state is None:

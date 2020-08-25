@@ -1,11 +1,11 @@
-# Example program to fit 1-dimensional gaussian data using OMC
-
+""" Example of ordinary Monte Carlo random sampling a 1-dimensional gaussian model """
 import numpy as np
 import scipy.stats
-import probayes as pb
 import matplotlib
 matplotlib.use("Qt5Agg")
+from matplotlib.colors import Normalize
 from pylab import *; ion()
+import probayes as pb
 
 # Settings
 rand_size = 60
@@ -29,18 +29,19 @@ sigma.set_mfun((np.log, np.exp))
 # Set up params and models
 paras = pb.SJ(mu, sigma)
 stats = pb.SJ(x)
-model = pb.SC(stats, paras)
-model.set_prob(scipy.stats.norm.logpdf,
+process = pb.SP(stats, paras)
+process.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')
 
-# Evaluate log probabilities
-prior_x_likelihood = model({'x': data, 'mu,sigma': {-n_samples}}, 
-                           iid=True, joint=True)
-posterior = prior_x_likelihood.conditionalise('x')
+# SAMPLE AND SUMMARISE
+sampler = process.sampler({'mu': {0}, 'sigma': {0}, 'x': data}, 
+                          iid=True, joint=True, stop=n_samples)
+samples = [sample for sample in sampler]
+summary = process(samples)
 
-# Return posterior probability mass and infer hat values using median
-inference = posterior.rescaled()
+# DETERMINE HAT VALUES
+inference = summary.rescaled()
 mu, sigma, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
 mu_sort = inference.sorted('mu')
 sigma_sort = inference.sorted('sigma')

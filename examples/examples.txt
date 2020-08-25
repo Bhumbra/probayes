@@ -1,0 +1,9 @@
+Example subdirectories:
+
+tests/        Simple test scripts
+rv_examples/  Random variable examples
+markov/       Markov chain examples
+cov_examples/ Examples of using covariance matrices
+dgei/         Discrete grid exact inference examples
+omc/          Ordinary Monte-Carlo examples
+mcmc/         Markov chain Monte Carlo examples

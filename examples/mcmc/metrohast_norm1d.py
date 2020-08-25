@@ -46,6 +46,11 @@ summary = process(samples)
 inference = summary.v.rescaled()
 n_accept = summary.u.count(True)
 mu, sigma, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
+hat_mu = np.median(mu)
+hat_sigma = np.median(sigma)
+hat_mu_str = '{:.2f}'.format(hat_mu)
+hat_sigma_str = '{:.2f}'.format(hat_sigma)
+
 
 # PLOT DATA
 figure()
@@ -55,4 +60,5 @@ plot(mu, sigma, '-', color=(0.7, 0.7, 0.7, 0.3))
 scatter(mu, sigma, color=c_map, marker='.', alpha=1.)
 xlabel(r'$\mu$')
 ylabel(r'$\sigma$')
+title(r'$\hat{\mu}=' + hat_mu_str + r',\hat{\sigma}=' + hat_sigma_str + r'$')
 yscale('log')

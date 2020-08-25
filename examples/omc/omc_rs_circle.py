@@ -1,4 +1,4 @@
-""" Example of ordinary Monte Carlo integration with uniform sampling """
+""" Example of ordinary Monte Carlo random sampling integrating circle area """
 import numpy as np
 import matplotlib
 matplotlib.use("Qt5Agg")
