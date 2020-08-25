@@ -156,10 +156,26 @@ class Dist (Manifold):
     # from p(A, key | B), returns P(key | B)
     if isinstance(keys, str):
       keys = [keys]
+
+    # Check keys arg marginal
     keys = set(keys)
+    dims = set()
     for key in keys:
       assert key in self.marg.keys(), \
         "Key {} not marginal in distribution {}".format(key, self.name)
+      dim = self.dims[key]
+      if dim is not None:
+        dims.add(dim)
+
+    # Check consistency of marginal dims
+    for key in self._keys:
+      dim = self.dims[key]
+      if dim in dims:
+        assert key in keys, \
+            "Dimensionality precludes marginalising {} without: {}".\
+            format(keys, key)
+
+    # Determine keys to marginalise by exclusion
     marginalise_keys = set()
     aresingletons = []
     marg_scalars = set()
@@ -381,8 +397,6 @@ class Dist (Manifold):
         if self._aresingleton[i]:
           vals.update({key: val})
         else:
-          assert ismonotonic(val), \
-              "Values for '{}' are not monotonically ordered".format(key)
           expt_numerator = np.sum(prob*val, 
                                   axis=tuple(set(sum_axes)), keepdims=False)
           vals.update({key: div_prob(expt_numerator, sum_prob)})
@@ -392,6 +406,7 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def quantile(self, q=0.5):
+    """ Returns probability quantiles in distribution for sorted values """
     quants = [q] if isscalar(q) else q
 
     # Deal with trivial scalar case
@@ -402,10 +417,11 @@ class Dist (Manifold):
       return quantiles
 
     # Check for monotonicity
+    unsorted = set()
     for i, key in enumerate(self._keys):
       if not self._aresingleton[i]:
-        assert ismonotonic(self.vals[key]), \
-            "Values for '{}' are not monotonically ordered".format(key)
+        if not ismonotonic(self.vals[key]):
+          unsorted.add(key)
 
     # Evaluate quantiles from cumulative probability
     ravprob = rescale(np.ravel(self.prob), self._pscale, 1.)
@@ -422,6 +438,8 @@ class Dist (Manifold):
       for i, key in enumerate(self._keys):
         if self._aresingleton[i]:
           quantiles[j].update({key: self.vals[key]})
+        elif key in unsorted:
+          quantiles[j].update({key: {self.vals[key].size}})
         else:
           dim = self.dims[key]
           val = np.ravel(self.vals[key])
@@ -438,13 +456,35 @@ class Dist (Manifold):
     return quantiles
 
 #-------------------------------------------------------------------------------
-  def ret_keyset(self):
-    return self._keyset
+  def sorted(self, key):
+    """ Returns a distribution ordered by key """
+    dim = self.dims[key]
 
-#-------------------------------------------------------------------------------
-  def ret_pscale(self):
-    return self._pscale
+    # Handle trivial case
+    if dim is None:
+      return Dist(self.name, self.vals, self.dims, self.prob, self._pscale)
 
+    # Argsort needed to sort probabilities
+    ravals = np.ravel(self.vals[key])
+    keyidx = np.argsort(ravals)
+    keyval = ravals[keyidx]
+
+    # Reorder probabilities in affected dimension
+    slices = [slice(i) for i in self.shape]
+    slices[dim] = keyidx
+    prob = self.prob[tuple(slices)]
+
+    # Evaluate values arrays
+    vals = collections.OrderedDict()
+    for _key, _val in self.vals.items():
+      if self.dims[_key] != dim:
+        vals.update({_key: _val})
+      elif _key == key:
+        vals.update({_key: keyval})
+      else:
+        vals.update({_key: np.ravel(_val)[keyidx]})
+    return Dist(self.name, vals, self.dims, prob, self._pscale)
+    
 #-------------------------------------------------------------------------------
   def rescaled(self, pscale=None):
     prob = rescale(np.copy(self.prob), self._pscale, pscale)
@@ -454,6 +494,15 @@ class Dist (Manifold):
                 prob=prob, 
                 pscale=pscale)
 
+#-------------------------------------------------------------------------------
+  def ret_keyset(self):
+    return self._keyset
+
+#-------------------------------------------------------------------------------
+  def ret_pscale(self):
+    return self._pscale
+
+ 
 #-------------------------------------------------------------------------------
   def __call__(self, values):
     # Slices distribution according to scalar values given as a dictionary

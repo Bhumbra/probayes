@@ -1,2 +1,1 @@
-Support ordering probability distributions by keys (dist.ordered())
 Include SP version of omc_norm1d.py

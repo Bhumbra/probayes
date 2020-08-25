@@ -39,9 +39,16 @@ prior_x_likelihood = model({'x': data, 'mu,sigma': {-n_samples}},
                            iid=True, joint=True)
 posterior = prior_x_likelihood.conditionalise('x')
 
-# Return posterior probability mass
+# Return posterior probability mass and infer hat values using median
 inference = posterior.rescaled()
 mu, sigma, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
+mu_sort = inference.sorted('mu')
+sigma_sort = inference.sorted('sigma')
+hat_mu = mu_sort.quantile(0.5)['mu']
+hat_sigma = sigma_sort.quantile(0.5)['sigma']
+hat_mu_str = '{:.2f}'.format(hat_mu)
+hat_sigma_str = '{:.2f}'.format(hat_sigma)
+
 
 # Plot posterior
 figure()
@@ -50,4 +57,5 @@ c_map = cm.jet(c_norm(post))
 scatter(mu, sigma, color=c_map, marker='.', alpha=1.)
 xlabel(r'$\mu$')
 ylabel(r'$\sigma$')
+title(r'$\hat{\mu}=' + hat_mu_str + r',\hat{\sigma}=' + hat_sigma_str + r'$')
 yscale('log')
