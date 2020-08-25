@@ -1,1 +1,3 @@
+Rename SC to RF.
+Improve Gibbs sampling support.
 Look at VB.
