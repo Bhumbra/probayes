@@ -93,6 +93,15 @@ def isunitary(var):
   return False
 
 #-------------------------------------------------------------------------------
+def isdimensionless(var):
+  if isinstance(var, set):
+    if len(var) == 1:
+      var = list(var)[0]
+      if var == 0:
+        return True
+  return np.isscalar(var)
+
+#-------------------------------------------------------------------------------
 def revtype(var, vtype=None):
   if vtype is None:
     return var

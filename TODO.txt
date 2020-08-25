@@ -1,1 +1,1 @@
-Include SP version of omc_norm1d.py
+Look at VB.

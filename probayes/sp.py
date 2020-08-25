@@ -123,8 +123,9 @@ class SP (SC):
     # Summating distributions is straightforward
     if isinstance(samples[0], Dist):
       for sample in samples[1:]:
-        assert isinstance(samples, Dist),\
-            "If using distributions, all samples must be distributions"
+        assert isinstance(sample, Dist),\
+            "If using distributions, all samples must be distributions, not {}".\
+            format(type(sample))
       if isinstance(samples, (list, collections.deque)):
         samples = tuple(samples)
       return summate(*samples)

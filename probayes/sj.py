@@ -10,7 +10,7 @@ import scipy.stats
 from probayes.rv import RV
 from probayes.dist import Dist
 from probayes.dist_utils import margcond_str
-from probayes.vtypes import isscalar, isunitsetint, issingleton, \
+from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless, \
                             revtype, uniform
 from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
@@ -472,7 +472,7 @@ class SJ:
     for i, key in enumerate(self._keys):
       new_dim = False
       if values_ref[key][1] is None: # i.e. not shared
-        if not np.isscalar(values[key]): # use np.scalar here (to exclude unitsetint)
+        if not isdimensionless(values[key]):
           dims[key] = ndim
           new_dim = True
         seen_keys.add(key)
@@ -482,7 +482,7 @@ class SJ:
         for subkey in subkeys:
           dims[subkey] = ndim
           seen_keys.add(subkey)
-        if not np.isscalar(values[val_ref[0]][val_ref[1]]): # and here
+        if not isdimensionless(values[val_ref[0]][val_ref[1]]):
           new_dim = True
       if new_dim:
         ndim += 1
@@ -773,17 +773,7 @@ class SJ:
     return Dist(name, vals, dims, prob, pscale)
 
 #-------------------------------------------------------------------------------
-  def __call__(self, *args, **kwds):
-    """ Returns a joint distribution p(args) """
-    if self._rvs is None:
-      return None
-    iid = False if 'iid' not in kwds else kwds.pop('iid')
-    if type(iid) is bool and iid:
-      iid = self._defiid
-    values = self.parse_args(*args, **kwds)
-    dist_name = self.eval_dist_name(values)
-    vals, dims = self.eval_vals(values, _skip_parsing=True)
-    prob = self.eval_prob(vals)
+  def _eval_iid(self, dist_name, vals, dims, prob, iid):
     if not iid: 
       return Dist(dist_name, vals, dims, prob, self._pscale)
 
@@ -801,7 +791,23 @@ class SJ:
     for key in iid:
       vals[key] = {len(vals[key])}
       dims[key] = None
+
+    # Tidy up probability
     return Dist(dist_name, vals, dims, prob, self._pscale)
+
+#-------------------------------------------------------------------------------
+  def __call__(self, *args, **kwds):
+    """ Returns a joint distribution p(args) """
+    if self._rvs is None:
+      return None
+    iid = False if 'iid' not in kwds else kwds.pop('iid')
+    if type(iid) is bool and iid:
+      iid = self._defiid
+    values = self.parse_args(*args, **kwds)
+    dist_name = self.eval_dist_name(values)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    prob = self.eval_prob(vals)
+    return self._eval_iid(dist_name, vals, dims, prob, iid)
 
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):
