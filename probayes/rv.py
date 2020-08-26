@@ -18,7 +18,7 @@ from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
 possible realisation defined over the alphabet set A_x with probabilities P_x.
 It therefore requires a name for x (id), a variable alphabet set (vset), and its 
-asscociated probability distribution function (prob).
+associated probability distribution function (prob).
 """
 
 #-------------------------------------------------------------------------------
@@ -147,6 +147,14 @@ class RV (Domain, Prob):
       return
     assert self._tfun.ret_istuple(), "Tuple of two functions required"
     assert len(self._tfun) == 2, "Tuple of two functions required."
+
+#-------------------------------------------------------------------------------
+  def ret_tran(self):
+    return self._tran
+
+#-------------------------------------------------------------------------------
+  def ret_tfun(self):
+    return self._tfun
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values, use_pfun=True):
@@ -359,36 +367,36 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    from probayes.sj import SJ
-    from probayes.sc import SC
-    if isinstance(other, SC):
+    from probayes.rj import RJ
+    from probayes.rf import RF
+    if isinstance(other, RF):
       marg = [self] + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
-    if isinstance(other, SJ):
+    if isinstance(other, RJ):
       rvs = [self] + other.ret_rvs()
-      return SJ(*tuple(rvs))
+      return RJ(*tuple(rvs))
 
     if isinstance(other, RV):
-      return SJ(self, other)
+      return RJ(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from probayes.sj import SJ
-    from probayes.sc import SC
-    if isinstance(other, SC):
+    from probayes.rj import RJ
+    from probayes.rf import RF
+    if isinstance(other, RF):
       marg = [self] + other.ret_cond().ret_rvs()
       cond = other.ret_marg().ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
-    if isinstance(other, SJ):
-      return SC(self, other)
+    if isinstance(other, RJ):
+      return RF(self, other)
 
     if isinstance(other, RV):
-      return SC(self, other)
+      return RF(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 

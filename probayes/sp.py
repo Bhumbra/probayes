@@ -8,14 +8,14 @@ import numpy as np
 import collections
 import inspect
 import warnings
-from probayes.sc import SC
+from probayes.rf import RF
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
-class SP (SC):
+class SP (RF):
 
   # Public
   stuv = None     # scores + thresholds + update + veridct
@@ -27,9 +27,9 @@ class SP (SC):
   _update = None # Update function (output True, None, or False)
 
   # Private
-  __samplers = None # List of samplers
-  __counter = None  # Step counter
-  __last = None     # Last argument ordereddict
+  __samplers = None  # List of samplers
+  __counter = None   # Step counter
+  __last = None      # Last argument ordereddict
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args, **kwds):
@@ -122,6 +122,7 @@ class SP (SC):
 
     # Summating distributions is straightforward
     if isinstance(samples[0], Dist):
+      samples = list(samples)
       for sample in samples[1:]:
         assert isinstance(sample, Dist),\
             "If using distributions, all samples must be distributions, not {}".\
@@ -143,18 +144,26 @@ class SP (SC):
         opqrstuv[key].append(element)
 
     for sample in samples:
-      assert isinstance(sample, self.opqrstuv), \
-          "Sample must be outputted from sampler: {}".format(self._id)
-      if sample.u == False:
-        continue
-      opqrstuv['u'].append(sample.u)
-      _maybe_append(sample.o, 'o')
-      _maybe_append(sample.p, 'p')
-      _maybe_append(sample.q, 'q')
-      _maybe_append(sample.r, 'r')
-      _maybe_append(sample.s, 's')
-      _maybe_append(sample.t, 't')
-      _maybe_append(sample.v, 'v')
+      if isinstance(sample, self.opqr):
+        _maybe_append(sample.o, 'o')
+        _maybe_append(sample.p, 'p')
+        _maybe_append(sample.q, 'q')
+        _maybe_append(sample.r, 'r')
+      
+      else:
+        assert isinstance(sample, self.opqrstuv), \
+            "Sample must be outputted from sampler: {}".format(self._id)
+        if sample.u == False:
+          continue
+        if self._update is not None:
+          opqrstuv['u'].append(sample.u)
+        _maybe_append(sample.o, 'o')
+        _maybe_append(sample.p, 'p')
+        _maybe_append(sample.q, 'q')
+        _maybe_append(sample.r, 'r')
+        _maybe_append(sample.s, 's')
+        _maybe_append(sample.t, 't')
+        _maybe_append(sample.v, 'v')
           
     for key in ['o', 'p', 'q', 'r', 'v']:
       if opqrstuv[key] is not None:
@@ -190,15 +199,16 @@ class SP (SC):
     last = self.__last[sampler]
 
     # Treat sampling without proposals as a distribution call
-    if last is None or (self._tran is None and self._prop is None):
+    if last is None or \
+        (self._tran is None and not self._unit_tran and self._prop is None):
       opqr = self.sample(*args, **kwds)
-      if self._tran is None and self._prop is None:
+      if self._tran is None and not self._unit_tran and self._prop is None:
         return opqr
 
     # Otherwise refeed last proposals into sample function
     else:
-      last = last if self._tran is not None or self._delta is not None \
-             else {0}
+      if self._tran is None and not self._unit_tran and self._delta is None:
+        last = {0}
       if len(args) < 2:
         opqr = self.sample(last, **kwds)
       else:
@@ -212,7 +222,7 @@ class SP (SC):
                      None)
     update = self.eval_func(self._update, stuv)
     verdit = opqr.o
-    if self.__last[sampler] is None or update:
+    if self._update is None or self.__last[sampler] is None or update:
       self.__last[sampler] = opqr
       verdit = opqr.p
     return self.opqrstuv(opqr.o, opqr.p, opqr.q, opqr.r, 

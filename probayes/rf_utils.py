@@ -1,4 +1,4 @@
-# Utility module for SC objects
+# Utility module for RF objects
 
 import collections
 

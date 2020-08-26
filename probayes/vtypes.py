@@ -57,7 +57,7 @@ def isunitset(var, vtype=None):
 #-------------------------------------------------------------------------------
 def isunitsetint(var):
   """ Usage depends on class:
-  RVs, SJs, SCs: set(int) is a sample specification denoting number of samples:
+  RVs, RJs, RFs: set(int) is a sample specification denoting number of samples:
                    positive values request samples using linear interpolation
                    negative values request samples using random generation.
   Dist: set(int): proxies as a 'value' for a variable as a set of size int.

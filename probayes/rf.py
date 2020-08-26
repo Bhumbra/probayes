@@ -1,19 +1,19 @@
 """
-A stocastic condition is a stochastic junction (here called marg) conditioned 
-by a another stochastic junction (here called cond) according to a conditional
+A random field is a random junction (here called marg) that may be conditioned 
+by a another random junction (here called cond) according to a conditional
 probability distribution function.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-from probayes.sj import SJ
+from probayes.rj import RJ
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import product
-from probayes.sc_utils import desuffix, get_suffixed
+from probayes.rf_utils import desuffix, get_suffixed
 
 #-------------------------------------------------------------------------------
-class SC (SJ):
+class RF (RJ):
   # Public
   opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
 
@@ -23,6 +23,8 @@ class SC (SJ):
   _marg_cond = None    # {'marg': marg, 'cond': cond}
   _def_prop_obj = None
   _prop_obj = None
+  _unit_prob = None # Flag for single RV probability
+  _unit_tran = None # Flag for single RV transitional
 
   # Private
   __sym_tran = None
@@ -38,8 +40,8 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def set_marg(self, arg):
-    if isinstance(arg, SJ):
-      assert not isinstance(arg, SC), "Marginal must be SJ class type"
+    if isinstance(arg, RJ):
+      assert not isinstance(arg, RF), "Marginal must be RJ class type"
       self._marg = arg
       self._refresh()
     else:
@@ -47,8 +49,8 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def set_cond(self, arg):
-    if isinstance(arg, SJ):
-      assert not isinstance(arg, SC), "Conditional must be SJ class type"
+    if isinstance(arg, RJ):
+      assert not isinstance(arg, RF), "Conditional must be RJ class type"
       self._cond = arg
       self._refresh()
     else:
@@ -57,13 +59,13 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def add_marg(self, *args):
     if self._marg is None: 
-      self._marg = SJ()
+      self._marg = RJ()
     self._marg.add_rv(*args)
     self._refresh()
 
 #-------------------------------------------------------------------------------
   def add_cond(self, *args):
-    if self._cond is None: self._cond = SJ()
+    if self._cond is None: self._cond = RJ()
     self._cond.add_rv(*args)
     self._refresh()
 
@@ -103,6 +105,14 @@ class SC (SJ):
     self.delta = self._def_prop_obj.delta
     self._delta_type = self._def_prop_obj._delta_type
     self.set_prop_obj(None)
+
+    # Determine unit RVRF
+    self._unit_prob = False
+    self._unit_tran = False
+    if self._nrvs == 1:
+      rv = self._rvs[0]
+      self._unit_prob = self._prob is None and rv.ret_prob() is not None
+      self._unit_tran = self._tran is None and rv.ret_tran() is not None
 
 #-------------------------------------------------------------------------------
   def set_prop_obj(self, prop_obj=None):
@@ -232,7 +242,7 @@ class SC (SJ):
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    """ Like SJ.__call__ but optionally takes 'joint' keyword """
+    """ Like RJ.__call__ but optionally takes 'joint' keyword """
 
     if self._rvs is None:
       return None
@@ -277,7 +287,7 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):
     """ A function for unconditional and conditional sampling. For conditional
-    sampling, use SC.set_delta() to set the delta specification. if neither
+    sampling, use RF.set_delta() to set the delta specification. if neither
     set_prob() nor set_tran() are set, then opqr inputs are disallowed and this
     function outputs a normal __call__(). Otherwise this function returns a 
     namedtuple-generated opqr object that can be accessed using opqr.p or 
@@ -310,7 +320,7 @@ class SC (SJ):
     if not args:
       args = {0},
     assert len(args) < 3, "Maximum of two positional arguments"
-    if self._tran is None:
+    if self._tran is None and not self._unit_tran:
       if self._prop is None:
         assert not isinstance(args[0], self.opqr),\
             "Cannot input opqr object with neither set_prob() nor set_tran() set"
@@ -370,7 +380,7 @@ class SC (SJ):
       prop = self.step(vals, **kwds)
 
     # Evaluate reverse proposal if transition function not symmetric
-    if not self._sym_tran:
+    if not self._sym_tran and not self._unit_tran:
       revp = self.reval_tran(prop)
 
     # Extract values evaluating probability
@@ -395,42 +405,44 @@ class SC (SJ):
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
     from probayes.rv import RV
-    from probayes.sj import SJ
+    from probayes.rj import RJ
+
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
-    if isinstance(other, SC):
+    if isinstance(other, RF):
       marg = marg + other.ret_marg().ret_rvs()
       cond = cond + other.ret_cond().ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
-    if isinstance(other, SJ):
+    if isinstance(other, RJ):
       marg = marg + other.ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
     if isinstance(other, RV):
       marg = marg + [other]
-      return SC(marg, cond)
+      return RF(marg, cond)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
     from probayes.rv import RV
-    from probayes.sj import SJ
+    from probayes.rj import RJ
+
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
-    if isinstance(other, SC):
+    if isinstance(other, RF):
       marg = marg + other.ret_cond().ret_rvs()
       cond = cond + other.ret_marg().ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
-    if isinstance(other, SJ):
+    if isinstance(other, RJ):
       cond = cond + other.ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
     if isinstance(other, RV):
       cond = cond + [self]
-      return SC(marg, cond)
+      return RF(marg, cond)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 

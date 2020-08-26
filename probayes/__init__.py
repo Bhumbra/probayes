@@ -1,7 +1,7 @@
 from probayes.domain import Domain
 from probayes.rv import RV
-from probayes.sj import SJ
-from probayes.sc import SC
+from probayes.rj import RJ
+from probayes.rf import RF
 from probayes.sp import SP
 from probayes.dist import Dist
 from probayes.dist_utils import product, summate, iterdict

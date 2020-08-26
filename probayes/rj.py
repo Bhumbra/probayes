@@ -1,5 +1,5 @@
 """
-A stochastic junction comprises a collection of a random variables that 
+A random junction comprises a collection of a random variables that 
 participate in a joint probability distribution function.
 """
 #-------------------------------------------------------------------------------
@@ -7,6 +7,7 @@ import warnings
 import collections
 import numpy as np
 import scipy.stats
+
 from probayes.rv import RV
 from probayes.dist import Dist
 from probayes.dist_utils import margcond_str
@@ -14,47 +15,12 @@ from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless
                             revtype, uniform
 from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
-from probayes.sj_utils import call_scipy_prob, sample_cond_cov
+from probayes.rj_utils import rv_prod_rule, call_scipy_prob, sample_cond_cov
 from probayes.func import Func
 from probayes.cond_cov import CondCov
 
 #-------------------------------------------------------------------------------
-def rv_prod_rule(*args, rvs, pscale=None):
-  """ Returns the probability product treating all rvs as independent.
-  Values (=args[0]) are keyed by RV name and rvs are a list of RVs.
-  """
-  values = args[0]
-  pscales = [rv.ret_pscale() for rv in rvs]
-  pscale = pscale or prod_pscale(pscales)
-  use_logs = iscomplex(pscale)
-  probs = [rv.eval_prob(values[rv.ret_name()]) for rv in rvs]
-  prob, pscale = prod_rule(*tuple(probs),
-                           pscales=pscales,
-                           pscale=pscale)
-
-  # This section below is there just to play nicely with conditionals
-  if len(args) > 1:
-    if use_logs:
-      prob = rescale(prob, pscale, 0.j)
-    else:
-      prob = rescale(prob, pscale, 1.)
-    for arg in args[1:]:
-      if use_logs:
-        offs, _ = rv_prod_rule(arg, rvs=rvs, pscale=0.j)
-        prob = prob + offs
-      else:
-        coef, _ = rv_prod_rule(arg, rvs=rvs, pscale=1.)
-        prob = prob * coef
-    if use_logs:
-      prob = prob / float(len(args))
-      prob = rescale(prob, 0.j, pscale)
-    else:
-      prob = prob ** (1. / float(len(args)))
-      prob = rescale(prob, 1., pscale)
-  return prob, pscale
-
-#-------------------------------------------------------------------------------
-class SJ:
+class RJ:
   # Public
   delta = None
 
@@ -101,7 +67,7 @@ class SJ:
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
-    if len(args) == 1 and isinstance(args[0], (SJ, dict, set, tuple, list)):
+    if len(args) == 1 and isinstance(args[0], (RJ, dict, set, tuple, list)):
       args = args[0]
     else:
       args = tuple(args)
@@ -114,9 +80,9 @@ class SJ:
       "Cannot assign new randon variables after specifying joint/condition prob"
     if self._rvs is None:
       self._rvs = collections.OrderedDict()
-    if isinstance(rv, (SJ, dict, set, tuple, list)):
+    if isinstance(rv, (RJ, dict, set, tuple, list)):
       rvs = rv
-      if isinstance(rvs, SJ):
+      if isinstance(rvs, RJ):
         rvs = rvs.ret_rvs()
       if isinstance(rvs, dict):
         rvs = rvs.values()
@@ -530,9 +496,11 @@ class SJ:
 
     # If not specified, treat as independent variables
     if self._prob is None:
-      prob, pscale = rv_prod_rule(values, 
-                                  rvs=self.ret_rvs(aslist=True),
-                                  pscale=self._pscale)
+      rvs = self.ret_rvs(aslist=True)
+      if len(rvs) == 1 and rvs[0]._prob is not None:
+        prob = rvs[0].eval_prob(values[rvs[0].ret_name()])
+      else:
+        prob, _ = rv_prod_rule(values, rvs=rvs, pscale=self._pscale)
       return prob
 
     # Otherwise distinguish between uncallable and callables
@@ -548,6 +516,9 @@ class SJ:
     # Handle native delta types within RV deltas
     if delta is None: 
       if self._delta is None:
+        rvs = self.ret_rvs(aslist=True)
+        if len(rvs) == 1 and rvs[0]._delta is not None:
+          return rvs[0]._delta
         return None
       elif isinstance(self._delta, Func):
         delta = self._delta()
@@ -629,8 +600,12 @@ class SJ:
     delta = delta or self._delta
     if delta is None:
       return values
-    assert isinstance(delta, self._delta_type), \
-          "Cannot apply delta without providing delta type {}".format(self._delta_type)
+    if not isinstance(delta, self._delta_type):
+      rvs = self.ret_rvs(aslist=True)
+      if len(rvs) == 1 and isinstance(delta, rvs[0].delta):
+        return rvs[0].apply_delta(values, delta)
+      raise TypeError("Cannot apply delta without providing delta type {}".\
+        format(self._delta_type))
     bound = False if 'bound' not in self._delta_kwds \
            else self._delta_kwds['bound']
     vals = collections.OrderedDict(values)
@@ -670,27 +645,37 @@ class SJ:
         isinstance(succ_vals, (tuple, self._delta_type)):
       succ_vals = self.eval_delta(succ_vals)
 
-    # Apply deltas or (TODO: sample)
+    # Apply deltas
     cond = None
     if isinstance(succ_vals, self._delta_type):
       succ_vals = self.apply_delta(pred_vals, succ_vals)
     elif isunitsetint(succ_vals):
-      assert self._tfun is not None and self._tfun.ret_callable(),\
-          "Transitional CDF calling requires callable tfun"
-      number = list(succ_vals)[0]
-      succ_vals = collections.OrderedDict()
-      succ_lims = collections.OrderedDict()
-      succ_vset = collections.OrderedDict()
-      for key in self._keys:
-        if key in pred_vals:
-          succ_vals.update({key: pred_vals[key]})
-          lims = self[key].ret_lims()
-          assert np.all(np.isfinite(lims)), \
-              "Cannot sample RV {} exhibiting limits {}".\
-              format(key, lims)
-          succ_vals.update({key: pred_vals[key]})
-          succ_lims.update({key: lims})
-          succ_vset.update({key: self[key].ret_vset()})
+      if self._tfun is not None and self._tfun.ret_callable():
+        number = list(succ_vals)[0]
+        succ_vals = collections.OrderedDict()
+        succ_lims = collections.OrderedDict()
+        succ_vset = collections.OrderedDict()
+        for key in self._keys:
+          if key in pred_vals:
+            succ_vals.update({key: pred_vals[key]})
+            lims = self[key].ret_lims()
+            assert np.all(np.isfinite(lims)), \
+                "Cannot sample RV {} exhibiting limits {}".\
+                format(key, lims)
+            succ_vals.update({key: pred_vals[key]})
+            succ_lims.update({key: lims})
+            succ_vset.update({key: self[key].ret_vset()})
+      elif self._nrvs == 1:
+        rv = self.ret_rvs(aslist=True)[0]
+        tran = rv.ret_tran()
+        tfun = rv.ret_tfun()
+        if (tran is not None and not tran.ret_callable()) or \
+            (tfun is not None and tfun.ret_callable()):
+          vals, dims, kwargs = rv.eval_step(pred_vals[rv.ret_name()], succ_vals, reverse=reverse)
+          return vals, dims, kwargs
+        raise ValueError("Transitional CDF calling requires callable tfun")
+      else:
+        raise ValueError("Transitional CDF calling requires callable tfun")
       keys = list(succ_vals.keys())
 
       # One variable at a time modification
@@ -739,6 +724,8 @@ class SJ:
     reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     if self._tran is None:
       rvs = self.ret_rvs(aslist=True)
+      if len(rvs) == 1 and rvs[0]._tran is not None:
+        return rvs[0].eval_tran(values, **kwargs)
       pred_vals = dict()
       succ_vals = dict()
       for key_, val in values.items():
@@ -888,36 +875,36 @@ class SJ:
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
     from probayes.rv import RV
-    from probayes.sc import SC
-    if isinstance(other, SC):
+    from probayes.rf import RF
+    if isinstance(other, RF):
       marg = self.ret_rvs() + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
-    if isinstance(other, SJ):
+    if isinstance(other, RJ):
       rvs = self.ret_rvs() + other.ret_rvs()
-      return SJ(*tuple(rvs))
+      return RJ(*tuple(rvs))
 
     if isinstance(other, RV):
       rvs = self.ret_rvs() + [other]
-      return SJ(*tuple(rvs))
+      return RJ(*tuple(rvs))
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
     from probayes.rv import RV
-    from probayes.sc import SC
-    if isinstance(other, SC):
+    from probayes.rf import RF
+    if isinstance(other, RF):
       marg = self.ret_rvs() + other.ret_cond().ret_rvs()
       cond = other.ret_marg().ret_rvs()
-      return SC(marg, cond)
+      return RF(marg, cond)
 
-    if isinstance(other, SJ):
-      return SC(self, other)
+    if isinstance(other, RJ):
+      return RF(self, other)
 
     if isinstance(other, RV):
-      return SC(self, other)
+      return RF(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 

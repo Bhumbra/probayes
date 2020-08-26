@@ -145,6 +145,10 @@ class Prob:
     return self._pfun[index]
 
 #-------------------------------------------------------------------------------
+  def ret_prob(self):
+    return self._prob
+
+#-------------------------------------------------------------------------------
   def ret_callable(self):
     return self.__callable
 

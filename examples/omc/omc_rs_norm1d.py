@@ -27,9 +27,9 @@ x = pb.RV('x', {-np.inf, np.inf}, vtype=float)
 sigma.set_mfun((np.log, np.exp))
 
 # Set up params and models
-paras = pb.SJ(mu, sigma)
-stats = pb.SJ(x)
-model = pb.SC(stats, paras)
+paras = pb.RJ(mu, sigma)
+stats = pb.RJ(x)
+model = pb.RF(stats, paras)
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')
