@@ -773,7 +773,8 @@ class RJ:
 
     # If scalar or prob is expected shape then perform product here
     if max_dim is None or max_dim == prob.ndim - 1:
-      return Dist(dist_name, vals, dims, prob, self._pscale).prod(iid)
+      dist = Dist(dist_name, vals, dims, prob, self._pscale)
+      return dist.prod(iid)
 
     # Otherwise it is left to the user function to perform the iid product
     for key in iid:

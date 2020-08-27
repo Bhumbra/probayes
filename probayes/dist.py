@@ -344,10 +344,11 @@ class Dist (Manifold):
       if key in keys:
         assert not self._aresingleton[i], \
             "Cannot apply product along scalar for key {}".format(key)
-        prod_axes.append(self.dims[key])
+        if self.dims[key] not in prod_axes:
+          prod_axes.append(self.dims[key])
+          dim_delta += 1
         marg.update({key: key+"={}"})
         vals.update({key: {self.vals[key].size}})
-        dim_delta += 1
       else:
         if not self._aresingleton[i]:
           dims.update({key: self.dims[key] - dim_delta})

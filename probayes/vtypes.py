@@ -99,6 +99,7 @@ def isdimensionless(var):
       var = list(var)[0]
       if var == 0:
         return True
+      return False
   return np.isscalar(var)
 
 #-------------------------------------------------------------------------------
