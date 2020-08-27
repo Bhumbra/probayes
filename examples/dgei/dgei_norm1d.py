@@ -1,4 +1,4 @@
-# Example to fit 1-dimensional gaussian data using exact grid enumeration.
+# Example to fit 1-dimensional gaussian data using discrete grid exact inference.
 
 import numpy as np
 import scipy.stats
@@ -32,7 +32,7 @@ model = x / paras
 model.set_prob(scipy.stats.norm.pdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'})
 
-# Evaluate log probabilities
+# Evaluate probabilities
 likelihood = model({'x': data, **resolution}, iid=True)
 para_vals = likelihood.ret_cond_vals()
 prior = paras(para_vals)
