@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 # Specific exclusions
+.*.swp
 ex/
 
 # C extensions
