@@ -19,4 +19,5 @@ In the near-future, it is intended to expand the scope of probayes to include:
 2. Code initial support for approximate inference using using dense mean field messaging.
 3. Support derivative-based optimisation (HMC, gradient ascent/descent).
 
+A quickstart is also intended, but for now look for examples in examples/.
 
