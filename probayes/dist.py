@@ -270,6 +270,8 @@ class Dist (Manifold):
         if key not in keys and key in self.marg.keys():
           sum_axes.add(dims[key])
     prob = np.moveaxis(self.prob, old_dims, new_dims)
+    if normalise and iscomplex(self._pscale): 
+      prob = prob - prob.max()
     prob = rescale(prob, self._pscale, 1.)
     if normalise:
       prob = div_prob(prob, np.sum(prob))
