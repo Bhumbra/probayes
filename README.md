@@ -19,5 +19,12 @@ In the near-future, it is intended to expand the scope of probayes to include:
 2. Code initial support for approximate inference using using dense mean field messaging.
 3. Support derivative-based updates (HMC, gradient ascent/descent optimisation).
 
-A quickstart is also intended, but for now look for examples in examples/.
+A quickstart is also intended, but for now there are examples in the examples/ subdirectories:
 
+tests/        Simple test scripts
+rv_examples/  Random variable examples
+markov/       Markov chain examples
+cov_examples/ Examples of using covariance matrices
+dgei/         Discrete grid exact inference examples
+omc/          Ordinary Monte-Carlo examples
+mcmc/         Markov chain Monte Carlo examples (Metropolis-Hastings, Gibbs...)
