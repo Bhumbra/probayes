@@ -21,10 +21,10 @@ In the near-future, it is intended to expand the scope of probayes to include:
 
 A quickstart is also intended, but for now there are examples in the examples/ subdirectories:
 
-tests/        Simple test scripts
-rv_examples/  Random variable examples
-markov/       Markov chain examples
-cov_examples/ Examples of using covariance matrices
-dgei/         Discrete grid exact inference examples
-omc/          Ordinary Monte-Carlo examples
-mcmc/         Markov chain Monte Carlo examples (Metropolis-Hastings, Gibbs...)
+1. tests/        Simple test scripts
+2. rv_examples/  Random variable examples
+3. markov/       Markov chain examples
+4. cov_examples/ Examples of using covariance matrices
+5. dgei/         Discrete grid exact inference examples
+6. omc/          Ordinary Monte-Carlo examples
+7. mcmc/         Markov chain Monte Carlo examples (Metropolis-Hastings, Gibbs...)
