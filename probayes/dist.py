@@ -618,6 +618,73 @@ class Dist (Manifold):
                 pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
+  def remarginalise(self, manifold, *args, **kwds):
+    """ Redistributes probability distribution within manifold according to a
+    dictionary (in args[0]) or keywords, for which the keys represent the
+    marginal keys and corresponding values contain their corresponding values
+    according to the shape of self.prob. Conditional variables are unchanged.
+    """
+
+    # Simple assertions
+    assert not self._issingleton,\
+        "Function dist.remarginalise() not operative for scalar probabilities"
+    assert isinstance(manifold, Manifold),\
+        "First argument must be Manifold type not {}".format(type(manifold))
+
+    # Read and check dictionary
+    vals = None
+    if args:
+      vals = args[0]
+      assert not kwds, "Use a single dictionary argument or keywords, not both"
+    elif kwds:
+      vals = dict(kwds)
+    assert isinstance(vals, dict), \
+        "Dictionary argument expected, not {}".format(type(vals))
+    marg_keys = list(manifold.vals.keys())
+    dims = manifold.dims
+    for key, val in vals.items():
+      if dims[key] is not None:
+        assert np.all(np.array(val.shape) == np.array(self.shape)),\
+            "Values for {} incommensurate".format
+        assert key in marg_keys, \
+            "Key {} not present in inputted manifold"
+
+    # Evaluate output indices for each space in probability
+    shape = manifold.shape
+    indices = [np.empty(_size, dtype=int) for _size in shape]
+    for key, dim in dims.items():
+      if dim is not None:
+        edges = np.array(np.ravel(manifold.vals[key]), dtype=float)
+        rav_vals = np.array(np.ravel(vals[key]), dtype=float)
+        indices[dim] = np.maximum(0, np.minimum(len(edges)-1, \
+                                     np.digitize(rav_vals, edges)-1))
+
+    # Iterate through every self.prob value
+    rav_prob = np.ravel(rescale(self.prob, self._pscale, 1.))
+    rem_prob = np.zeros(manifold.shape, dtype=float)
+    dimensionality = len(shape)
+    for i in range(self.size):
+      rem_idx = tuple([idx[i] for idx in indices])
+      rem_prob[rem_idx] += rav_prob[i]
+
+    # Replace marginal keys and keep conditional keys
+    rem_vals = collections.OrderedDict(manifold.vals)
+    rem_dims = collections.OrderedDict(manifold.dims)
+    rem_name = ','.join(list(manifold.vals.keys()))
+    cond_keys = list(self.cond.keys())
+    if cond_keys:
+      for key in cond_keys:
+        rem_vals.update({key: self.vals[key]})
+        rem_dims.update({key: self.dims[key]})
+      rem_name += '|' + ','.join(cond_keys)
+
+    return Dist(rem_name,
+                rem_vals,
+                rem_dims,
+                rescale(rem_prob, 1., self._pscale),
+                self._pscale)
+
+#-------------------------------------------------------------------------------
   def __repr__(self):
     prefix = 'logp' if iscomplex(self._pscale) else 'p'
     suffix = '' if not self._issingleton else '={}'.format(self.prob)

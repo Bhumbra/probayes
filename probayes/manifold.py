@@ -15,7 +15,7 @@ class Manifold:
   ndim = None          # Number of dimensions
   sizes = None         # Size of dimensions including shared
   shape = None         # Size of dimension shape excluding shared
-  size = None          # prod(size)
+  size = None          # prod(sizes)
 
   # Protected
   _keys = None         # Keys of vals as list
@@ -99,6 +99,10 @@ class Manifold:
             "shape {} for key {}".format(values.shape, key)
         if eval_dims:
           self.dims.update({key: nonsingleton_count})
+          if len(self.shape) == nonsingleton_count:
+            self.shape.append(None)
+            self.ndim = len(self.shape)
+            ones_ndim = np.ones(self.ndim, dtype=int)
         else:
           assert key in self.dims, "Missing key {} in dims specification {}".\
               format(key, self.dims)
