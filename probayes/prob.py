@@ -4,7 +4,6 @@ of a variable set.
 """
 
 #-------------------------------------------------------------------------------
-from abc import ABC, abstractmethod
 import warnings
 import numpy as np
 import scipy.stats

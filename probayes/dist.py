@@ -634,8 +634,9 @@ class Dist (Manifold):
     # Read and check dictionary
     vals = None
     if args:
+      assert len(args) == 1 and not kwds, \
+          "Use a single dictionary argument or keywords, not both"
       vals = args[0]
-      assert not kwds, "Use a single dictionary argument or keywords, not both"
     elif kwds:
       vals = dict(kwds)
     assert isinstance(vals, dict), \
@@ -662,7 +663,6 @@ class Dist (Manifold):
     # Iterate through every self.prob value
     rav_prob = np.ravel(rescale(self.prob, self._pscale, 1.))
     rem_prob = np.zeros(manifold.shape, dtype=float)
-    dimensionality = len(shape)
     for i in range(self.size):
       rem_idx = tuple([idx[i] for idx in indices])
       rem_prob[rem_idx] += rav_prob[i]
@@ -670,13 +670,22 @@ class Dist (Manifold):
     # Replace marginal keys and keep conditional keys
     rem_vals = collections.OrderedDict(manifold.vals)
     rem_dims = collections.OrderedDict(manifold.dims)
-    rem_name = ','.join(list(manifold.vals.keys()))
+    marg_str = []
+    for key, val in manifold.vals.items():
+      marg_str.append(key)
+      if val is not None:
+        if np.isscalar(val):
+          marg_str[-1] = "{}={}".format(key, val)
+        else:
+          marg_str[-1] = key + "=[]"
+    rem_name = ','.join(marg_str)
+    if '|' in self.name:
+      rem_name += self.name.split('|')[1]
     cond_keys = list(self.cond.keys())
     if cond_keys:
       for key in cond_keys:
         rem_vals.update({key: self.vals[key]})
         rem_dims.update({key: self.dims[key]})
-      rem_name += '|' + ','.join(cond_keys)
 
     return Dist(rem_name,
                 rem_vals,
