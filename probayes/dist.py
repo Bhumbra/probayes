@@ -507,7 +507,7 @@ class Dist (Manifold):
 
  
 #-------------------------------------------------------------------------------
-  def __call__(self, values):
+  def __call__(self, values, keepdims=False):
     # Slices distribution according to scalar values given as a dictionary
 
     assert isinstance(values, dict),\
@@ -519,40 +519,48 @@ class Dist (Manifold):
     marg = collections.OrderedDict(self.marg)
     cond = collections.OrderedDict(self.cond)
     dims = collections.OrderedDict(self.dims)
-    inds = collections.OrderedDict()
     vals = collections.OrderedDict(self.vals)
-    slices = [None] * self.ndim
+    slices = [slice(None) for _ in range(self.ndim)]
     dim_delta = 0
     for i, key in enumerate(self._keys):
-      isscalar = self._aresingleton[i]
-      dimension = self.dims[key]
-      if key in keyset:
-        inds.update({key: None})
-        assert np.isscalar(values[key]), \
-            "Values must contain scalars but found {} for {}".\
-            format(values[key], key)
-        vals[key] = values[key]
-        if isscalar:
-          if self.vals[key] == values[key]:
-            inds[key] = 0
-        else:
-          dim_delta += 1
-          dims[key] = None
-          index = np.nonzero(np.ravel(self.vals[key]) == values[key])[0]
-          if len(index):
-            inds[key] = index[0]
-            slices[dimension] = index[0]
-        if key in marg.keys():
-          marg[key] = "{}={}".format(key, values[key])
-        elif key in cond.keys():
-          cond[key] = "{}={}".format(key, values[key])
-      elif not isscalar:
-        dims[key] = dims[key] - dim_delta
-        slices[dimension] = slice(self.shape[dimension])
+      check_dims = False
+      if not self._aresingleton[i]:
+        dim = self.dims[key]
+        if key in keyset:
+          assert np.isscalar(values[key]), \
+              "Values must contain scalars but found {} for {}".\
+              format(values[key], key)
+          match = np.ravel(self.vals[key]) == values[key]
+          n_matches = match.sum()
+          post_eq = '{}'.format(values[key])
+          if n_matches == 0:
+            slices[dim] = slice(0, 0)
+            vals[key] = np.array([])
+          elif n_matches == 1 and not keepdims:
+            dim_delta += 1
+            slices[dim] = int(np.nonzero(match)[0])
+            vals[key] = values[key]
+            dims[key] = None
+          else:
+            post_eq = '[]'
+            slices[dim] = np.nonzero(match)[0]
+            vals[key] = self.vals[key][slices[dim]]
+            check_dims = True
+          update_keys = [key]
+          if check_dims:
+            for k, v in self.vals.items():
+              if dim == self.dims[k] and k not in keyset:
+                vals[k] = self.vals[k][slices[dim]]
+                update_keys.append(k)
+          for update_key in update_keys:
+            if key in marg.keys():
+              marg[key] = "{}={}".format(key, post_eq)
+            elif key in cond.keys():
+              cond[key] = "{}={}".format(key, post_eq)
+        elif dim_delta:
+          dims[key] = dims[key] - dim_delta
     name = margcond_str(marg, cond)
-    prob = None
-    if not any(idx is None for idx in inds.values()):
-      prob = self.prob[tuple(slices)]
+    prob = self.prob[tuple(slices)]
     return Dist(name=name, 
                 vals=vals, 
                 dims=dims, 
