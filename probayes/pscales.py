@@ -21,7 +21,10 @@ NEARLY_POSITIVE_INF = None
 NEARLY_NEGATIVE_INF = None
 LOG_NEARLY_POSITIVE_INF =  None
 
-def SET_FP_CONSTANTS(precision):
+def SET_FP_CONSTANTS(precision=DEFAULT_FP_PRECISION):
+  """ Sets global floating point constants whether using precision=32 or
+  precision=64 (default)
+  """
   global NEARLY_POSITIVE_ZERO
   global NEARLY_POSITIVE_INF
   global NEARLY_NEGATIVE_INF
@@ -33,10 +36,11 @@ def SET_FP_CONSTANTS(precision):
   LOG_NEARLY_POSITIVE_INF = np.log(NEARLY_POSITIVE_INF)
 
 if NEARLY_NEGATIVE_INF is None or LOG_NEARLY_POSITIVE_INF is None:
-  SET_FP_CONSTANTS(DEFAULT_FP_PRECISION)
+  SET_FP_CONSTANTS()
 
 #-------------------------------------------------------------------------------
 def iscomplex(pscale):
+  """ Returns whether pscale is an instance of a complex number """
   return isinstance(pscale, complex)
 
 #-------------------------------------------------------------------------------
@@ -64,6 +68,7 @@ def eval_pscale(pscale=None):
 
 #-------------------------------------------------------------------------------
 def log_prob(prob):
+  """ Safely returns the logarithm of probability values in prob """
   if np.isscalar(prob):
     if prob >= NEARLY_POSITIVE_ZERO:
       return np.log(prob)
@@ -75,6 +80,7 @@ def log_prob(prob):
 
 #-------------------------------------------------------------------------------
 def exp_logp(logp):
+  """ Safely returns the exponentional of log probability values in logp """
   if np.isscalar(logp):
     if logp <= LOG_NEARLY_POSITIVE_INF:
       return np.exp(logp)
@@ -86,6 +92,7 @@ def exp_logp(logp):
 
 #-------------------------------------------------------------------------------
 def logp_offs(pscale=None):
+  """ Returns the offset in log probability represented by pscale """
   pscale = eval_pscale(pscale)
   if not iscomplex(pscale):
     return float(np.log(pscale))
@@ -95,6 +102,7 @@ def logp_offs(pscale=None):
 
 #-------------------------------------------------------------------------------
 def prob_coef(pscale=None):
+  """ Returns the coefficient in probability represented by pscale """
   pscale = eval_pscale(pscale)
   if not iscomplex(pscale):
     return float(pscale)
@@ -104,6 +112,7 @@ def prob_coef(pscale=None):
 
 #-------------------------------------------------------------------------------
 def real_sqrt(real):
+  """ Safely returns the square root of positive real numbers """
   if np.isscalar(real):
     if real >= NEARLY_POSITIVE_ZERO:
       return np.sqrt(real)
@@ -150,6 +159,10 @@ def rescale(prob, *args):
 
 #-------------------------------------------------------------------------------
 def prod_pscale(pscales, use_logp=None):
+  """ Returns the natural product pscale according all the values in pscales,
+  adopting a log scale if use_logp is True (which defaults to True if any
+  values in pscales are complex.
+  """
   if not len(pscales):
     return None
   if use_logp is None:
@@ -172,7 +185,15 @@ def prod_pscale(pscales, use_logp=None):
 
 #-------------------------------------------------------------------------------
 def prod_rule(*args, **kwds):
-  """ Returns prod, pscale. Reshaping is the responsibility of Dist. """
+  """ Applies product rule to all probability arrays in arrays with optional
+  keywords:
+
+  'pscales': a list of corresponding pscales (defaulting to pscales all 1)
+  'use_logp': a boolean flag to return log probabilities (defaults to true if
+              any value in pscales is complex)
+
+  :return: joint_probility, pscale (two element tuple)
+  """
   kwds = dict(kwds)
   pscales = kwds.get('pscales', [1.] * len(args))
   use_logp = kwds.get('use_logp', any([iscomplex(_pscale) for _pscale in pscales]))
@@ -223,6 +244,13 @@ def prod_rule(*args, **kwds):
 
 #-------------------------------------------------------------------------------
 def div_prob(dividend, divisor, *args, pscale=None):
+  """ Safely divides two probability arrays.
+
+  :param dividend: numerator
+  :param divisor: denominator
+  :param *args: pscales for divident, divisor (defaults to 1. in each case).
+  :param pscale: output pscale (defaults to result first pscale).
+  """
   pscales = [None, None]
   if len(args):
     assert len(args) == 2, "Both pscales must be specified if at all"

@@ -17,6 +17,13 @@ VTYPES = {
 
 #-------------------------------------------------------------------------------
 def eval_vtype(vtype):
+  """ Evaluates a variable type from input vtype.
+
+  :param vtype: input object
+
+  :return: either bool, int, float if correctly detected. 
+           Otherwise the dtype is returned.
+  """
   if isinstance(vtype, set):
     vtype = list(vtype)
   if isinstance(vtype, (list, tuple)):
@@ -42,6 +49,11 @@ def eval_vtype(vtype):
 
 #-------------------------------------------------------------------------------
 def isunitset(var, vtype=None):
+  """ Returns boolean flag as to whether var is a set of one element.
+
+  :param var: variable to assess.
+  :param vtype: optional filter for variable type (e.g. int or float)
+  """
   if vtype is None:
     vtype = list(VTYPES.keys())
   elif not isinstance(vtype, (tuple,list)):
@@ -56,7 +68,8 @@ def isunitset(var, vtype=None):
 
 #-------------------------------------------------------------------------------
 def isunitsetint(var):
-  """ Usage depends on class:
+  """ Returns boolean flag as to whether var is a set of one integer element.
+  Note: Usage depends on class:
   RVs, RJs, RFs: set(int) is a sample specification denoting number of samples:
                    positive values request samples using linear interpolation
                    negative values request samples using random generation.
@@ -66,11 +79,16 @@ def isunitsetint(var):
 
 #-------------------------------------------------------------------------------
 def isunitsetfloat(var):
-  """ Usage requests a sampling of value from a ICDF for then given P """
+  """ Returns boolean flag as to whether var is a set of one float element.
+  Usage requests a sampling of value from a ICDF for then given P.
+  """
   return isunitset(var, float)
 
 #-------------------------------------------------------------------------------
 def isscalar(var):
+  """ If var is a dimensionless numpy array of size, this function returns True
+  otherwise np.isscalar(var) is returned.
+  """
   if isinstance(var, np.ndarray):
     if var.ndim == 0 and var.size == 1:
       return True
@@ -78,6 +96,9 @@ def isscalar(var):
 
 #-------------------------------------------------------------------------------
 def issingleton(var):
+  """ If isunitset(var) is True, this function returns True, 
+  otherwise isscalar(var) is returned.
+  """
   # Here we define singleton as a unit set or scalar
   if isunitset(var):
     return True
@@ -85,6 +106,10 @@ def issingleton(var):
 
 #-------------------------------------------------------------------------------
 def isunitary(var):
+  """ If isscalar(var) is True, this function returns True, 
+  otherwise if var is numpy array of size 1, this function returns True, 
+  False is returned.
+  """
   if isscalar(var):
     return True
   if isinstance(var, np.ndarray):
@@ -94,6 +119,9 @@ def isunitary(var):
 
 #-------------------------------------------------------------------------------
 def isdimensionless(var):
+  """ If var is {0}, then True is returned, otherwise np.isscalar(var) is
+  returned.
+  """
   if isinstance(var, set):
     if len(var) == 1:
       var = list(var)[0]
@@ -104,6 +132,7 @@ def isdimensionless(var):
 
 #-------------------------------------------------------------------------------
 def revtype(var, vtype=None):
+  """ Converts var into Numpy array of variable type vtype """
   if vtype is None:
     return var
   vtype = eval_vtype(vtype)
@@ -120,6 +149,16 @@ def uniform(v_0=0,
             n=None,
             ex_0=False,
             ex_1=False):
+  r""" Samples $n$ points in the range $v_0$ to $v_1$ with optional exclusion of
+  respective limits according to boolean flags values (default False) given by
+  ex_0 and ex_1. The sampled values are uniformly obtained in the range 
+  according to $n$:
+
+  If $n<0$, then $-n$ points are sampled randomly (ignoring limit exclusions).
+  If $n=0$, then a single scalar value is sampled randomly.
+  If $n>0$, then $n$ points are linearly sampled according to limit exclusions.
+  """
+
   # Zero or negative denote random uniform
   if not n:
     return np.random.uniform(v_0, v_1)
@@ -140,6 +179,6 @@ def uniform(v_0=0,
     return np.linspace(v_0, v_1, n+1)[:-1]
 
   # We shouldn't reach here
-  raise ValueError("Unrecognised exclusions {} and {}".format(ex_0, ax_1))
+  raise ValueError("Unrecognised exclusions {} and {}".format(ex_0, ex_1))
 
 #-------------------------------------------------------------------------------

@@ -8,7 +8,23 @@ from probayes.vtypes import issingleton
 
 #-------------------------------------------------------------------------------
 class Manifold:
+  """ A Manifold is a topological space defined over specific values for
+  one or more variables. Those values are defined a the dictionary
+  {variable_name: values} [Manifold.vals] with dimensions {variable_name: dim}
+  [Manifold.dims]. The dimensionality defines a finite space of sizes with
+  it permissable for variables to share dimensions and in such cases reducing
+  the shape dimensions.
 
+  :example:
+  >>> import numpy as np
+  >>> import probayes as pb
+  >>> xy = pb.Manifold({'x': np.arange(3), 'y': np.arange(2)}, {'x': 0, 'y': 1})
+  >>> print(xy.shape)
+  [3, 2]
+
+  Scalars can be included among vals, but must possess dimensionality None and
+  do not contribute to the size or shape of the manifold.
+  """
   # Public
   vals = None          # Ordered dictionary with values
   dims = None          # Ordered dictionary specifying dimension index of vals
@@ -25,10 +41,31 @@ class Manifold:
 
 #-------------------------------------------------------------------------------
   def __init__(self, vals=None, dims=None):
+    """ Initialises the manifold with vals and dims (see Manifold.set_vals()) """
     self.set_vals(vals, dims)
   
 #-------------------------------------------------------------------------------
   def set_vals(self, vals=None, dims=None):
+    """ Sets the values and dimensions for each of the variables.
+
+    :param vals: a dictionary of {variable_name: variable_values}
+    :param dims: a dictionary of {variable_name: variable_dim}
+
+    :return dims (which may be defaulted if vals is an OrderedDict() instance).
+
+    The keys for the two arguments should correspond.
+
+    If vals is an OrderedDict() instance, and dims is None, then the
+    dimensionality will be defaulted according to order in vals:
+
+    :example:
+    >>> import numpy as np
+    >>> from collections import OrderedDict()
+    >>> import probayes as pb
+    >>> xy = pb.Manifold()
+    >>> print(xy.set_vals(OrderedDict({'x': np.arange(3), 'y': np.arange(2)})))
+    OrderedDict([('x', 0), ('y', 1)])
+    """
     self.vals = vals
     self.dims = dims
     self.sizes = []
@@ -120,6 +157,7 @@ class Manifold:
 
 #-------------------------------------------------------------------------------
   def ret_vals(self, keys):
+    """ Returns the values of Manifold.dims filtering by keys """ 
     for key in keys:
       assert key in self._keys, "Key {} not found among {}".\
           format(key, self._keys)
@@ -132,9 +170,8 @@ class Manifold:
     
 #-------------------------------------------------------------------------------
   def redim(self, dims):
-    """ 
-    Returns a manifold according to redimensionised values in dims, index-
-    ordered by the order in dims
+    """  Returns a manifold according to redimensionised values in dims, index-
+    ordered by the order in dims.
     """
     for key in self._keys:
       if self.dims[key] is not None:
@@ -149,6 +186,9 @@ class Manifold:
 
 #-------------------------------------------------------------------------------
   def rekey(self, keymap):
+    """ Returns a Manifold rekeying the values and dimensions according the
+    dictionary mappings given in keymap. 
+    """
     assert isinstance(keymap, dict), \
         "Input keymap must a dictionary in the form {old_key: new_key}"
     vals = collections.OrderedDict()
@@ -167,10 +207,12 @@ class Manifold:
     
 #-------------------------------------------------------------------------------
   def ret_aresingleton(self):
+    """ Returns a boolean array of whether Manifold variables are singleton """
     return self._aresingleton
          
 #-------------------------------------------------------------------------------
   def ret_issingleton(self, key=None):
+    """ Returns whether Manifold defines a singleton shape """
     if key is None:
       return self._issingleton
     if isinstance(key, str):
@@ -181,6 +223,7 @@ class Manifold:
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key=None):
+    """ Returns values according to key which may be a string or index """
     if key is None:
       return self.vals
     if type(key) is int:
@@ -191,6 +234,7 @@ class Manifold:
 
 #-------------------------------------------------------------------------------
   def __len__(self):
+    """ Returns the number of variables in Manifold.vals """
     return len(self.vals)
    
 #-------------------------------------------------------------------------------

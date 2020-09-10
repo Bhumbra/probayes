@@ -25,10 +25,28 @@ SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
 
 #------------------------------------------------------------------------------- 
 def is_scipy_stats_mvar(arg, scipy_stats_mvar=SCIPY_STATS_MVAR):
+  """ Returns a boolean for whether arg is an instance of scipy multivariate """
   return isinstance(arg, tuple(scipy_stats_mvar))
 
 #-------------------------------------------------------------------------------
 class Func:
+  """ A functional wrapper to enable object representations as an uncallable
+  array, a callable function, or a tuple of callable functions
+
+  :example:
+  >>> from probayes.func import Func
+  >>> hw = Func("Hello world!")
+  >>> print(hw())
+  Hello World!
+  >>> inc = Func(lambda x: x+1)
+  >>> print(inc(2.)
+  3.0
+  >>> inc_dec = Func( (lambda x:x+1, lambda x:x-1) )
+  >>> print(inc_dec[0](3.))
+  4.0
+  >>> print(inc_dec[1](3.))
+  2.0
+  """
 
   # Protected
   _func = None
@@ -48,10 +66,27 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def __init__(self, func=None, *args, **kwds):
+    """ Initialises Func according to object in func, which may be an uncallable
+    object, a callable function, or a tuple of callable functions. See set_func()
+    """
     self.set_func(func, *args, **kwds)
     
 #-------------------------------------------------------------------------------
   def set_func(self, func=None, *args, **kwds):
+    """ Set the Func instance's function object.
+
+    :param func: an uncallable object, callable function, or tuple of functions
+    :param *args: arguments to pass onto callables
+    :param **kwds: keywords to pass onto callables
+
+    Note that the following two reserved keywords are disallowed:
+
+    'order': which instead denotes a dictionary of remappings.
+    'delta': which instead denotes a mapping of differences.
+
+    A special case is made for func instances that are Scipy multivariate objects.
+    """
+
     self._func = func
     self._args = tuple(args)
     self._kwds = dict(kwds)
@@ -100,6 +135,9 @@ class Func:
     
 #-------------------------------------------------------------------------------
   def set_order(self, order=None):
+    """ Sets an order remapping dictionary for functional calls in which
+    keyword arguments are mapped to position (in numeric) or rekeyed (if str).
+    """
     self.__order = order
     if self.__order is None:
       return
@@ -110,6 +148,9 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def set_delta(self, order=None):
+    """ Sets a difference remapping dictionary for functional calls in which
+    keyword arguments are mapped to position (in numeric) or rekeyed (if str).
+    """
     self.__delta = delta
     if self.__delta is None:
       return
@@ -120,6 +161,7 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def _check_mapping(self, mapping=None):
+    """ Perform sanity checkings on mapping dictionary """
     if mapping is None:
       return
     # Used to sanity-check mapping dicts e.g. order and delta
@@ -144,26 +186,34 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def ret_callable(self):
+    """ Returns boolean flag as to whether func is callable """
     return self.__callable
 
 #-------------------------------------------------------------------------------
   def ret_isscalar(self):
+    """ Returns boolean flag as to whether func is a scalar """
     return self.__isscalar
 
 #-------------------------------------------------------------------------------
   def ret_istuple(self):
+    """ Returns boolean flag as to whether func comprises a tuple """
     return self.__istuple
 
 #-------------------------------------------------------------------------------
   def ret_isscipy(self):
+    """ Returns boolean flag as to whether func comprises a scipy object """
     return self.__isscipy
 
 #-------------------------------------------------------------------------------
   def ret_scipyobj(self):
+    """ Returns scipy object if specified """
     return self.__scipyobj
 
 #-------------------------------------------------------------------------------
   def _call(self, *args, **kwds):
+    """ Private call used by the wrapped Func interface.
+    (see __call__ and __getitem__).
+    """
 
     # Handle scipy objects separately
     if self.__isscipy:
@@ -233,6 +283,9 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def _call_scipy(self, *args, **kwds):
+    """ Private call used by the wrapped Func interface for scipy objects.
+    (see __call__ and __getitem__).
+    """
     index = 0
     if self.__index is not None:
       index = self.__index
@@ -255,12 +308,16 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
+   """ Wrapper call to the function with optional inclusion of additional
+   args and kwds. """
+
    assert not self.__istuple or self.__isscipy, \
        "Cannot call with tuple func, use Func[]"
    return self._call(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, index=None):
+   r""" Calls the $i$th function from the Func tuple where the index is $i$ """
    if index is None:
      return self._func
    assert self.__istuple or self.__isscipy, \
@@ -270,6 +327,7 @@ class Func:
 
 #-------------------------------------------------------------------------------
   def __len__(self):
+    """ Returns the number of functions in the tuple set by set_func() """
     if not self.__istuple:
       return None
     return len(self._func)
