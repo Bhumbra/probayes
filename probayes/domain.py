@@ -16,6 +16,21 @@ DEFAULT_VSET = {False, True}
 
 #-------------------------------------------------------------------------------
 class Domain:
+  """ Base class for probayes.RV although this class can be called itself.
+  A domain defines a variable set over which a function can be defined. It
+  therefore needs a name and corresponding variable. While this class
+  does not support respective probability density functions (use RV for that), 
+  it does include an optional to specify an invertible monotic variable 
+  transformation function:
+
+  :example:
+  >>> import numpy as np
+  >>> import probayes as pb
+  >>> scalar = pb.Domain('scalar', [-np.inf, np.inf], vtype=float)
+  >>> scalar.set_mfun((np.exp, np.log))
+  >>> print(scalar.ret_limits())
+  [ 0. inf]
+  """
 
   # Public
   delta = None       # A named tuple generator
@@ -40,6 +55,25 @@ class Domain:
                      mfun=None,
                      *args,
                      **kwds):
+    """ Initialiser sets name, vset, and mfun:
+
+    :param name: Name of the domain - string as valid identifier.
+    :param vset: variable set over which domain defined (see set_vset).
+    :param vtype: variable type (bool, int, or float).
+    :param mfun: two-length tuple of monotonic functions (see set_mfun).
+    :param *args: args to pass to mfun functions.
+    :param **kwds: kwds to pass to mfun functions.
+
+    Every Domain instance offers a factory function for delta specifications:
+
+    :example:
+    >>> import numpy as np
+    >>> import probayes as pb
+    >>> x = pb.Domain('x', [-np.inf, np.inf], vtype=float)
+    >>> dx = x.delta(0.5)
+    >>> print(x.apply_delta(1.5, dx))
+    2.0
+    """
     self.set_name(name)
     self.set_vset(vset, vtype)
     self.set_mfun(mfun, *args, **kwds)
@@ -47,6 +81,10 @@ class Domain:
 
 #-------------------------------------------------------------------------------
   def set_name(self, name):
+    """ Sets name of variable over which domain is defined:
+
+    :param name: Name of the domain - string as valid identifier.
+    """
     # Identifier name required
     self._name = name
     assert isinstance(self._name, str), \
@@ -57,6 +95,29 @@ class Domain:
 
 #-------------------------------------------------------------------------------
   def set_vset(self, vset=None, vtype=None):
+    """ Sets the variable set and variable type over which the domain is defined.
+
+    :param vset: variable set over which domain defined (default [False, True])
+    :param vtype: variable type (bool, int, or float; default bool).
+
+    For non-float vtypes, vset may be a list, set, range, or NumPy array.
+
+    For float vtypes, vset represents limits in the form:
+
+    [lower, upper] - inclusive of both lower of upper values
+    [(lower), upper] - exclusive of lower and inclusive of upper.
+    [lower, (upper)] - inclusive of lower and exclusive of upper.
+    [(lower), (upper)] - exclusive of both lower and upper values.
+
+    The last case may also set using a simple two-value tuple:
+
+    :example:
+    >>> import probayes as pb
+    >>> scalar = pb.Domain('scalar')
+    >>> scalar.set_vset((1, 2), vtype=float)
+    >>> print(scalar.ret_vset())
+    [(1.0,), (2.0,)]
+    """
 
     # Default vset to nominal
     if vset is None: 
@@ -103,10 +164,13 @@ class Domain:
         self._vset[i] = self._vset[i],
     self._vtype = eval_vtype(vtype)
     self._eval_lims()
-    return self._vtype
 
 #-------------------------------------------------------------------------------
   def _eval_lims(self):
+    """ Evaluates untransformed (self._lims) and transformed (self._limits) 
+
+    :returns: the length of the domain.
+    """
     self._lims = None
     self._limits = None
     self._length = None
@@ -155,9 +219,20 @@ class Domain:
     else:
       self._inside = lambda x: np.logical_and(x > self._lims[0],
                                               x < self._lims[1])
+    return self._length
 
 #-------------------------------------------------------------------------------
   def set_mfun(self, mfun=None, *args, **kwds):
+    """ Sets a monotonic invertible tranformation for the domain as a tuple of
+    two functions in the form (transforming_function, inverse_function) 
+    operating on the first argument with optional further args and kwds.
+
+    :param mfun: two-length tuple of monotonic functions.
+    :param *args: args to pass to mfun functions.
+    :param **kwds: kwds to pass to mfun functions.
+
+    Support for this transformation is only valid for float-type vtypes.
+    """
     self._mfun = mfun
     if self._mfun is None:
       return
@@ -173,18 +248,24 @@ class Domain:
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
-    """ Input argument delta may be:
+    """ Sets the default delta operation for the domain.
 
-    1. A callable function (for which args and kwds are passed on as usual).
-    2. An rv.delta instance (this defaults all RV deltas).
-    3. A scalar that may contained in a list:
+    :param delta: a callable or uncallable argument (see below)
+    :param *args: args to pass if delta is callable.
+    :param **kwds: kwds to pass if delta is callable (except scale and bound)
+
+    The first argument delta may be:
+
+    1. A callable function (operating on the first term).
+    2. A Domain.delta instance (this defaults all Domain deltas).
+    3. A scalar that may or may not be contained in a container:
       a) No container - the scalar is treated as a fixed delta.
       b) List - delta is uniformly sampled from [-scalar to +scalar].
       c) Tuple - operation is +/-delta within the polarity randomised
 
-      Optional keywords are (default False):
-        'scale': Flag to denote scaling deltas to RV lengths
-        'bound': Flag to constrain delta effects to RV bounds
+    Two reserved keywords can be passed for specifying (default False):
+      'scale': Flag to denote scaling deltas to Domain lengths
+      'bound': Flag to constrain delta effects to Domain bounds
     """
     self._delta = delta
     self._delta_args = args
@@ -203,18 +284,28 @@ class Domain:
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
+    """ Returns the domain name """
     return self._name
 
 #-------------------------------------------------------------------------------
   def ret_vset(self):
+    """ Returns the variable set """
     return self._vset
 
 #-------------------------------------------------------------------------------
   def ret_vtype(self):
+    """ Returns the variable type """
     return self._vtype
 
 #-------------------------------------------------------------------------------
   def ret_mfun(self, index=None):
+    r""" Returns the monotonic invertible function(s). If not specified, then
+    an identity lambda is passed.
+    
+    :param index: optional index $i$ if to isolate the $i$th function.
+
+    :return: monotonic inverible function(s).
+    """
     if self._mfun is None:
       return lambda x:x
     if index is None:
@@ -223,22 +314,49 @@ class Domain:
 
 #-------------------------------------------------------------------------------
   def ret_lims(self):
+    """ Returns the untransformed limits """
     return self._lims
 
 #-------------------------------------------------------------------------------
   def ret_limits(self):
+    """ Returns the transformed limits """
     return self._limits
 
 #-------------------------------------------------------------------------------
   def ret_length(self):
+    """ Returns the length of the domain """
     return self._length
 
 #-------------------------------------------------------------------------------
   def ret_delta(self):
+    """ Returns the delta function if set """
     return self._delta
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values=None):
+    r""" Evaluates value(s) belonging to the domain.
+
+    :param values: None, set of a single integer, array, or scalar.
+
+    :return: a NumPy array of the values in accordance to the following:
+
+    If values is a NumPy array, it is returned unchanged.
+
+    If values is None, it defaults to the entire variable set (vset) if not
+    the variable type vtype is not float; otherwise a single scalar within the
+    vset is randomly evaluated (see below).
+
+    If values is a set containing a single integer (i.e. $\{n\}$), , then the 
+    output depends on the number $n$:
+
+    If positive ($n$), then $n$ values are uniformly sampled.
+    If zero ($n=0$), then a scalar value is randomly sampled.
+    if negative($-n$), then $n$ values are randomly sampled.
+
+    For non-float types, the values are evaluated from by ordered (if $n>0) or 
+    random permutations of vset. For float types, then uniformly sampled is
+    performed in accordance for any transformations set by Domain.set_mfun().
+    """
 
     # Default to arrays of complete sets
     if values is None:
@@ -281,11 +399,29 @@ class Domain:
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
-    return eval_vals(values)
+    """ See Domain.eval_vals() 
+
+    :example:
+
+    >>> import numpy as np
+    >>> import probayes as pb
+    >>> freq = pb.Domain('freq', [1,8], vtype=float)
+    >>> freq.set_mfun((np.log, np.exp))
+    >>> print(freq({4})
+    [1. 2. 4. 8.]
+    """
+    return self.eval_vals(values)
 
 #------------------------------------------------------------------------------- 
   def eval_delta(self, delta=None):
-    # Evaluates the delta but does not apply it
+    """ Evaluates the value(s) of a delta operation without applying them.
+
+    :param delta: delta value(s) to offset (see Domain.apply_delta).
+    :return: the evaluated delta offset values.
+    :rtype Domain.delta()
+
+    If delta is not entered, then the default set by Domain.set_delta() is used.
+    """
     delta = delta or self._delta
     if delta is None:
       return None
@@ -312,13 +448,28 @@ class Domain:
       else:
         delta = np.random.uniform(-delta, delta)
     assert isscalar(delta), "Unrecognised delta type: {}".format(delta)
-    if self._delta_kwds['scale']:
+    if delta == self._delta and self._delta_kwds['scale']:
       assert np.isfinite(self._length), "Cannot scale by infinite length"
       delta *= self._length
     return self.delta(delta)
 
 #------------------------------------------------------------------------------- 
   def apply_delta(self, values, delta=None, bound=None):
+    """ Applies delta operation  to values optionally contrained by bounds.
+
+    :param values: Numpy array values to apply.
+    :param delta: delta value(s) to offset to the values
+    :param bound: optional argument to contrain outputs.
+
+    :return: Returns the values following the delta operation.
+
+    If delta is not entered, then the default set by Domain.set_delta() is used.
+    Delta may be a scalar or a single scalar value contained in a tuple or list.
+
+    1. A scalar value: is summated to values (transformed if mfun is specified).
+    2. A tuple: the polarity of the scalar value is randomised for the delta.
+    3. A list: the delta is uniformly sampled in the range [0, scalar].
+    """
 
     # Call eval_delta() if values is a list and return values if delta is None
     delta = delta or self._delta
