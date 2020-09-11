@@ -18,14 +18,29 @@ SCIPY_STATS_DIST = SCIPY_STATS_CONT.union(SCIPY_STATS_DISC)
 
 #-------------------------------------------------------------------------------
 def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):
+  """ Returns if argument belongs to scipy.stats.continuous """
   return isinstance(arg, tuple(scipy_stats_cont))
 
 #-------------------------------------------------------------------------------
 def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
+  """ Returns if argument belongs to scipy.stats.continuous or discrete """
   return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
 class Prob:
+  """ A probability is quantification of degrees of belief concerning outcomes.
+  Typically these outcomes are defined over the domains of one or more variables. 
+  Since this is not a requirement, this class is not abstract, but it is 
+  nevertheless not so useful as probayes.RV if instantiated directly. 
+  This class can be used to define a probability distribution.
+
+  :example:
+  >>> import scipy.stats
+  >>> import probayes as pb
+  >>> norm = pb.Prob(scipy.stats.norm)
+  >>> print(norm(0.))
+  0.3989422804014327
+  """
 
   # Protected
   _prob = None      # Probability distribution function
@@ -39,10 +54,24 @@ class Prob:
 
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, pscale=None, *args, **kwds):
-    self.set_prob(prob, pscale, *args, **kwd)
+    """ Initialises the probability and pscale (see set_prob). """
+    self.set_prob(prob, pscale, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
+    """ Sets the probability and pscale with optional arguments and keywords.
+
+    :param prob: may be a scalar, array, or callable function.
+    :param pscale: represents the scale used to represent probabilities.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
+
+    :return: a boolean flag of whether prob is callable.
+
+    See set_pscale() for explanation of how pscale is used.
+
+    """
+
     self._pfun = None
     pset = prob if is_scipy_stats_dist(prob) else None
     self.__scalar = None
@@ -75,10 +104,16 @@ class Prob:
 
 #-------------------------------------------------------------------------------
   def set_pscale(self, pscale=None):
-    """
-    Positive denotes a normalising coefficient.
-    If zero or negative, denotes log probability offset ('log' or 'ln' means '0.0').
-    May also be scipy.stats.distribution variable type to set everything else.
+    """ Sets the probability scaling constant used for probabilities.
+
+    :param pscale: can be None, a real number, or a complex number, or 'log'
+
+       if pscale is None (default) the normalisation constant is set as 1.
+       if pscale is real, this defines the normalisation constant.
+       if pscale is complex, this defines the offset for log probabilities.
+       if pscale is 'log', this denotes a logarithmic scale with an offset of 0.
+
+    :return: pscale (either as a real or complex number)
     """
     self._pscale = eval_pscale(pscale)
 
@@ -93,6 +128,9 @@ class Prob:
 
 #-------------------------------------------------------------------------------
   def set_pset(self, pset, *args, **kwds):
+    """ Sets a set of probability functions if prob is a scipy.stats object.
+    Normally this function should not require calling if set_prob is set.
+    """
     self.__pset = pset if is_scipy_stats_dist(pset) else None
     if self.__pset is None:
       return
@@ -122,10 +160,16 @@ class Prob:
 
 #-------------------------------------------------------------------------------
   def ret_pset(self):
+    """ Returns object set by set_pset() """
     return self.__pset
 
 #-------------------------------------------------------------------------------
   def set_pfun(self, pfun=None, *args, **kwds):
+    """ Sets a two-length tuple of functions that should correspond to the
+    (cumulative probability function, inverse cumulative function) with respect
+    to the callable function set by set_prob(). It is necessary to set these
+    functions if sampling variables with non-flat distributions.
+    """
     self._pfun = pfun
     if self._pfun is None:
       return 
@@ -139,39 +183,48 @@ class Prob:
 
 #-------------------------------------------------------------------------------
   def ret_pfun(self, index=None):
+    """ Returns object set by set_pfun() """
     if self._pfun is None or index is None:
       return self._pfun
     return self._pfun[index]
 
 #-------------------------------------------------------------------------------
   def ret_prob(self):
+    """ Returns object set by set_prob() """
     return self._prob
 
 #-------------------------------------------------------------------------------
   def ret_callable(self):
+    """ Returns whether object set by set_prob() is callable """
     return self.__callable
 
 #-------------------------------------------------------------------------------
   def ret_isscalar(self):
+    """ Returns whether prob is a scalar """
     return self.__isscalar
 
 #-------------------------------------------------------------------------------
   def ret_pscale(self):
+    """ Returns the real or complex scaling constant set for pscale """
     return self._pscale
 
 #-------------------------------------------------------------------------------
-  def ret_pset(self):
-    return self.__pset
-
-#-------------------------------------------------------------------------------
   def rescale(self, probs, **kwds):
+    """ Returns a rescaling of probs from current pscale to the values according
+    to the keyword pscale=new_pscale. """
     if 'pscale' not in kwds:
       return probs
     return rescale(probs, self._pscale, kwds['pscale'])
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, *args, **kwds):
-    """ keys can include pscale """
+    """ Evaluates the probability inputting optional args for callable cases
+
+    :param *args: optional arguments for callable probabililoty.
+    :param **kwds: optional arguments to include pscale for rescaling.
+
+    :return: evaluated probabilities
+    """
 
     # Callable and non-callable evaluations
     probs = self._prob
@@ -187,6 +240,7 @@ class Prob:
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    return eval_prob(*args, **kwds)
+    """ See eval_prob() """
+    return self.eval_prob(*args, **kwds)
 
 #-------------------------------------------------------------------------------

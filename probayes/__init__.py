@@ -1,4 +1,5 @@
 from probayes.domain import Domain
+from probayes.prob import Prob
 from probayes.rv import RV
 from probayes.rj import RJ
 from probayes.rf import RF
