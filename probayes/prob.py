@@ -69,9 +69,7 @@ class Prob:
     :return: a boolean flag of whether prob is callable.
 
     See set_pscale() for explanation of how pscale is used.
-
     """
-
     self._pfun = None
     pset = prob if is_scipy_stats_dist(prob) else None
     self.__scalar = None

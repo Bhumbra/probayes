@@ -56,6 +56,18 @@ class RV (Domain, Prob):
                      pscale=None,
                      *args,
                      **kwds):
+    """ Initialises a random variable combining Domain and Prob initialisation
+    except invertible monotonic must be specified separately using set_mfun().
+
+    :param name: Name of the domain - string as valid identifier.
+    :param vset: variable set over which domain defined (see set_vset).
+    :param vtype: variable type (bool, int, or float).
+    :param prob: may be a scalar, array, or callable function.
+    :param pscale: represents the scale used to represent probabilities.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
+    """
+
     self.set_name(name)
     self.set_vset(vset, vtype)
     self.set_prob(prob, pscale, *args, **kwds)
@@ -64,11 +76,26 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def set_name(self, name):
+    """ Sets name of variable over which domain is defined:
+
+    :param name: Name of the domain - string as valid identifier.
+    """
     super().set_name(name)
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, pscale=None, *args, **kwds):
+    """ Sets the probability and pscale with optional arguments and keywords.
+
+    :param prob: may be a scalar, array, or callable function.
+    :param pscale: represents the scale used to represent probabilities.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
+
+    :return: a boolean flag of whether prob is callable.
+
+    See set_pscale() for explanation of how pscale is used.
+    """
     self._tran, self._tfun = None, None
     if prob is not None:
       super().set_prob(prob, pscale, *args, **kwds)
@@ -91,7 +118,7 @@ class RV (Domain, Prob):
    
 #-------------------------------------------------------------------------------
   def _default_prob(self, pscale=None):
-    # Default unspecified probabilities to uniform over self._vset is given
+    """ Defaults unspecified probabilities to uniform over self._vset """
     self._pscale = eval_pscale(pscale)
     if self._prob is None:
       if self._vset is None:
