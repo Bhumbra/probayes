@@ -23,6 +23,22 @@ associated probability distribution function (prob).
 
 #-------------------------------------------------------------------------------
 class RV (Domain, Prob):
+  """ A random variable is a domain with a defined probability function.
+  It therefore inherits from classes Domain and and Prob. Each instance therefore 
+  requires a name, a variable set, and probability function. Additionally RV
+  supports transitional probabilities the cdf/icdf equivalents specified using
+  RV.set_tran() and RV.set_tfun() equivalents, and accessed using RV.step().
+
+  :example:
+  >>> import numpy as np
+  >>> import probayes as pb
+  >>> var = pb.RV('var', vtype=bool)
+  >>> var.set_tran(np.array([0.2, 0.8, 0.3, 0.7]).reshape(2,2,))
+  >>> step = var.step()
+  >>> print(step.prob)
+  [[0.2 0.8]
+   [0.3 0.7]]
+  """
 
   # Protected
   _tran = None      # Transitional prob - can be a matrix
@@ -123,11 +139,11 @@ class RV (Domain, Prob):
     self._tran = tran
     self.__sym_tran = None
     if self._tran is None:
-      return self.__sym_tran
+      return
     self._tran = Func(self._tran, *args, **kwds)
     self.__sym_tran = not self._tran.ret_istuple()
     if self._tran.ret_callable() or self._tran.ret_isscalar():
-      return self.__sym_tran
+      return
     assert self._vtype not in VTYPES[float],\
       "Scalar or callable transitional required for floating point data types"
     tran = self._tran() if self.__sym_tran else self._tran[0]()
@@ -137,7 +153,6 @@ class RV (Domain, Prob):
     assert tran.ndim == 2, message
     assert np.all(np.array(tran.shape) == len(self._vset)), message
     self.__sym_tran = np.allclose(tran, tran.T)
-    return self.__sym_tran
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -253,11 +268,12 @@ class RV (Domain, Prob):
         warning.warn("Reverse direction called from asymmetric transitional")
       prob = self._tran() if not self._tran.ret_istuple() else \
              self._tran[int(reverse)]()
-      succ_vals, pred_idx, succ_idx = matrix_cond_sample(pred_vals, 
-                                                         succ_vals, 
-                                                         prob=prob, 
-                                                         vset=self._vset) 
-      kwargs.update({'pred_idx': pred_idx, 'succ_idx': succ_idx})
+      if isunitset(succ_vals):
+        succ_vals, pred_idx, succ_idx = matrix_cond_sample(pred_vals, 
+                                                           succ_vals, 
+                                                           prob=prob, 
+                                                           vset=self._vset) 
+        kwargs.update({'pred_idx': pred_idx, 'succ_idx': succ_idx})
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
 
     # That just leaves callables
@@ -354,10 +370,15 @@ class RV (Domain, Prob):
     elif len(args) == 2:
       pred_vals, succ_vals = args[0], args[1]
     dist_pred_name = self.eval_dist_name(pred_vals)
+    dist_succ_name = None
+    if pred_vals is None and succ_vals is None and \
+        self._vtype not in VTYPES[float]:
+      dist_succ_name = self.eval_dist_name(succ_vals, "'")
     pred_vals = self.eval_vals(pred_vals)
     vals, dims, kwargs = self.eval_step(pred_vals, succ_vals, reverse=reverse)
     cond = self.eval_tran(vals, **kwargs)
-    dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
+    if dist_succ_name is None:
+      dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     return Dist(dist_name, vals, dims, cond, self._pscale)
     

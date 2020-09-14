@@ -106,16 +106,33 @@ def lookup_square_matrix(col_vals, row_vals, sq_matrix,
         "Transition matrix size {} incommensurate with set support {}".\
         format(support, len(vset))
     vset = sorted(vset)
+  rc_scalar = False
   if row_idx is None:
     if isscalar(row_vals):
+      rc_scalar = True
       row_idx = vset.index(row_vals)
     else:
+      row_shape = None
+      if isinstance(row_vals, np.ndarray):
+        row_vals = np.ravel(row_vals).tolist()
       row_idx = [vset.index(row_val) for row_val in row_vals]
+  elif isscalar(row_idx):
+      rc_scalar = True
   if col_idx is None:
     if isscalar(col_vals):
+      rc_scalar = True
       col_idx = vset.index(col_vals)
     else:
-      col_idx = [vset.index(col_val) for col_val in pred_vals]
-  return sq_matrix[row_idx, col_idx]
-
+      if isinstance(col_vals, np.ndarray):
+        col_vals = np.ravel(col_vals).tolist()
+      col_idx = [vset.index(col_val) for col_val in col_vals]
+  elif isscalar(col_idx):
+      rc_scalar = True
+  if rc_scalar:
+    return sq_matrix[row_idx, col_idx]
+  mat = np.empty([len(row_idx), len(col_idx)], dtype=sq_matrix.dtype)
+  for i, row in enumerate(row_idx):
+    mat[i] = sq_matrix[row][col_idx]
+  return mat
+    
 #-------------------------------------------------------------------------------
