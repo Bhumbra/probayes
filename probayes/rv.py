@@ -128,8 +128,17 @@ class RV (Domain, Prob):
         self.set_tran(prob)
 
 #-------------------------------------------------------------------------------
-  def set_pfun(self, *args, **kwds):
-    super().set_pfun(*args, **kwds)
+  def set_pfun(self, pfun=None, *args, **kwds):
+    """ Sets a two-length tuple of functions that should correspond to the
+    (cumulative probability function, inverse cumulative function) with respect
+    to the callable function set by set_prob(). It is necessary to set these
+    functions if sampling variables with non-flat distributions.
+
+    :param pfun: two-length tuple of callable functions
+    :param *args: arguments to pass to pfun functions
+    :param **kwds: keywords to pass to pfun functions
+    """
+    super().set_pfun(pfun, *args, **kwds)
     if self._mfun is None or self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
@@ -139,8 +148,18 @@ class RV (Domain, Prob):
         "values transformation functions"
 
 #-------------------------------------------------------------------------------
-  def set_mfun(self, *args, **kwds):
-    super().set_mfun(*args, **kwds)
+  def set_mfun(self, mfun=None, *args, **kwds):
+    """ Sets a monotonic invertible tranformation for the domain as a tuple of
+    two functions in the form (transforming_function, inverse_function) 
+    operating on the first argument with optional further args and kwds.
+
+    :param mfun: two-length tuple of monotonic functions.
+    :param *args: args to pass to mfun functions.
+    :param **kwds: kwds to pass to mfun functions.
+
+    Support for this transformation is only valid for float-type vtypes.
+    """
+    self._mfun = mfun
     if self._mfun is None:
       return
 
@@ -160,6 +179,20 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
+    """ Sets a transitional function as a conditional probability. This can
+    be specified numerically or one or two callable functions.
+
+    :param tran: conditional scalar, array, or callable function (see below).
+    :param *args: args to pass to tran functions.
+    :param **kwds: kwds to pass to tran functions.
+
+    If tran is a scalar, array, or callable function, then the transitional
+    conditionality is treated as symmetrical. If tran is a two-length tuple,
+    then assymetry is assumed in the form: (p[var'|var], p[var|var']).
+
+    If intending to sample from a transitional conditional probability density
+    function, the corresponding (CDF, ICDF) must be set using set_tfun().
+    """
     self._tran = tran
     self.__sym_tran = None
     if self._tran is None:
@@ -180,7 +213,15 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
-    # Provide cdf and inverse cdf for conditional sampling
+    """ Sets a two-length tuple of functions that should correspond to the
+    (cumulative probability function, inverse cumulative function) with respect
+    to the callable function set by set_tran(). It is necessary to set these
+    functions if conditionally sampling variables with continuous distributions.
+
+    :param tfun: two-length tuple of callable functions
+    :param *args: arguments to pass to tfun functions
+    :param **kwds: keywords to pass to tfun functions
+    """
     self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
     if self._tfun is None:
       return
@@ -189,14 +230,23 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def ret_tran(self):
+    """ Returns the set transitional conditional probability object(s) """
     return self._tran
 
 #-------------------------------------------------------------------------------
   def ret_tfun(self):
+    """ Returns the set transitional conditional (CDF, ICDF) object(s) """
     return self._tfun
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values, use_pfun=True):
+    """ Evaluates value(s) belonging to the domain of the variable.
+
+    :param values: None, set of a single integer, array, or scalar.
+    :param use_pfun: boolean flag to make use of pfun if previously set.
+
+    :return: a NumPy array of the values (see Domain.eval_vals()):
+    """
     use_pfun = use_pfun and self._pfun is not None and isunitsetint(values)
     if not use_pfun:
       return super().eval_vals(values)
@@ -215,6 +265,14 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
+    """ Evaluates the probability inputting optional args for callable cases
+
+    :param values: values of the variable used for evaluating probabilities.
+    :param *args: optional arguments for callable probability objects.
+    :param **kwds: optional arguments to include pscale for rescaling.
+
+    :return: evaluated probabilities
+    """
     if not self.ret_isscalar():
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
@@ -224,6 +282,8 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
+    """ Evaluates a distribution name for a probability distribution based on
+    the values set in the first input argument with an optional suffix. """
     name = self._name if not suffix else self._name + suffix
     if values is None:
       dist_str = name
@@ -235,7 +295,18 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def eval_step(self, pred_vals, succ_vals, reverse=False):
-    """ Returns adjusted succ_vals and transitional probability """
+    """ Evaluates a successive values from previous values with an optional
+    direction reversal flag, outputting a three-length tuple that includes the
+    successive values in the first argument.
+
+    :param pred_vals: predecessor values (NumPy array).
+    :param succ_vals: succecessor values (see step()).
+    :param reverse: boolean flag (default False) to reverse direction.
+
+    :return vals: a dictionary including both predecessor and successor values.
+    :return dims: a dictionary with dimension indices for the values in vals.
+    :return kwargs: a dictionary that includes optional keywords for eval_tran()
+    """
 
     assert self._tran is not None, "No transitional function specified"
     kwargs = dict() # to pass over to eval_tran()
@@ -334,7 +405,9 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def eval_tran(self, vals, **kwargs):
-    # Evaluates transitional probability
+    """ Evaluates the transitional conditional probability for the dictionary 
+    arguments in vals with optional keywords in **kwargs.
+    """
     reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     pred_vals, succ_vals = vals[self._name], vals[self._name+"'"]
     pred_idx = None if 'pred_idx' not in kwargs else kwargs['pred_idx'] 
@@ -373,9 +446,7 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
-    ''' 
-    Returns a namedtuple of samp and prob.
-    '''
+    """ Return a probability distribution for the quantities in values. """
     dist_name = self.eval_dist_name(values)
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
@@ -385,6 +456,13 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def step(self, *args, reverse=False):
+    """ Returns a conditional probability distribution for quantities in args.
+
+    :param *args: predecessor, successor values to evaluate conditionals.
+    :param reverse: Boolean flag to evaluate conditional probability in reverse.
+
+    :return a Dist instance of the conditional probability distribution
+    """
     pred_vals, succ_vals = None, None 
     if len(args) == 1:
       if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
@@ -408,10 +486,12 @@ class RV (Domain, Prob):
     
 #-------------------------------------------------------------------------------
   def __repr__(self):
+    """ Print representation of RV name """
     return super().__repr__() + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
+    """ Logical 'AND' operator between RV and another RV, RJ, or RF. """
     from probayes.rj import RJ
     from probayes.rf import RF
     if isinstance(other, RF):
@@ -430,6 +510,7 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
+    """ Conditional operator between RV and another RV, RJ, or RF. """
     from probayes.rj import RJ
     from probayes.rf import RF
     if isinstance(other, RF):

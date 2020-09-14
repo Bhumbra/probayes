@@ -163,6 +163,10 @@ class Prob:
     (cumulative probability function, inverse cumulative function) with respect
     to the callable function set by set_prob(). It is necessary to set these
     functions if sampling variables with non-flat distributions.
+
+    :param pfun: two-length tuple of callable functions
+    :param *args: arguments to pass to pfun functions
+    :param **kwds: keywords to pass to pfun functions
     """
     self._pfun = pfun
     if self._pfun is None:
@@ -214,12 +218,11 @@ class Prob:
   def eval_prob(self, *args, **kwds):
     """ Evaluates the probability inputting optional args for callable cases
 
-    :param *args: optional arguments for callable probabililoty.
+    :param *args: optional arguments for callable probability objects.
     :param **kwds: optional arguments to include pscale for rescaling.
 
     :return: evaluated probabilities
     """
-
     # Callable and non-callable evaluations
     probs = self._prob
     if self.__callable:
