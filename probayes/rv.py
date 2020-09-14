@@ -92,8 +92,6 @@ class RV (Domain, Prob):
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
 
-    :return: a boolean flag of whether prob is callable.
-
     See set_pscale() for explanation of how pscale is used.
     """
     self._tran, self._tfun = None, None
@@ -114,7 +112,6 @@ class RV (Domain, Prob):
     if is_scipy_stats_cont(pset):
       if self._vtype not in VTYPES[float]:
         self.set_vset(self._vset, vtype=float)
-    return self.ret_callable()
    
 #-------------------------------------------------------------------------------
   def _default_prob(self, pscale=None):

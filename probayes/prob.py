@@ -66,8 +66,6 @@ class Prob:
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
 
-    :return: a boolean flag of whether prob is callable.
-
     See set_pscale() for explanation of how pscale is used.
     """
     self._pfun = None
@@ -97,8 +95,6 @@ class Prob:
     # Set pscale and distinguish between non-callable and callable self._prob
     self.__isscalar = self._prob.ret_isscalar()
     self.__callable = self._prob.ret_callable()
-
-    return self.__callable
 
 #-------------------------------------------------------------------------------
   def set_pscale(self, pscale=None):
