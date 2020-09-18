@@ -244,6 +244,7 @@ class Domain:
     assert len(self._mfun) == 2, message
     assert callable(self._mfun[0]), message
     assert callable(self._mfun[1]), message
+    self._mfun = Func(self._mfun, *args, **kwds)
     self._eval_lims()
 
 #-------------------------------------------------------------------------------
@@ -305,6 +306,9 @@ class Domain:
     :param index: optional index $i$ if to isolate the $i$th function.
 
     :return: monotonic inverible function(s).
+
+    .. warnings:: the flexibility of this interface comes at the cost of requiring
+                  a maximum of ret_mfun() being called per line of code.
     """
     if self._mfun is None:
       return lambda x:x
@@ -505,7 +509,8 @@ class Domain:
     elif self._mfun is None:
       vals = values + delta
     else:
-      vals = self.ret_mfun(1)(self.ret_mfun(0)(values) + delta)
+      transformed_vals = self.ret_mfun(0)(values) + delta
+      vals = self.ret_mfun(1)(transformed_vals)
     vals = revtype(vals, self._vtype)
 
     # Apply bounds

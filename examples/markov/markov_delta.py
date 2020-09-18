@@ -1,5 +1,6 @@
 """ Example of a Markov chain random walk simulation 
-using a continuous transition function.
+using a continuous transition function whose functional
+relation is hidden without making large steps.
 """
 import collections
 import probayes as pb
@@ -30,7 +31,7 @@ def ticdf(succ, pred):
 x = pb.RV('x', set_lims)
 x.set_tran(tran, order={'x': 'pred', "x'": 'succ'})
 x.set_tfun((tcdf, ticdf), order={'x': 'pred', "x'": 'succ'})
-x.set_delta([0.1], scale=True, bound=True)
+x.set_delta([1.0], scale=True, bound=True)
 
 cond = [None] * n_steps
 pred = np.empty(n_steps, dtype=float)

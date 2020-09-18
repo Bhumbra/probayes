@@ -159,7 +159,7 @@ class RV (Domain, Prob):
 
     Support for this transformation is only valid for float-type vtypes.
     """
-    self._mfun = mfun
+    super().set_mfun(mfun, *args, **kwds)
     if self._mfun is None:
       return
 
