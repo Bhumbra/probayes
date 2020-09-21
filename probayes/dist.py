@@ -434,8 +434,6 @@ class Dist (Manifold):
 
     # Interpolate in last axis
     quantiles = [None] * len(cum_idx)
-    if list(self.vals.keys())[0] == 'n':
-      import pdb; pdb.set_trace()
     for j, _cum_idx in enumerate(cum_idx):
       rav_idx = int(_cum_idx)
       unr_idx = np.unravel_index(rav_idx, self.shape)
