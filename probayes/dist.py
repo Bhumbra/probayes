@@ -434,6 +434,8 @@ class Dist (Manifold):
 
     # Interpolate in last axis
     quantiles = [None] * len(cum_idx)
+    if list(self.vals.keys())[0] == 'n':
+      import pdb; pdb.set_trace()
     for j, _cum_idx in enumerate(cum_idx):
       rav_idx = int(_cum_idx)
       unr_idx = np.unravel_index(rav_idx, self.shape)
@@ -451,9 +453,14 @@ class Dist (Manifold):
             quantiles[j].update({key: val[idx]})
           else:
             vals = val[idx:idx+2]
-            cump = cumprob[rav_idx:rav_idx+2]
-            interp_val = np.interp(quants[j], cump, vals)
-            quantiles[j].update({key: interp_val})
+            ravp = ravprob[rav_idx:rav_idx+2]
+            if np.abs(np.diff(ravp)) < min(quants[j], 1. - quants[j]):
+              cump = cumprob[rav_idx:rav_idx+2]
+              interp_val = np.interp(quants[j], cump, vals)
+              quantiles[j].update({key: interp_val})
+            else:
+              weighted_val = np.sum(ravp * vals) / np.sum(ravp)
+              quantiles[j].update({key: weighted_val})
     if isscalar(q):
       return quantiles[0]
     return quantiles
