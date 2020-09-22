@@ -91,7 +91,7 @@ class RF (RJ):
     self._nrvs = len(self._rvs)
     self._keys = [rv.ret_name() for rv in self._rvs]
     self._keyset = set(self._keys)
-    self._defiid = self._marg.ret_keyset()
+    self._defiid = self._marg.ret_keys(False)
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
     ids = [_id for _id in [marg_id, cond_id] if _id]
@@ -279,7 +279,7 @@ class RF (RJ):
       return self.parse_args(args)
     if not isinstance(arg, dict):
       return obj.parse_args(args)
-    keyset = obj.ret_keyset()
+    keyset = obj.ret_keys(False)
     pred = collections.OrderedDict({key: val for key, val in arg.items() 
                                              if key in keyset})
     return obj.parse_args(pred)

@@ -57,6 +57,7 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args):
+    """ Initialises a random junction with RVs for each each arg in args """
     self.set_rvs(*args)
     self.set_prob()
     self.set_prop()
@@ -67,15 +68,16 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
+    """ Sets the RVs of the RJ with each arg in args corresponding to RV """
     if len(args) == 1 and isinstance(args[0], (RJ, dict, set, tuple, list)):
       args = args[0]
     else:
       args = tuple(args)
     self.add_rv(args)
-    return self.ret_rvs()
 
 #-------------------------------------------------------------------------------
   def add_rv(self, rv):
+    """ Appends to the random junction the RV rv """
     assert self._prob is None, \
       "Cannot assign new randon variables after specifying joint/condition prob"
     if self._rvs is None:
@@ -105,11 +107,16 @@ class RJ:
       self._delta_type = self.delta
     self.set_pscale()
     self.eval_length()
-    return self._nrvs
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):
-    # Set joint probability distribution function
+    """ Sets the joint probability with optional arguments and keywords.
+
+    :param prob: may be a scalar, array, or callable function.
+    :param pscale: represents the scale used to represent probabilities.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
+    """
     kwds = dict(kwds)
     if 'pscale' in kwds:
       pscale = kwds.pop('pscale')
@@ -118,14 +125,24 @@ class RJ:
     self.__isscalar = None
     self._prob = prob
     if self._prob is None:
-      return self.__callable
+      return
     self._prob = Func(self._prob, *args, **kwds)
     self.__callable = self._prob.ret_callable()
     self.__isscalar = self._prob.ret_isscalar()
-    return self.__callable
 
 #-------------------------------------------------------------------------------
   def set_pscale(self, pscale=None):
+    """ Sets the probability scaling constant used for probabilities.
+
+    :param pscale: can be None, a real number, or a complex number, or 'log'
+
+       if pscale is None (default) the normalisation constant is set as 1.
+       if pscale is real, this defines the normalisation constant.
+       if pscale is complex, this defines the offset for log probabilities.
+       if pscale is 'log', this denotes a logarithmic scale with an offset of 0.
+
+    :return: pscale (either as a real or complex number)
+    """
     if pscale is not None or not self._nrvs:
       self._pscale = eval_pscale(pscale)
       return self._pscale
@@ -136,7 +153,12 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
-    # Set joint proposition function
+    """ Sets the joint proposition function with optional arguments and keywords.
+
+    :param prop: may be a scalar, array, or callable function.
+    :param *args: optional arguments to pass if prop is callable.
+    :param **kwds: optional keywords to pass if prop is callable.
+    """
     self._prop = prop
     if self._prop is None:
       return
@@ -146,11 +168,17 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
-    """ Input argument delta may be:
+    """ Sets the default delta function or operation.
+
+    :param delta: the delta function or operation (see below)
+    :param *args: optional arguments to pass if delta is callable.
+    :param **kwds: optional keywords to pass if delta is callable.
+
+    The input delta may be:
 
     1. A callable function (for which args and kwds are passed on as usual).
-    2. An sj.delta instance (this defaults all RV deltas).
-    3. A dictionary for RVs, this is converted to an sj.delta.
+    2. An RV.delta instance (this defaults all RV deltas).
+    3. A dictionary for RVs, this is converted to an RJ.delta.
     4. A scalar that may contained in a list or tuple:
       a) No container - the scalar is treated as a fixed delta.
       b) List - delta is uniformly and independently sampled across RVs.
@@ -242,6 +270,13 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
+    """ Sets the conditional transition function with optional arguments and 
+    keywords.
+
+    :param tran: may be a scalar, array, or callable function.
+    :param *args: optional arguments to pass if tran is callable.
+    :param **kwds: optional keywords to pass if tran is callable.
+    """
     # Set transition function
     self._tran = tran
     self._sym_tran = False
@@ -257,7 +292,15 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
-    # Set cdf and inverse cdf of transitional for conditional sampling
+    """ Sets a two-length tuple of functions that should correspond to the
+    (cumulative probability function, inverse cumulative function) with respect
+    to the callable function set by set_tran(). It is necessary to set these
+    functions for conditional sampling variables with non-flat distributions.
+
+    :param tfun: two-length tuple of callable functions
+    :param *args: arguments to pass to tfun functions
+    :param **kwds: keywords to pass to tfun functions
+    """
     scipyobj = None if 'scipyobj' not in kwds else kwds['scipyobj']
     self._tfun = tfun 
     if self._tfun is None:
@@ -276,11 +319,17 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_t1vt(self, t1vt=False):
+    """ Sets the flag to for transitional sampling one variable at a time """
     self._t1vt = t1vt
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
-    # Set covariance function for kernel-based sampling
+    """ Sets the covariance function for kernel based sampling. 
+
+    :param cfun: may be a symmetric NumPy matrix or callable function.
+    :param *args: optional arguments to pass if cfun is callable.
+    :param **kwds: optional keywords to pass if cfun is callable.
+    """
     self._cfun = cfun
     self._cfun_lud = None
     if self._cfun is None:
@@ -296,7 +345,8 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
-    # Defaulting aslist=True plays more nicely with inheriting classes
+    """ Returns the RVs belonging to the random junction either as a list
+    (by default) or as a dictionary {rv_name: rv_instance}. """
     rvs = self._rvs
     if aslist:
       if isinstance(rvs, dict):
@@ -307,6 +357,7 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def eval_length(self):
+    """ Evaluates and returns the joint length of the random junction. """
     rvs = self.ret_rvs(aslist=True)
     self._lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
     self._length = np.sqrt(np.sum(self._lengths))
@@ -314,29 +365,34 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def ret_length(self):
+    """ Returns the length of the random junction """
     return self._length
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
+    """ Returns the name of the random junction """
     return self._name
 
 #-------------------------------------------------------------------------------
   def ret_id(self):
+    """ Returns the id of the random junction """
     return self._id
 #-------------------------------------------------------------------------------
   def ret_nrvs(self):
+    """ Returns the number of random variables belonging to the random junction.
+    """
     return self._nrvs
 
 #-------------------------------------------------------------------------------
-  def ret_keys(self):
-    return self._keys
-
-#-------------------------------------------------------------------------------
-  def ret_keyset(self):
+  def ret_keys(self, aslist=True):
+    """ Returns the RV keys as a list (by default) otherwise as a set """
+    if aslist:
+      return self._keys
     return self._keyset
 
 #-------------------------------------------------------------------------------
   def ret_pscale(self):
+    """ Returns the real or complex scaling constant set for pscale """
     return self._pscale
 
 #-------------------------------------------------------------------------------

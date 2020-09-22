@@ -35,6 +35,7 @@ class Manifold:
 
   # Protected
   _keys = None         # Keys of vals as list
+  _keyset = None        # Keys of vals a set
   _dimension = None    # Dimension of vals
   _aresingleton = None # Whether vals are scalars
   _issingleton = None  # all(_aresingleton)
@@ -82,6 +83,7 @@ class Manifold:
     assert isinstance(self.vals, dict), \
         "Dist vals must be a dictionary but given: {}".format(type(self.vals))
     self._keys = list(self.vals.keys())
+    self._keyset = set(self._keys)
 
     # Tranform {None} to {0} to play nicely with isunitsetint
     for key in self._keys:
@@ -205,6 +207,13 @@ class Manifold:
         dims.update({map_key: self.dims[key]})
     return Manifold(vals, dims)
     
+#-------------------------------------------------------------------------------
+  def ret_keys(self, aslist=True):
+    """ Returns manifold keys as a list (default) or set """
+    if aslist:
+      return self._keys
+    return self._keyset
+
 #-------------------------------------------------------------------------------
   def ret_aresingleton(self):
     """ Returns a boolean array of whether Manifold variables are singleton """
