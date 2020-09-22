@@ -43,6 +43,7 @@ class RJ:
   _tfun = None       # CDF/IDF of transition function
   _t1vt = None       # Flag for transitional conditioning one variable at a time
   _cfun = None       # Covariance function
+  _crvs = None       # Conditional random variable sampling specification
   _length = None     # Length of junction
   _lengths = None    # Lengths of RVs
   _sym_tran = None
@@ -324,14 +325,24 @@ class RJ:
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
-    """ Sets the covariance function for kernel based sampling. 
+    """ Sets the covariance kernel or conditional rvs function. 
 
     :param cfun: may be a symmetric NumPy matrix or callable function.
     :param *args: optional arguments to pass if cfun is callable.
     :param **kwds: optional keywords to pass if cfun is callable.
+
+    Optional keyword 'crvs' can be used as a flag which may be:
+        False (default): for full conditional
+        True (default): for single parameter conditionals passing crvs='rv'
+                        for RV 'rv' for each parameter to be sampled.
+        1: For single parameter sampling 1 variable at a time.
+
+    Note if cfun is callable, the function must accept 'crvs' as an input.
     """
     self._cfun = cfun
     self._cfun_lud = None
+    kwds = dict(kwds)
+    self._crvs = False if 'crvs' not in kwds else kwds.pop('crvs')
     if self._cfun is None:
       return
     self._cfun = Func(self._cfun, *args, **kwds)

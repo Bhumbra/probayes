@@ -1,2 +1,4 @@
-Improve Gibbs sampling support.
-Look at VB.
+Move RJ.set_cfun functionality into set_tran(cdep={}) or set_tran(cdep={}).
+Support single, multiple, and block conditional sampling from cdep
+Introduce DAG-based Gibbs sampling support
+Introduce mean-field variational inference support
