@@ -42,12 +42,10 @@ class RJ:
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function
   _t1vt = None       # Flag for transitional conditioning one variable at a time
-  _cfun = None       # Covariance function
   _crvs = None       # Conditional random variable sampling specification
   _length = None     # Length of junction
   _lengths = None    # Lengths of RVs
   _sym_tran = None
-  _cfun_lud = None
   _spherise = None
 
   # Private
@@ -64,7 +62,6 @@ class RJ:
     self.set_prop()
     self.set_delta()
     self.set_tran()
-    self.set_cfun()
     self.set_t1vt()
 
 #-------------------------------------------------------------------------------
@@ -274,7 +271,7 @@ class RJ:
     """ Sets the conditional transition function with optional arguments and 
     keywords.
 
-    :param tran: may be a scalar, array, or callable function.
+    :param tran: may be a scalar, covariance array, or callable function.
     :param *args: optional arguments to pass if tran is callable.
     :param **kwds: optional keywords to pass if tran is callable.
     """
@@ -287,7 +284,19 @@ class RJ:
         "Cannot assign both proposition and transition probabilities"
     self._tran = Func(self._tran, *args, **kwds)
     self._sym_tran = not self._tran.ret_istuple()
-    if self._tran.ret_isscipy():
+
+    # If a covariance matrix, set the LU decomposition as the tfun
+    if not self._tran.ret_callable() and not isscalar(tran):
+      message = "Non-callable non-scalar tran objects must be a square 2D " + \
+                "Numpy array of size corresponding to number of variables {}".\
+                 format(self._nrvs)
+      assert isinstance(tran, np.ndarray), message
+      assert tran.ndim == 2, message
+      assert np.all(np.array(tran.shape) == self._nrvs), message
+      self.set_tfun(np.linalg.cholesky(tran))
+
+    # If a scipy object, set the tfun
+    elif self._tran.ret_isscipy():
       scipyobj = self._tran.ret_scipyobj()
       self.set_tfun(self._tran, scipyobj=self._tran.ret_scipyobj())
 
@@ -298,7 +307,7 @@ class RJ:
     to the callable function set by set_tran(). It is necessary to set these
     functions for conditional sampling variables with non-flat distributions.
 
-    :param tfun: two-length tuple of callable functions
+    :param tfun: two-length tuple of callable functions or an LU decomposition
     :param *args: arguments to pass to tfun functions
     :param **kwds: keywords to pass to tfun functions
     """
@@ -307,8 +316,18 @@ class RJ:
     if self._tfun is None:
       return
     if scipyobj is None:
-       self._tfun = Func(self._tfun, *args, **kwds)
-       return
+      self._tfun = Func(self._tfun, *args, **kwds)
+      if not self._tfun.ret_callable():
+        message = "Non-callable tran objects must be a triangular 2D Numpy array " + \
+                  "of size corresponding to number of variables {}".format(self._nrvs)
+        assert isinstance(tfun, np.ndarray), message
+        assert tfun.ndim == 2, message
+        assert np.all(np.array(tfun.shape) == self._nrvs), message
+        assert np.allclose(tfun, np.tril(tfun)) or \
+               np.allclose(tfun, np.triu(tfun)), message
+        return
+
+    # Handle SciPy objects explicity
     rvs = self.ret_rvs(aslist=True)
     lims = np.array([rv.ret_lims() for rv in rvs])
     mean = scipyobj.mean
@@ -322,37 +341,6 @@ class RJ:
   def set_t1vt(self, t1vt=False):
     """ Sets the flag to for transitional sampling one variable at a time """
     self._t1vt = t1vt
-
-#-------------------------------------------------------------------------------
-  def set_cfun(self, cfun=None, *args, **kwds):
-    """ Sets the covariance kernel or conditional rvs function. 
-
-    :param cfun: may be a symmetric NumPy matrix or callable function.
-    :param *args: optional arguments to pass if cfun is callable.
-    :param **kwds: optional keywords to pass if cfun is callable.
-
-    Optional keyword 'crvs' can be used as a flag which may be:
-        False (default): for full conditional
-        True (default): for single parameter conditionals passing crvs='rv'
-                        for RV 'rv' for each parameter to be sampled.
-        1: For single parameter sampling 1 variable at a time.
-
-    Note if cfun is callable, the function must accept 'crvs' as an input.
-    """
-    self._cfun = cfun
-    self._cfun_lud = None
-    kwds = dict(kwds)
-    self._crvs = False if 'crvs' not in kwds else kwds.pop('crvs')
-    if self._cfun is None:
-      return
-    self._cfun = Func(self._cfun, *args, **kwds)
-    if not self._cfun.ret_callable():
-      message = "Non-callable cfun objects must be a square 2D Numpy array " + \
-                "of size corresponding to number of variables {}".format(self._nrvs)
-      assert isinstance(cfun, np.ndarray), message
-      assert cfun.ndim == 2, message
-      assert np.all(np.array(cfun.shape) == self._nrvs), message
-      self._cfun_lud = np.linalg.cholesky(cfun)
 
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
@@ -609,16 +597,17 @@ class RJ:
     # Non spherical case
     if not isinstance(self._delta_type, Func) and \
          isinstance(delta, self._delta_type): # i.e. non-spherical
-      if self._cfun is None:
+      if self._tfun is None or self._tfun.ret_isscalar():
         return delta
-      elif self._cfun_lud is not None:
+      elif not self._tfun.ret_callable():
         delta = np.ravel(delta)
-        delta = self._cfun_lud.dot(delta)
+        delta = self._tfun().dot(delta)
         return self._delta_type(*delta)
       else:
-        delta = self._cfun(delta)
+        delta = self._tfun(delta)
         assert isinstance(delta, self._delta_type), \
-            "User supplied cfun did not output delta typoe {}".format(self._delta_type)
+            "User supplied tfun did not output delta type {}".\
+            format(self._delta_type)
         return delta
 
     # Rule out possibility of all RVs contained in unscaling argument
@@ -651,15 +640,16 @@ class RJ:
           val *= self._lengths[i]
       delta_dict.update({key: val})
     delta = self._delta_type(**delta_dict)
-    if self._cfun is None:
+    if self._tfun is None or self._tfun.ret_isscalar():
       return delta
-    elif self._cfun_lud is not None:
-      delta = self._cfun_lud.dot(np.array(delta, dtype=float))
-      return self._delta_type(*deltas)
+    elif not self._tfun.ret_callable():
+      delta = self._tfun().dot(np.array(delta, dtype=float))
+      return self._delta_type(*delta)
     else:
-      delta = self._cfun(delta)
+      delta = self._tfun(delta)
       assert isinstance(delta, self._delta_type), \
-          "User supplied cfun did not output delta type {}".format(self._delta_type)
+          "User supplied tfun did not output delta type {}".\
+          format(self._delta_type)
       return delta
 
 #-------------------------------------------------------------------------------
@@ -804,9 +794,11 @@ class RJ:
           else:
             pred_vals.update({key: val})
       cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)
+    elif self._tran.ret_isscalar():
+      cond = self._tran()
+    elif not self._tran.ret_callable():
+      cond = 0. if iscomplex(self._pscale) else 1.
     else:
-      assert self._tran.ret_callable(), \
-          "Only callable transitional functions supported for multidimensionals"
       cond = self._tran(values) if self._sym_tran else \
              self._tran[int(reverse)](values)
     return cond

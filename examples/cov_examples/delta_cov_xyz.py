@@ -14,10 +14,11 @@ cov_mat = np.array([1., .5, 0.,
                     .5, 1., .5,
                     0., .5, 1.]).reshape([3,3])
 
-xyz.set_cfun(cov_mat)
+xyz.set_tran(cov_mat)
 xyz.set_delta(delta)
 deltas = [xyz.eval_delta() for _ in range(num_deltas)]
-dxdydz = np.array([np.array(list(_delta)) for _delta in deltas])
+dxdydz = np.array([np.ravel(np.array(list(_delta))) \
+                   for _delta in deltas])
 means = np.mean(dxdydz, axis=0)
 stdvs = np.std(dxdydz, axis=0)
 lengths = np.sqrt(np.sum(dxdydz**2, axis=1))
