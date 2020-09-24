@@ -492,38 +492,38 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    """ Logical 'AND' operator between RV and another RV, RJ, or RF. """
-    from probayes.rj import RJ
+    """ Logical 'AND' operator between RV and another RV, RF, or DG. """
     from probayes.rf import RF
-    if isinstance(other, RF):
+    from probayes.dg import DG
+    if isinstance(other, DG):
       marg = [self] + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
-      return RF(marg, cond)
+      return DG(marg, cond)
 
-    if isinstance(other, RJ):
+    if isinstance(other, RF):
       rvs = [self] + other.ret_rvs()
-      return RJ(*tuple(rvs))
+      return RF(*tuple(rvs))
 
     if isinstance(other, RV):
-      return RJ(self, other)
+      return RF(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    """ Conditional operator between RV and another RV, RJ, or RF. """
-    from probayes.rj import RJ
+    """ Conditional operator between RV and another RV, RF, or DG. """
     from probayes.rf import RF
-    if isinstance(other, RF):
+    from probayes.dg import DG
+    if isinstance(other, DG):
       marg = [self] + other.ret_cond().ret_rvs()
       cond = other.ret_marg().ret_rvs()
-      return RF(marg, cond)
+      return DG(marg, cond)
 
-    if isinstance(other, RJ):
-      return RF(self, other)
+    if isinstance(other, RF):
+      return DG(self, other)
 
     if isinstance(other, RV):
-      return RF(self, other)
+      return DG(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 

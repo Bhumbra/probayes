@@ -1,21 +1,21 @@
 """
-A stocastic process is an indexable sequence of realisations of a stochastic 
-condition. It is therefore implemented here using a sample generator that 
-iteratively samples a stochastic condition.
+A stocastic process is an indexable sequence of realisations of a directed graph. 
+It is therefore implemented here using a sample generator that iteratively 
+samples a directed graph.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
 import inspect
 import warnings
-from probayes.rf import RF
+from probayes.dg import DG
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
-class SP (RF):
+class SP (DG):
 
   # Public
   stuv = None     # scores + thresholds + update + veridct
