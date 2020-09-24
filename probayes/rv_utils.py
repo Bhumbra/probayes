@@ -20,7 +20,7 @@ def nominal_uniform_prob(*args, prob=None, inside=None, pscale=1.):
   vals = args[0]
   if vals is None:
     return prob
-  vtype = eval_vtype(vals) if callable(inside) else eval_type(inside)
+  vtype = eval_vtype(vals) if callable(inside) else eval_vtype(inside)
 
   # Set inside function by vtype if not specified
   if not callable(inside):

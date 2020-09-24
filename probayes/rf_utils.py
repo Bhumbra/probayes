@@ -13,7 +13,7 @@ def desuffix(values, suffix="'"):
     return vals
   for key, val in values.items():
     vals_key = key if key[-1] != suffix else key[:-1]
-    assert vals_key not in vals, "Repeated key: {}".format(val_key)
+    assert vals_key not in vals, "Repeated key: {}".format(vals_key)
     vals.update({vals_key: val})
   return vals
   

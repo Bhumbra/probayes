@@ -2,6 +2,7 @@
 
 #-------------------------------------------------------------------------------
 import collections
+import warnings
 import numpy as np
 import scipy.stats
 from probayes.domain import Domain
@@ -360,7 +361,7 @@ class RV (Domain, Prob):
     # Handle discrete non-callables
     elif not self._tran.ret_callable():
       if reverse and not self._tran.ret_istuple() and not self.__sym_tran:
-        warning.warn("Reverse direction called from asymmetric transitional")
+        warnings.warn("Reverse direction called from asymmetric transitional")
       prob = self._tran() if not self._tran.ret_istuple() else \
              self._tran[int(reverse)]()
       if isunitset(succ_vals):

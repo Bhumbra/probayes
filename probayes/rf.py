@@ -271,18 +271,19 @@ class RF (RJ):
     return prop_obj.propose(*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def parse_pred_args(self, arg):
+  def parse_pred_args(self, *args):
     obj = None
     if self._tran == 'marg': obj = self._marg
     if self._tran == 'cond': obj = self._cond
     if obj is None:
-      return self.parse_args(args)
-    if not isinstance(arg, dict):
-      return obj.parse_args(args)
-    keyset = obj.ret_keys(False)
-    pred = collections.OrderedDict({key: val for key, val in arg.items() 
-                                             if key in keyset})
-    return obj.parse_args(pred)
+      return self.parse_args(*args)
+    if len(args) == 1 and isinstance(args[0], dict):
+      arg = args[0]
+      keyset = obj.ret_keys(False)
+      pred = collections.OrderedDict({key: val for key, val in arg.items() 
+                                               if key in keyset})
+      return obj.parse_args(pred)
+    return obj.parse_args(*args)
 
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):
