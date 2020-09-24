@@ -184,10 +184,10 @@ def product(*args, **kwds):
                                         list(val[key])[0]}})
       if marg_sets:
         prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
-        return dist_obj(prod_name, prod_vals, args[0].dims, prob, pscale)
+        return Dist(prod_name, prod_vals, args[0].dims, prob, pscale)
       else:
         prod_prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-        return dist_obj(prod_name, prod_vals, {}, prob, pscale)
+        return Dist(prod_name, prod_vals, {}, prob, pscale)
 
   # Check cond->marg accounts for all differences between conditionals
   prod_marg = [name for dist_marg_names in marg_names \
