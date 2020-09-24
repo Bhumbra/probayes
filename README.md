@@ -21,7 +21,7 @@ In the near-future, it is intended to expand the scope of probayes to include:
 
 A quickstart is also intended, but for now there are examples in the examples/ subdirectories:
 
-1. tests/        Simple test scripts
+1. checks/       Simple check scripts
 2. rv_examples/  Random variable examples
 3. markov/       Markov chain examples
 4. cov_examples/ Examples of using covariance matrices

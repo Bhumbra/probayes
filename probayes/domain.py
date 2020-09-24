@@ -196,7 +196,7 @@ class Domain:
     assert len(lims) == 2, \
         "Floating point vset must be two elements, not {}".format(self._vset)
     if lims[1] < lims[0]:
-      vset = vset[::-1]
+      vset = self._vset[::-1]
       self._vset = vset
     self._lims = np.sort(lims)
     self._limits = self._lims if self._mfun is None \

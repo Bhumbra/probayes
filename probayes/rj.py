@@ -92,7 +92,7 @@ class RJ:
           "Input not a RV instance but of type: {}".format(type(rv))
       key = rv.ret_name()
       assert key not in self._rvs.keys(), \
-          "Existing RV name {} already present in collection".format(rv_name)
+          "Existing RV name {} already present in collection".format(key)
       self._rvs.update({key: rv})
     self._nrvs = len(self._rvs)
     self._keys = list(self._rvs.keys())
@@ -207,6 +207,8 @@ class RJ:
       self._delta_kwds.update({'scale': False})
     if 'bound' not in self._delta_kwds:
       self._delta_kwds.update({'bound': False})
+    scale = self._delta_kwds['scale']
+    bound = self._delta_kwds['bound']
 
     # Handle deltas and dictionaries
     if isinstance(self._delta, dict):
@@ -220,8 +222,6 @@ class RJ:
       return
 
     # Default scale and bound and check args
-    scale = self._delta_kwds['scale']
-    bound = self._delta_kwds['bound']
     if self._delta_args:
       assert len(self._delta_args) == 1, \
           "Optional positional arguments must comprises a single dict"
@@ -459,7 +459,7 @@ class RJ:
         if key not in vals.keys():
           vals.update({key: None})
     else:
-      vals.update({key: values for key in keys})
+      vals.update({key: values for key in self._keys})
     rvs = self.ret_rvs()
     rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()], suffix) \
                      for rv in rvs]

@@ -9,6 +9,7 @@ Func may be a tuple of callable/uncallable functions
 '''
 import numpy as np
 import scipy.stats
+import collections
 from probayes.vtypes import isscalar, isunitary
 
 #-------------------------------------------------------------------------------
@@ -147,7 +148,7 @@ class Func:
     self._check_mapping(self.__order)
 
 #-------------------------------------------------------------------------------
-  def set_delta(self, order=None):
+  def set_delta(self, delta=None):
     """ Sets a difference remapping dictionary for functional calls in which
     keyword arguments are mapped to position (in numeric) or rekeyed (if str).
     """
