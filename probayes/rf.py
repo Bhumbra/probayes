@@ -1,12 +1,13 @@
 """
-A random field comprises a collection of a random variables that 
-participate in a joint probability distribution function.
+A random field is a collection of a random variables that participate in a joint 
+probability distribution function without conditioning directions.
 """
 #-------------------------------------------------------------------------------
 import warnings
 import collections
 import numpy as np
 import scipy.stats
+import networkx as nx
 
 from probayes.rv import RV
 from probayes.dist import Dist
@@ -19,14 +20,20 @@ from probayes.rf_utils import rv_prod_rule, call_scipy_prob, sample_cond_cov
 from probayes.func import Func
 from probayes.cond_cov import CondCov
 
+NX_UNDIRECTED_GRAPH = nx.OrderedGraph
+
 #-------------------------------------------------------------------------------
-class RF:
+class RF (NX_UNDIRECTED_GRAPH):
+  """
+  A random field is a collection of a random variables that participate in a 
+  joint probability distribution function without conditioning directions.
+  """
+
   # Public
   delta = None
 
   # Protected
   _name = None       # Cannot be set externally
-  _rvs = None        # Dict of random variables
   _nrvs = None      
   _keys = None      
   _keyset = None    
@@ -35,6 +42,7 @@ class RF:
   _prob = None      
   _pscale = None    
   _prop = None       # Non-transitional proposition function
+  _prop_deps = None  # Set of proposition dependencies
   _delta = None      # Delta function (to replace step)
   _delta_args = None # Optional delta args (must be dictionaries)
   _delta_kwds = None # Optional delta kwds
@@ -49,14 +57,15 @@ class RF:
   _spherise = None
 
   # Private
-  __isscalar = None
+  __isscalar = None 
   __callable = None
   __cond_mod = None
   __cond_cov = None
 
 #-------------------------------------------------------------------------------
-  def __init__(self, *args):
-    """ Initialises a random junction with RVs for each each arg in args """
+  def __init__(self, *args): # over-rides NX_GRAPH.__init__()
+    """ Initialises a random field with RVs for in args. See set_rvs(). """
+    super().__init__()
     self.set_rvs(*args)
     self.set_prob()
     self.set_prop()
@@ -65,8 +74,42 @@ class RF:
     self.set_t1vt()
 
 #-------------------------------------------------------------------------------
+  def add_node(self, *args, **kwds):
+    """ Direct adding of nodes disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_node_from(self, *args, **kwds):
+    """ Direct adding of nodes disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def remove_node(self, *args, **kwds):
+    """ Removal of nodes disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_edge(self, *args, **kwds):
+    """ Direct adding of edges disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_edges_from(self, *args, **kwds):
+    """ Direct adding of edges disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_cd(self, *args, **kwds):
+    """ Adding of conditional dependences disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
   def set_rvs(self, *args):
-    """ Sets the RVs of the RF with each arg in args corresponding to RV """
+    """ Initialises a random field with RVs for each arg in args.
+
+    :param *args: each arg may be an RV instance or the first arg may be a RF.
+    
+    """
     if len(args) == 1 and isinstance(args[0], (RF, dict, set, tuple, list)):
       args = args[0]
     else:
@@ -75,11 +118,12 @@ class RF:
 
 #-------------------------------------------------------------------------------
   def add_rv(self, rv):
-    """ Appends to the random field the RV rv """
+    """ Adds one or more random variables to the random field.
+
+    :param rv: a RV or RF instance, or a list/tuple of RV instances.
+    """
     assert self._prob is None, \
       "Cannot assign new randon variables after specifying joint/condition prob"
-    if self._rvs is None:
-      self._rvs = collections.OrderedDict()
     if isinstance(rv, (RF, dict, set, tuple, list)):
       rvs = rv
       if isinstance(rvs, RF):
@@ -91,11 +135,17 @@ class RF:
       assert isinstance(rv, RV), \
           "Input not a RV instance but of type: {}".format(type(rv))
       key = rv.ret_name()
-      assert key not in self._rvs.keys(), \
-          "Existing RV name {} already present in collection".format(key)
-      self._rvs.update({key: rv})
-    self._nrvs = len(self._rvs)
-    self._keys = list(self._rvs.keys())
+      if self._nrvs:
+        assert key not in list(self.nodes), \
+            "Existing RV name {} already present in collection".format(key)
+      super().add_node(key, **{'rv': rv})
+    self._refresh()
+
+#-------------------------------------------------------------------------------
+  def _refresh(self):
+    """ Private function to refresh class members to updated graph structure """
+    self._nrvs = self.number_of_nodes()
+    self._keys = list(self.nodes)
     self._keyset = set(self._keys)
     self._defiid = self._keyset
     self._name = ','.join(self._keys)
@@ -158,6 +208,7 @@ class RF:
     :param **kwds: optional keywords to pass if prop is callable.
     """
     self._prop = prop
+    self._prop_deps = self._keys if 'deps' not in kwds else kwds.pop['deps']
     if self._prop is None:
       return
     assert self._tran is None, \
@@ -344,9 +395,16 @@ class RF:
 
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
-    """ Returns the RVs belonging to the random junction either as a list
-    (by default) or as a dictionary {rv_name: rv_instance}. """
-    rvs = self._rvs
+    """ Returns the RVs belonging to the random field either as a list
+    (by default) or as a dictionary {rv_name: rv_instance}. 
+
+    :param aslist: Boolean flag (default True) to return RVs as a list
+
+    :return: RVs an OrderedDict or a list.
+    """
+    rvs_data = collections.OrderedDict(self.nodes.data())
+    rvs = collections.OrderedDict({key:val['rv'] 
+                                       for key,val in rvs_data.items()})
     if aslist:
       if isinstance(rvs, dict):
         rvs = list(rvs.values())
@@ -846,7 +904,7 @@ class RF:
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
     """ Returns a joint distribution p(args) """
-    if self._rvs is None:
+    if not self._nrvs:
       return None
     iid = False if 'iid' not in kwds else kwds.pop('iid')
     if type(iid) is bool and iid:
@@ -924,7 +982,7 @@ class RF:
     if isinstance(key, str):
       if key not in self._keys:
         return None
-    return self._rvs[key]
+    return self._ret_rvs(False)[key]
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

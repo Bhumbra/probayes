@@ -1,21 +1,30 @@
 """
-A directed graph is a random field (here called marg) that may be conditioned 
-by a another random field (here called cond) according to a conditional
-probability distribution function. The graph is made of the nodes comprising
-the random variables of both random fields and their corresponding 
-inter-relations are described the graph edges.
+A dependency graph is a random field that accommodates directed conditionality 
+according to a conditional probability distribution funtion. The graph is made 
+of nodes comprising the random variables and their corresponding inter-
+relations are described by the graph edges.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
+import networkx as nx
+from probayes.rv import RV
 from probayes.rf import RF
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import product
 from probayes.dg_utils import desuffix, get_suffixed
 
+NX_DIRECTED_GRAPH = nx.OrderedDiGraph
+
 #-------------------------------------------------------------------------------
-class DG (RF):
+class DG (NX_DIRECTED_GRAPH, RF):
+  """
+  A dependency graph is a random field that accommodates directed conditionality 
+  according to a conditional probability distribution funtion. The graph is made 
+  of nodes comprising the random variables and their corresponding inter-
+  relations are described by the graph edges.
+  """
   # Public
   opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
 
@@ -30,69 +39,64 @@ class DG (RF):
 
   # Private
   __sym_tran = None
+  __explicit = None # Flag to denote explicit specification of edges
 
 #------------------------------------------------------------------------------- 
   def __init__(self, *args):
+    """ Initialises the DG with RVs, RFs, or DGs. See set_deps() """
+    NX_DIRECTED_GRAPH.__init__(self)
     self.set_prob()
-    assert len(args) < 3, "Maximum of two initialisation arguments"
-    arg0 = None if len(args) < 1 else args[0]
-    arg1 = None if len(args) < 2 else args[1]
-    if arg0 is not None: self.set_marg(arg0)
-    if arg1 is not None: self.set_cond(arg1)
+    self.set_deps(*args)
 
 #-------------------------------------------------------------------------------
-  def set_marg(self, arg):
-    if isinstance(arg, RF):
-      assert not isinstance(arg, DG), "Marginal must be RF class type"
-      self._marg = arg
-      self._refresh()
-    else:
-      self.add_marg(arg)
+  def set_deps(self, *args):
+    """ Sets the dependency of DG with RVs, RFs. or DG arguments.
 
-#-------------------------------------------------------------------------------
-  def set_cond(self, arg):
-    if isinstance(arg, RF):
-      assert not isinstance(arg, DG), "Conditional must be RF class type"
-      self._cond = arg
-      self._refresh()
-    else:
-      self.add_cond(arg)
-
-#-------------------------------------------------------------------------------
-  def add_marg(self, *args):
-    if self._marg is None: 
-      self._marg = RF()
-    self._marg.add_rv(*args)
-    self._refresh()
-
-#-------------------------------------------------------------------------------
-  def add_cond(self, *args):
-    if self._cond is None: self._cond = RF()
-    self._cond.add_rv(*args)
+    :param args: each arg may be an RV, RF, or DG with the dependecy chain
+                 running from right to left.
+    """
+    self.__explicit = False
+    if not args:
+      return
+    run_leafs = None
+    for i, arg in enumerate(args):
+      if isinstance(arg, DG):
+        NX_DIRECTED_GRAPH.add_nodes_from(self, arg)
+        NX_DIRECTED_GRAPH.add_edges_from(self, arg)
+        run_roots = arg.roots()
+      elif isinstance(arg, RF):
+        NX_DIRECTED_GRAPH.add_nodes_from(self, arg)
+        run_roots = arg.ret_rvs()
+      elif isinstance(arg, RV):
+        NX_DIRECTED_GRAPH.add_node(self, arg.ret_name(), **{'rv': arg})
+        run_roots = [arg]
+      if i > 0:
+        root_keys = tuple([rv.ret_name() for rv in run_roots])
+        leaf_keys = tuple([rv.ret_name() for rv in run_roots])
+        NX_DIRECTED_GRAPH.add_edge(self, root_keys, leaf_keys)
+      run_leafs = run_roots
     self._refresh()
 
 #-------------------------------------------------------------------------------
   def _refresh(self):
+    # For convenience, marg and cond are RFs for the leafs and roots.
+    super()._refresh()
     marg_name, cond_name = None, None
     marg_id, cond_id = None, None
-    self._rvs = []
     self._keys = []
+    self._marg = RF(*tuple(self.leafs(aslist=False)))
+    self._cond = RF(*tuple(self.roots(aslist=False)))
     if self._marg:
       marg_name = self._marg.ret_name()
       marg_id = self._marg.ret_id()
       marg_rvs = [rv for rv in self._marg.ret_rvs()]
-      self._rvs.extend([rv for rv in self._marg.ret_rvs()])
     if self._cond:
       cond_name = self._cond.ret_name()
       cond_id = self._cond.ret_id()
       cond_rvs = [rv for rv in self._cond.ret_rvs()]
-      self._rvs.extend([rv for rv in self._cond.ret_rvs()])
     if self._marg is None and self._cond is None:
       return
     self._marg_cond = {'marg': self._marg, 'cond': self._cond}
-    self._nrvs = len(self._rvs)
-    self._keys = [rv.ret_name() for rv in self._rvs]
-    self._keyset = set(self._keys)
     self._defiid = self._marg.ret_keys(False)
     names = [name for name in [marg_name, cond_name] if name]
     self._name = '|'.join(names)
@@ -112,7 +116,7 @@ class DG (RF):
     self._unit_prob = False
     self._unit_tran = False
     if self._nrvs == 1:
-      rv = self._rvs[0]
+      rv = self.ret_rvs()[0]
       self._unit_prob = self._prob is None and rv.ret_prob() is not None
       self._unit_tran = self._tran is None and rv.ret_tran() is not None
 
@@ -218,6 +222,37 @@ class DG (RF):
     return dist_name
 
 #-------------------------------------------------------------------------------
+  def roots(self, aslist=True):
+    """ Returns all unconditioned RVs of the DAG """
+    rvs = collections.OrderedDict()
+    rvs_data = collections.OrderedDict(self.nodes.data())
+    for key, val in rvs_data.items():
+      parents = list(self.predecessors(key))
+      if not parents:
+        rvs.update({key: val['rv']})
+    if aslist:
+      if isinstance(rvs, dict):
+        rvs = list(rvs.values())
+      assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
+                                    format(type(rvs))
+    return rvs
+
+#-------------------------------------------------------------------------------
+  def leafs(self, aslist=True):
+    """ Returns all unconditionalising RVs of the DAG """
+    rvs = collections.OrderedDict()
+    rvs_data = collections.OrderedDict(self.nodes.data())
+    for key, val in rvs_data.items():
+      childen = list(self.successors(key))
+      if not childen:
+        rvs.update({key: val['rv']})
+    if aslist:
+      if isinstance(rvs, dict):
+        rvs = list(rvs.values())
+      assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
+                                    format(type(rvs))
+    return rvs
+#-------------------------------------------------------------------------------
   def ret_marg(self):
     return self._marg
 
@@ -246,7 +281,7 @@ class DG (RF):
   def __call__(self, *args, **kwds):
     """ Like RF.__call__ but optionally takes 'joint' keyword """
 
-    if self._rvs is None:
+    if not self._nrvs:
       return None
     joint = False if 'joint' not in kwds else kwds.pop('joint')
     dist = super().__call__(*args, **kwds)
@@ -398,20 +433,7 @@ class DG (RF):
     return self.opqr(orig, prob, prop, revp)
 
 #-------------------------------------------------------------------------------
-  def __getitem__(self, key):
-    if isinstance(key, str):
-      if key not in self._keys:
-        return None
-      key = self._keys.index(key)
-    return self._rvs[key]
-
-#-------------------------------------------------------------------------------
   def __mul__(self, other):
-    from probayes.rv import RV
-    from probayes.rf import RF
-
-    marg = self.ret_marg().ret_rvs()
-    cond = self.ret_cond().ret_rvs()
     if isinstance(other, DG):
       marg = marg + other.ret_marg().ret_rvs()
       cond = cond + other.ret_cond().ret_rvs()
@@ -429,9 +451,6 @@ class DG (RF):
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from probayes.rv import RV
-    from probayes.rf import RF
-
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
     if isinstance(other, DG):
