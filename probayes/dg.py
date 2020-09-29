@@ -434,6 +434,8 @@ class DG (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
+    marg = self.ret_marg().ret_rvs()
+    cond = self.ret_cond().ret_rvs()
     if isinstance(other, DG):
       marg = marg + other.ret_marg().ret_rvs()
       cond = cond + other.ret_cond().ret_rvs()
