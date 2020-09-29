@@ -1,8 +1,8 @@
 """
-A dependency graph is a random field that accommodates directed conditionality 
-according to a conditional probability distribution funtion. The graph is made 
-of nodes comprising the random variables and their corresponding inter-
-relations are described by the graph edges.
+A dependency graph is a random field that accommodates directed 
+conditionality according to one or more conditional probability distribution 
+functions. The graph comprises nodes for the random variables and their 
+corresponding inter-relations are described by the graph edges.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -19,11 +19,10 @@ NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 
 #-------------------------------------------------------------------------------
 class DG (NX_DIRECTED_GRAPH, RF):
-  """
-  A dependency graph is a random field that accommodates directed conditionality 
-  according to a conditional probability distribution funtion. The graph is made 
-  of nodes comprising the random variables and their corresponding inter-
-  relations are described by the graph edges.
+  """ A dependency graph is a random field that accommodates directed 
+  conditionality according to one or more conditional probability distribution 
+  functions. The graph comprises nodes for the random variables and their 
+  corresponding inter-relations are described by the graph edges.
   """
   # Public
   opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
@@ -43,16 +42,16 @@ class DG (NX_DIRECTED_GRAPH, RF):
 
 #------------------------------------------------------------------------------- 
   def __init__(self, *args):
-    """ Initialises the DG with RVs, RFs, or DGs. See set_deps() """
+    """ Initialises the DG with RVs, RFs, or DGs. See def_deps() """
     NX_DIRECTED_GRAPH.__init__(self)
     self.set_prob()
-    self.set_deps(*args)
+    self.def_deps(*args)
 
 #-------------------------------------------------------------------------------
-  def set_deps(self, *args):
-    """ Sets the dependency of DG with RVs, RFs. or DG arguments.
+  def def_deps(self, *args):
+    """ Defaults the dependency of DG with RVs, RFs. or DG arguments.
 
-    :param args: each arg may be an RV, RF, or DG with the dependecy chain
+    :param args: each arg may be an RV, RF, or DG with the dependency chain
                  running from right to left.
     """
     self.__explicit = False
@@ -63,7 +62,7 @@ class DG (NX_DIRECTED_GRAPH, RF):
       if isinstance(arg, DG):
         NX_DIRECTED_GRAPH.add_nodes_from(self, arg)
         NX_DIRECTED_GRAPH.add_edges_from(self, arg)
-        run_roots = arg.roots()
+        run_roots = arg.get_roots()
       elif isinstance(arg, RF):
         NX_DIRECTED_GRAPH.add_nodes_from(self, arg)
         run_roots = arg.ret_rvs()
@@ -71,9 +70,11 @@ class DG (NX_DIRECTED_GRAPH, RF):
         NX_DIRECTED_GRAPH.add_node(self, arg.ret_name(), **{'rv': arg})
         run_roots = [arg]
       if i > 0:
-        root_keys = tuple([rv.ret_name() for rv in run_roots])
-        leaf_keys = tuple([rv.ret_name() for rv in run_roots])
-        NX_DIRECTED_GRAPH.add_edge(self, root_keys, leaf_keys)
+        root_keys = [rv.ret_name() for rv in run_roots]
+        leaf_keys = [rv.ret_name() for rv in run_leafs]
+        for root_key in root_keys:
+          for leaf_key in leaf_keys:
+            NX_DIRECTED_GRAPH.add_edge(self, root_key, leaf_key)
       run_leafs = run_roots
     self._refresh()
 
@@ -83,9 +84,8 @@ class DG (NX_DIRECTED_GRAPH, RF):
     super()._refresh()
     marg_name, cond_name = None, None
     marg_id, cond_id = None, None
-    self._keys = []
-    self._marg = RF(*tuple(self.leafs(aslist=False)))
-    self._cond = RF(*tuple(self.roots(aslist=False)))
+    self._marg = RF(*tuple(self.get_leafs()))
+    self._cond = RF(*tuple(self.get_roots()))
     if self._marg:
       marg_name = self._marg.ret_name()
       marg_id = self._marg.ret_id()
@@ -222,7 +222,7 @@ class DG (NX_DIRECTED_GRAPH, RF):
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def roots(self, aslist=True):
+  def get_roots(self, aslist=True):
     """ Returns all unconditioned RVs of the DAG """
     rvs = collections.OrderedDict()
     rvs_data = collections.OrderedDict(self.nodes.data())
@@ -238,7 +238,7 @@ class DG (NX_DIRECTED_GRAPH, RF):
     return rvs
 
 #-------------------------------------------------------------------------------
-  def leafs(self, aslist=True):
+  def get_leafs(self, aslist=True):
     """ Returns all unconditionalising RVs of the DAG """
     rvs = collections.OrderedDict()
     rvs_data = collections.OrderedDict(self.nodes.data())

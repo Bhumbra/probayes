@@ -26,21 +26,27 @@ NX_UNDIRECTED_GRAPH = nx.OrderedGraph
 class RF (NX_UNDIRECTED_GRAPH):
   """
   A random field is a collection of a random variables that participate in a 
-  joint probability distribution function without conditioning directions.
+  joint probability distribution function without explicit directional 
+  conditionality. 
+  
+  Since this class is intended as a building block for DG instances and networkx 
+  cannot mix undirected and directed graphs, edges cannot be defined explicitly 
+  within this class. Use DG if directed edges are required. Implicit support for
+  undirected edges is provided by the set_prob(), set_prop(), and set_tran()
+  methods.
   """
 
   # Public
-  delta = None
+  delta = None       # Publicly available delta factory
 
   # Protected
-  _name = None       # Cannot be set externally
-  _nrvs = None      
-  _keys = None      
-  _keyset = None    
-  _defiid = None    
-  _pscale = None    
-  _prob = None      
-  _pscale = None    
+  _name = None       # Random field name cannot be set externally
+  _nrvs = None       # Number of random variables
+  _keys = None       # Ordered list of keys of random variable names
+  _keyset = None     # Unordered set of keys of random variable names
+  _defiid = None     # Default IID random variables for calling distributions
+  _prob = None       # Joint probability distribution function 
+  _pscale = None     # Probability scaling (see RV)  
   _prop = None       # Non-transitional proposition function
   _prop_deps = None  # Set of proposition dependencies
   _delta = None      # Delta function (to replace step)
@@ -48,19 +54,19 @@ class RF (NX_UNDIRECTED_GRAPH):
   _delta_kwds = None # Optional delta kwds
   _delta_type = None # Same as delta
   _tran = None       # Transitional proposition function
-  _tfun = None       # CDF/IDF of transition function
+  _tfun = None       # CDF/IDF of transition function 
   _t1vt = None       # Flag for transitional conditioning one variable at a time
   _crvs = None       # Conditional random variable sampling specification
   _length = None     # Length of junction
   _lengths = None    # Lengths of RVs
-  _sym_tran = None
-  _spherise = None
+  _sym_tran = None   # Flag for symmetrical transitional conditional functions
+  _spherise = None   # Flag to spherise samples
 
   # Private
-  __isscalar = None 
-  __callable = None
-  __cond_mod = None
-  __cond_cov = None
+  __isscalar = None  # isscalar(_prob)
+  __callable = None  # callable(_prob)
+  __cond_mod = None  # conditional RV index modulus
+  __cond_cov = None  # conditional covariance matrix
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args): # over-rides NX_GRAPH.__init__()
@@ -378,7 +384,7 @@ class RF (NX_UNDIRECTED_GRAPH):
                np.allclose(tfun, np.triu(tfun)), message
         return
 
-    # Handle SciPy objects explicity
+    # Handle SciPy objects specifically
     rvs = self.ret_rvs(aslist=True)
     lims = np.array([rv.ret_lims() for rv in rvs])
     mean = scipyobj.mean
@@ -602,10 +608,12 @@ class RF (NX_UNDIRECTED_GRAPH):
   def eval_prob(self, values=None):
     if values is None:
       values = {}
-    assert isinstance(values, dict), "Input to eval_prob() requires values dict"
-    assert set(values.keys()) == self._keyset, \
-      "Sample dictionary keys {} mismatch with RV names {}".format(
-        values.keys(), self._keys())
+    else:
+      assert isinstance(values, dict), \
+          "Input to eval_prob() requires values dict"
+      assert set(values.keys()) == self._keyset, \
+        "Sample dictionary keys {} mismatch with RV names {}".format(
+          values.keys(), self._keys)
 
     # If not specified, treat as independent variables
     if self._prob is None:
