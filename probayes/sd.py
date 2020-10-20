@@ -1,8 +1,8 @@
 """
-A dependency graph is a random field that accommodates directed 
+A stochastic dependency is a random field that accommodates directed 
 conditionality according to one or more conditional probability distribution 
-functions. The graph comprises nodes for the random variables and their 
-corresponding inter-relations are described by the graph edges.
+functions. The dependency is represented as a graph of nodes, for the random 
+variables, and edges for their corresponding inter-relations.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -13,16 +13,16 @@ from probayes.rf import RF
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import product
-from probayes.dg_utils import desuffix, get_suffixed
+from probayes.sd_utils import desuffix, get_suffixed
 
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 
 #-------------------------------------------------------------------------------
-class DG (NX_DIRECTED_GRAPH, RF):
-  """ A dependency graph is a random field that accommodates directed 
+class SD (NX_DIRECTED_GRAPH, RF):
+  """ A stochastic dependency is a random field that accommodates directed 
   conditionality according to one or more conditional probability distribution 
-  functions. The graph comprises nodes for the random variables and their 
-  corresponding inter-relations are described by the graph edges.
+  functions. The dependency is represented as a graph of nodes, for the random 
+  variables, and edges for their corresponding inter-relations.
   """
   # Public
   opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
@@ -42,16 +42,16 @@ class DG (NX_DIRECTED_GRAPH, RF):
 
 #------------------------------------------------------------------------------- 
   def __init__(self, *args):
-    """ Initialises the DG with RVs, RFs, or DGs. See def_deps() """
+    """ Initialises the SD with RVs, RFs, or SDs. See def_deps() """
     NX_DIRECTED_GRAPH.__init__(self)
     self.set_prob()
     self.def_deps(*args)
 
 #-------------------------------------------------------------------------------
   def def_deps(self, *args):
-    """ Defaults the dependency of DG with RVs, RFs. or DG arguments.
+    """ Defaults the dependency of SD with RVs, RFs. or SD arguments.
 
-    :param args: each arg may be an RV, RF, or DG with the dependency chain
+    :param args: each arg may be an RV, RF, or SD with the dependency chain
                  running from right to left.
     """
     self.__explicit = False
@@ -59,13 +59,15 @@ class DG (NX_DIRECTED_GRAPH, RF):
       return
     run_leafs = None
     for i, arg in enumerate(args):
-      if isinstance(arg, DG):
-        NX_DIRECTED_GRAPH.add_nodes_from(self, arg)
-        NX_DIRECTED_GRAPH.add_edges_from(self, arg)
-        run_roots = arg.get_roots()
-      elif isinstance(arg, RF):
-        NX_DIRECTED_GRAPH.add_nodes_from(self, arg)
-        run_roots = arg.ret_rvs()
+      if isinstance(arg, (SD, RF)):
+        rvs = arg.ret_rvs(aslist=True)
+        for rv in rvs:
+          NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
+        if isinstance(arg, RF):
+          run_roots = rvs
+        else:
+          run_roots = arg.get_roots()
+          NX_DIRECTED_GRAPH.add_edges_from(self, arg)
       elif isinstance(arg, RV):
         NX_DIRECTED_GRAPH.add_node(self, arg.ret_name(), **{'rv': arg})
         run_roots = [arg]
@@ -436,18 +438,18 @@ class DG (NX_DIRECTED_GRAPH, RF):
   def __mul__(self, other):
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
-    if isinstance(other, DG):
+    if isinstance(other, SD):
       marg = marg + other.ret_marg().ret_rvs()
       cond = cond + other.ret_cond().ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RF):
       marg = marg + other.ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RV):
       marg = marg + [other]
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
@@ -455,18 +457,18 @@ class DG (NX_DIRECTED_GRAPH, RF):
   def __truediv__(self, other):
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
-    if isinstance(other, DG):
+    if isinstance(other, SD):
       marg = marg + other.ret_cond().ret_rvs()
       cond = cond + other.ret_marg().ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RF):
       cond = cond + other.ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RV):
       cond = cond + [self]
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 

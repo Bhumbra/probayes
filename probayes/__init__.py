@@ -3,7 +3,7 @@ from probayes.domain import Domain
 from probayes.prob import Prob
 from probayes.rv import RV
 from probayes.rf import RF
-from probayes.dg import DG
+from probayes.sd import SD
 from probayes.sp import SP
 from probayes.manifold import Manifold
 from probayes.dist import Dist

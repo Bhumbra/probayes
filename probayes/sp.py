@@ -8,14 +8,14 @@ import numpy as np
 import collections
 import inspect
 import warnings
-from probayes.dg import DG
+from probayes.sd import SD
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
-class SP (DG):
+class SP (SD):
 
   # Public
   stuv = None     # scores + thresholds + update + veridct

@@ -29,7 +29,7 @@ class RF (NX_UNDIRECTED_GRAPH):
   joint probability distribution function without explicit directional 
   conditionality. 
   
-  Since this class is intended as a building block for DG instances and networkx 
+  Since this class is intended as a building block for SD instances and networkx 
   cannot mix undirected and directed graphs, edges cannot be defined explicitly 
   within this class. Use DG if directed edges are required. Implicit support for
   undirected edges is provided by the set_prob(), set_prop(), and set_tran()
@@ -409,6 +409,9 @@ class RF (NX_UNDIRECTED_GRAPH):
     :return: RVs an OrderedDict or a list.
     """
     rvs_data = collections.OrderedDict(self.nodes.data())
+    for key, val in rvs_data.items():
+      if 'rv' not in val:
+        import pdb; pdb.set_trace()
     rvs = collections.OrderedDict({key:val['rv'] 
                                        for key,val in rvs_data.items()})
     if aslist:
@@ -1001,8 +1004,8 @@ class RF (NX_UNDIRECTED_GRAPH):
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
     from probayes.rv import RV
-    from probayes.dg import DG
-    if isinstance(other, DG):
+    from probayes.sd import SD
+    if isinstance(other, SD):
       marg = self.ret_rvs() + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
       return DG(marg, cond)
@@ -1020,17 +1023,17 @@ class RF (NX_UNDIRECTED_GRAPH):
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
     from probayes.rv import RV
-    from probayes.dg import DG
-    if isinstance(other, DG):
+    from probayes.sd import SD
+    if isinstance(other, SD):
       marg = self.ret_rvs() + other.ret_cond().ret_rvs()
       cond = other.ret_marg().ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RF):
-      return DG(self, other)
+      return SD(self, other)
 
     if isinstance(other, RV):
-      return DG(self, other)
+      return SD(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 

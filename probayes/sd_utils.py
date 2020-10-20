@@ -1,4 +1,4 @@
-# Utility module for DG objects
+# Utility module for SD objects
 
 import collections
 

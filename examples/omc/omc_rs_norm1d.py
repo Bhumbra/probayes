@@ -29,7 +29,7 @@ sigma.set_mfun((np.log, np.exp))
 # Set up params and models
 paras = pb.RF(mu, sigma)
 stats = pb.RF(x)
-model = pb.DG(stats, paras)
+model = pb.SD(stats, paras)
 model.set_prob(scipy.stats.norm.logpdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'},
                pscale='log')
