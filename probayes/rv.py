@@ -495,10 +495,10 @@ class RV (Domain, Prob):
     """ Logical 'AND' operator between RV and another RV, RF, or SD. """
     from probayes.rf import RF
     from probayes.sd import SD
-    if isinstance(other, DG):
+    if isinstance(other, SD):
       marg = [self] + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RF):
       rvs = [self] + other.ret_rvs()
