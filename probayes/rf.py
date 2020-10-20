@@ -31,7 +31,7 @@ class RF (NX_UNDIRECTED_GRAPH):
   
   Since this class is intended as a building block for SD instances and networkx 
   cannot mix undirected and directed graphs, edges cannot be defined explicitly 
-  within this class. Use DG if directed edges are required. Implicit support for
+  within this class. Use SD if directed edges are required. Implicit support for
   undirected edges is provided by the set_prob(), set_prop(), and set_tran()
   methods.
   """
@@ -1008,7 +1008,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     if isinstance(other, SD):
       marg = self.ret_rvs() + other.ret_marg().ret_rvs()
       cond = other.ret_cond().ret_rvs()
-      return DG(marg, cond)
+      return SD(marg, cond)
 
     if isinstance(other, RF):
       rvs = self.ret_rvs() + other.ret_rvs()
