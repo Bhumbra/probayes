@@ -28,17 +28,19 @@ class SD (NX_DIRECTED_GRAPH, RF):
   opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
 
   # Protected
-  _marg = None
-  _cond = None
-  _marg_cond = None    # {'marg': marg, 'cond': cond}
+  _roots = None        # RF of RVs not dependent on others
+  _leafs = None        # RF of RVs that do not condition others
+  _stems = None        # OrderedDict of latent RVs
   _def_prop_obj = None
   _prop_obj = None
-  _unit_prob = None # Flag for single RV probability
-  _unit_tran = None # Flag for single RV transitional
+  _unit_prob = None    # Flag for single RV probability
+  _unit_tran = None    # Flag for single RV transitional
 
   # Private
-  __sym_tran = None
-  __explicit = None # Flag to denote explicit specification of edges
+  __roots_leafs = None # Convenience dictionary for the roots and leafs RFs
+  __obj_tran = None    # Object referencing transitional conditions
+  __sym_tran = None    # Flag to denote symmetrical conditionals
+  __explicit = None    # Flag to denote explicit specification of edges
 
 #------------------------------------------------------------------------------- 
   def __init__(self, *args):
@@ -55,6 +57,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
                  running from right to left.
     """
     self.__explicit = False
+    self.__sym_tran = self
     if not args:
       return
     run_leafs = None
@@ -80,39 +83,52 @@ class SD (NX_DIRECTED_GRAPH, RF):
       run_leafs = run_roots
     self._refresh()
 
+
 #-------------------------------------------------------------------------------
   def _refresh(self):
-    # For convenience, marg and cond are RFs for the leafs and roots.
+    """ Refreshes tree summaries, SD name and identity, and default states. 
+    While roots and leafs are represented as RFs, stems are contained within a
+    single ordered dictionary to be flexible enough to accommodate dependency 
+    arborisations.
+    """
     super()._refresh()
-    marg_name, cond_name = None, None
-    marg_id, cond_id = None, None
-    self._marg = RF(*tuple(self.get_leafs()))
-    self._cond = RF(*tuple(self.get_roots()))
-    if self._marg:
-      marg_name = self._marg.ret_name()
-      marg_id = self._marg.ret_id()
-      marg_rvs = [rv for rv in self._marg.ret_rvs()]
-    if self._cond:
-      cond_name = self._cond.ret_name()
-      cond_id = self._cond.ret_id()
-      cond_rvs = [rv for rv in self._cond.ret_rvs()]
-    if self._marg is None and self._cond is None:
-      return
-    self._marg_cond = {'marg': self._marg, 'cond': self._cond}
-    self._defiid = self._marg.ret_keys(False)
-    names = [name for name in [marg_name, cond_name] if name]
-    self._name = '|'.join(names)
-    ids = [_id for _id in [marg_id, cond_id] if _id]
-    self._id = '_with_'.join(ids)
+
+    # Distinguish RVs belonging to leafs, roots, and stems
+    leafs = []
+    roots = []
+    self._stems = collections.OrderedDict()
+    rvs = collections.OrderedDict(self.nodes.data())
+    for key, val in rvs.items():
+      parents = list(self.predecessors(key))
+      children = list(self.successors(key))
+      if parents and children:
+        self._stems.update({key: val})
+      elif parents:
+        roots += [val]
+      else: # leafs can be childless
+        leafs += [val]
+
+    self._leafs = RF(*tuple(leafs))
+    self._roots = None if not roots else RF(*tuple(roots))
+    self._defiid = self._leafs.ret_keys(False)
+
+    # Evaluate name and id from leafs and roots only
+    self._name = self._leafs.ret_name()
+    self._id = self._leafs.ret_id()
+    self.__leafs_roots = {'leafs': self._leafs}
+    if self._roots:
+      self._name += "|{}".format(self._roots.ret_name())
+      self._id += "_with_{}".format(self._roots.ret_id())
+      self.__leafs_roots.update({'roots': self._roots})
     self.set_pscale()
     self.eval_length()
     self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
 
     # Set the default proposal object and default the delta accordingly
-    self._def_prop_obj = self._cond if self._cond is not None else self._marg
+    self._def_prop_obj = self._roots if self._roots is not None else self._leafs
     self.delta = self._def_prop_obj.delta
     self._delta_type = self._def_prop_obj._delta_type
-    self.set_prop_obj(None)
+    self.set_prop_obj(None) # this is for the instantiater to decide
 
     # Determine unit RVRF
     self._unit_prob = False
@@ -132,58 +148,68 @@ class SD (NX_DIRECTED_GRAPH, RF):
     self._delta_type = self._prop_obj._delta_type
 
 #-------------------------------------------------------------------------------
+  def ret_leafs_roots(self, spec=None):
+    """ Returns a proxy object from __leafs_roots. """
+    if spec is None:
+      return self.__leafs_roots
+    if not isinstance(spec, str) and spec not in self.__leafs_roots.values(): 
+      return False
+    if isinstance(spec, str):
+      assert spec in self.__leafs_roots, \
+          '{} absent from {}'.format(spec, self._name)
+      return self.__leafs_roots[spec]
+    return spec
+
+#-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
-    if not isinstance(prop, str) and prop not in self._marg_cond.values():
+    _prop = self.ret_leafs_roots(prop)
+    if not _prop:
       return super().set_prop(prop, *args, **kwds)
-    if isinstance(prop, str):
-      prop = self._marg_cond[prop]
-    self.set_prop_obj(prop)
-    self._prop = prop._prop
+    self.set_prop_obj(_prop)
+    self._prop = _prop._prop
     return self._prop
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
-    if not isinstance(delta, str) and delta not in self._marg_cond.values(): 
+    _delta = self.ret_leafs_roots(delta)
+    if not _delta:
       return super().set_delta(delta, *args, **kwds)
-    if isinstance(delta, str):
-      delta = self._marg_cond[delta]
-    self.set_prop_obj(delta)
-    self._delta = delta._delta
-    self._delta_args = delta._delta_args
-    self._delta_kwds = delta._delta_kwds
-    self._delta_type = delta._delta_type
-    self._spherise = delta._spherise
+    self.set_prop_obj(_delta)
+    self._delta = _delta._delta
+    self._delta_args = _delta._delta_args
+    self._delta_kwds = _delta._delta_kwds
+    self._delta_type = _delta._delta_type
+    self._spherise = _delta._spherise
     return self._delta
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
-    if not isinstance(tran, str) and tran not in self._marg_cond.values(): 
+    _tran = self.ret_leafs_roots(tran)
+    if not _tran:
+      self.__obj_tran = self
       return super().set_tran(tran, *args, **kwds)
-    if isinstance(tran, str):
-      tran = self._marg_cond[tran]
-    self.set_prop_obj(tran)
-    self._tran = tran._tran
+    self.__obj_tran = _tran
+    self.set_prop_obj(self.__obj_tran)
+    self._tran = _tran._tran
     return self._tran
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
-    if not isinstance(tfun, str) and tfun not in self._marg_cond.values(): 
+    _tfun = self.ret_leafs_roots(tfun)
+    if not _tfun:
       return super().set_tfun(tfun, *args, **kwds)
-    if isinstance(tfun, str):
-      tfun = self._marg_cond[tfun]
-    self.set_prop_obj(tfun)
-    self._tfun = tfun._tfun
+    self.set_prop_obj(_tfun)
+    self._tfun = _tfun._tfun
     return self._tfun
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
-    if not isinstance(cfun, str) and cfun not in self._marg_cond.values(): 
-      return super().set_cfun(cfun, *args, **kwds)
-    if isinstance(cfun, str):
-      cfun = self._marg_cond[cfun]
-    self.set_prop_obj(cfun)
-    self._cfun = cfun._cfun
-    self._cfun_lud = cfun._cfun_lud
+    _cfun = self.ret_leafs_roots(cfun)
+    if not _cfun:
+      return super().set_cfun(tfun, *args, **kwds)
+    self.set_prop_obj(_cfun)
+    self._cfun = _cfun._cfun
+    self._cfun_lud = _cfun._cfun_lud
     return self._cfun
 
 #-------------------------------------------------------------------------------
@@ -206,61 +232,30 @@ class SD (NX_DIRECTED_GRAPH, RF):
         if key not in vals.keys():
           vals.update({key: None})
     marg_vals = collections.OrderedDict()
-    if self._marg:
-      for key in self._marg.ret_keys():
+    if self._leafs:
+      for key in self._leafs.ret_keys():
         if key in keys:
           marg_vals.update({key: vals[key]})
     cond_vals = collections.OrderedDict()
-    if self._cond:
-      for key in self._cond.ret_keys():
+    if self._roots:
+      for key in self._roots.ret_keys():
         if key in keys:
           cond_vals.update({key: vals[key]})
-    marg_dist_name = self._marg.eval_dist_name(marg_vals)
-    cond_dist_name = '' if not self._cond else \
-                     self._cond.eval_dist_name(cond_vals)
+    marg_dist_name = self._leafs.eval_dist_name(marg_vals)
+    cond_dist_name = '' if not self._roots else \
+                     self._roots.eval_dist_name(cond_vals)
     dist_name = marg_dist_name
     if len(cond_dist_name):
       dist_name += "|{}".format(cond_dist_name)
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def get_roots(self, aslist=True):
-    """ Returns all unconditioned RVs of the DAG """
-    rvs = collections.OrderedDict()
-    rvs_data = collections.OrderedDict(self.nodes.data())
-    for key, val in rvs_data.items():
-      parents = list(self.predecessors(key))
-      if not parents:
-        rvs.update({key: val['rv']})
-    if aslist:
-      if isinstance(rvs, dict):
-        rvs = list(rvs.values())
-      assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
-                                    format(type(rvs))
-    return rvs
+  def ret_leafs(self):
+    return self._leafs
 
 #-------------------------------------------------------------------------------
-  def get_leafs(self, aslist=True):
-    """ Returns all unconditionalising RVs of the DAG """
-    rvs = collections.OrderedDict()
-    rvs_data = collections.OrderedDict(self.nodes.data())
-    for key, val in rvs_data.items():
-      childen = list(self.successors(key))
-      if not childen:
-        rvs.update({key: val['rv']})
-    if aslist:
-      if isinstance(rvs, dict):
-        rvs = list(rvs.values())
-      assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
-                                    format(type(rvs))
-    return rvs
-#-------------------------------------------------------------------------------
-  def ret_marg(self):
-    return self._marg
-
-#-------------------------------------------------------------------------------
-  def ret_cond(self):
-    return self._cond
+  def ret_roots(self):
+    return self._roots
 
 #-------------------------------------------------------------------------------
   def set_rvs(self, *args):
@@ -276,7 +271,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, *args, _skip_parsing=False, **kwds):
-    assert self._marg, "No marginal stochastic random variables defined"
+    assert self._leafs, "No marginal stochastic random variables defined"
     return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -290,7 +285,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     if not joint:
       return dist
     vals = dist.ret_cond_vals()
-    cond_dist = self._cond(vals)
+    cond_dist = self._roots(vals)
     return product(cond_dist, dist)
 
 #-------------------------------------------------------------------------------
@@ -311,18 +306,15 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def parse_pred_args(self, *args):
-    obj = None
-    if self._tran == 'marg': obj = self._marg
-    if self._tran == 'cond': obj = self._cond
-    if obj is None:
+    if self.__obj_tran == self:
       return self.parse_args(*args)
     if len(args) == 1 and isinstance(args[0], dict):
       arg = args[0]
-      keyset = obj.ret_keys(False)
+      keyset = self.__obj_tran.ret_keys(False)
       pred = collections.OrderedDict({key: val for key, val in arg.items() 
                                                if key in keyset})
-      return obj.parse_args(pred)
-    return obj.parse_args(*args)
+      return self.__obj_tran.parse_args(pred)
+    return self.__obj_tran.parse_args(*args)
 
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):

@@ -39,7 +39,7 @@ class SP (SD):
 #-------------------------------------------------------------------------------
   def _refresh(self):
     super()._refresh()
-    if self._marg is None and self._cond is None:
+    if not self._nrvs:
       return
     self.stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
     self.opqrstuv = collections.namedtuple(self._id, 

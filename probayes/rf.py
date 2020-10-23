@@ -52,7 +52,7 @@ class RF (NX_UNDIRECTED_GRAPH):
   _delta = None      # Delta function (to replace step)
   _delta_args = None # Optional delta args (must be dictionaries)
   _delta_kwds = None # Optional delta kwds
-  _delta_type = None # Same as delta
+  _delta_type = None # Proxy for delta used for casting
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function 
   _t1vt = None       # Flag for transitional conditioning one variable at a time
@@ -149,7 +149,7 @@ class RF (NX_UNDIRECTED_GRAPH):
 
 #-------------------------------------------------------------------------------
   def _refresh(self):
-    """ Private function to refresh class members to updated graph structure """
+    """ Updates RV summary objects, RF name and id, and delta factory. """
     self._nrvs = self.number_of_nodes()
     self._keys = list(self.nodes)
     self._keyset = set(self._keys)
@@ -993,7 +993,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     if isinstance(key, str):
       if key not in self._keys:
         return None
-    return self._ret_rvs(False)[key]
+    return self.ret_rvs(False)[key]
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
