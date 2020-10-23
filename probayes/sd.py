@@ -83,7 +83,6 @@ class SD (NX_DIRECTED_GRAPH, RF):
       run_leafs = run_roots
     self._refresh()
 
-
 #-------------------------------------------------------------------------------
   def _refresh(self):
     """ Refreshes tree summaries, SD name and identity, and default states. 
@@ -206,7 +205,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def set_cfun(self, cfun=None, *args, **kwds):
     _cfun = self.ret_leafs_roots(cfun)
     if not _cfun:
-      return super().set_cfun(tfun, *args, **kwds)
+      return super().set_cfun(cfun, *args, **kwds)
     self.set_prop_obj(_cfun)
     self._cfun = _cfun._cfun
     self._cfun_lud = _cfun._cfun_lud
