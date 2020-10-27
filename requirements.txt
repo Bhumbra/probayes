@@ -1,5 +1,6 @@
 numpy
 scipy
+networkx
 matplotlib
 flake8
 pytest
