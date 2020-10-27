@@ -1,192 +1,520 @@
 """
-A random field is a random junction (here called marg) that may be conditioned 
-by a another random junction (here called cond) according to a conditional
-probability distribution function.
+A random field is a collection of a random variables that participate in a joint 
+probability distribution function without conditioning directions.
 """
 #-------------------------------------------------------------------------------
-import numpy as np
+import warnings
 import collections
-from probayes.rj import RJ
-from probayes.func import Func
+import numpy as np
+import scipy.stats
+import networkx as nx
+
+from probayes.rv import RV
 from probayes.dist import Dist
-from probayes.dist_utils import product
-from probayes.rf_utils import desuffix, get_suffixed
+from probayes.dist_utils import margcond_str
+from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless, \
+                            revtype, uniform
+from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
+                         rescale, eval_pscale, prod_pscale
+from probayes.rf_utils import rv_prod_rule, call_scipy_prob, sample_cond_cov
+from probayes.func import Func
+from probayes.cond_cov import CondCov
+
+NX_UNDIRECTED_GRAPH = nx.OrderedGraph
 
 #-------------------------------------------------------------------------------
-class RF (RJ):
+class RF (NX_UNDIRECTED_GRAPH):
+  """
+  A random field is a collection of a random variables that participate in a 
+  joint probability distribution function without explicit directional 
+  conditionality. 
+  
+  Since this class is intended as a building block for SD instances and networkx 
+  cannot mix undirected and directed graphs, edges cannot be defined explicitly 
+  within this class. Use SD if directed edges are required. Implicit support for
+  undirected edges is provided by the set_prob(), set_prop(), and set_tran()
+  methods.
+  """
+
   # Public
-  opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
+  delta = None       # Publicly available delta factory
 
   # Protected
-  _marg = None
-  _cond = None
-  _marg_cond = None    # {'marg': marg, 'cond': cond}
-  _def_prop_obj = None
-  _prop_obj = None
-  _unit_prob = None # Flag for single RV probability
-  _unit_tran = None # Flag for single RV transitional
+  _name = None       # Random field name cannot be set externally
+  _nrvs = None       # Number of random variables
+  _keys = None       # Ordered list of keys of random variable names
+  _keyset = None     # Unordered set of keys of random variable names
+  _defiid = None     # Default IID random variables for calling distributions
+  _prob = None       # Joint probability distribution function 
+  _pscale = None     # Probability scaling (see RV)  
+  _prop = None       # Non-transitional proposition function
+  _prop_deps = None  # Set of proposition dependencies
+  _delta = None      # Delta function (to replace step)
+  _delta_args = None # Optional delta args (must be dictionaries)
+  _delta_kwds = None # Optional delta kwds
+  _delta_type = None # Proxy for delta used for casting
+  _tran = None       # Transitional proposition function
+  _tfun = None       # CDF/IDF of transition function 
+  _t1vt = None       # Flag for transitional conditioning one variable at a time
+  _crvs = None       # Conditional random variable sampling specification
+  _length = None     # Length of junction
+  _lengths = None    # Lengths of RVs
+  _sym_tran = None   # Flag for symmetrical transitional conditional functions
+  _spherise = None   # Flag to spherise samples
 
   # Private
-  __sym_tran = None
+  __isscalar = None  # isscalar(_prob)
+  __callable = None  # callable(_prob)
+  __cond_mod = None  # conditional RV index modulus
+  __cond_cov = None  # conditional covariance matrix
 
-#------------------------------------------------------------------------------- 
-  def __init__(self, *args):
+#-------------------------------------------------------------------------------
+  def __init__(self, *args): # over-rides NX_GRAPH.__init__()
+    """ Initialises a random field with RVs for in args. See set_rvs(). """
+    super().__init__()
+    self.set_rvs(*args)
     self.set_prob()
-    assert len(args) < 3, "Maximum of two initialisation arguments"
-    arg0 = None if len(args) < 1 else args[0]
-    arg1 = None if len(args) < 2 else args[1]
-    if arg0 is not None: self.set_marg(arg0)
-    if arg1 is not None: self.set_cond(arg1)
+    self.set_prop()
+    self.set_delta()
+    self.set_tran()
+    self.set_t1vt()
 
 #-------------------------------------------------------------------------------
-  def set_marg(self, arg):
-    if isinstance(arg, RJ):
-      assert not isinstance(arg, RF), "Marginal must be RJ class type"
-      self._marg = arg
-      self._refresh()
+  def add_node(self, *args, **kwds):
+    """ Direct adding of nodes disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_node_from(self, *args, **kwds):
+    """ Direct adding of nodes disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def remove_node(self, *args, **kwds):
+    """ Removal of nodes disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_edge(self, *args, **kwds):
+    """ Direct adding of edges disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_edges_from(self, *args, **kwds):
+    """ Direct adding of edges disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def add_cd(self, *args, **kwds):
+    """ Adding of conditional dependences disallowed """
+    raise NotImplementedError("Not implemented for this class")
+
+#-------------------------------------------------------------------------------
+  def set_rvs(self, *args):
+    """ Initialises a random field with RVs for each arg in args.
+
+    :param *args: each arg may be an RV instance or the first arg may be a RF.
+    
+    """
+    if len(args) == 1 and isinstance(args[0], (RF, dict, set, tuple, list)):
+      args = args[0]
     else:
-      self.add_marg(arg)
+      args = tuple(args)
+    self.add_rv(args)
 
 #-------------------------------------------------------------------------------
-  def set_cond(self, arg):
-    if isinstance(arg, RJ):
-      assert not isinstance(arg, RF), "Conditional must be RJ class type"
-      self._cond = arg
-      self._refresh()
+  def add_rv(self, rv):
+    """ Adds one or more random variables to the random field.
+
+    :param rv: a RV or RF instance, or a list/tuple of RV instances.
+    """
+    assert self._prob is None, \
+      "Cannot assign new randon variables after specifying joint/condition prob"
+    if isinstance(rv, (RF, dict, set, tuple, list)):
+      rvs = rv
+      if isinstance(rvs, RF):
+        rvs = rvs.ret_rvs()
+      if isinstance(rvs, dict):
+        rvs = rvs.values()
+      [self.add_rv(rv) for rv in rvs]
     else:
-      self.add_cond(arg)
-
-#-------------------------------------------------------------------------------
-  def add_marg(self, *args):
-    if self._marg is None: 
-      self._marg = RJ()
-    self._marg.add_rv(*args)
-    self._refresh()
-
-#-------------------------------------------------------------------------------
-  def add_cond(self, *args):
-    if self._cond is None: self._cond = RJ()
-    self._cond.add_rv(*args)
+      assert isinstance(rv, RV), \
+          "Input not a RV instance but of type: {}".format(type(rv))
+      key = rv.ret_name()
+      if self._nrvs:
+        assert key not in list(self.nodes), \
+            "Existing RV name {} already present in collection".format(key)
+      super().add_node(key, **{'rv': rv})
     self._refresh()
 
 #-------------------------------------------------------------------------------
   def _refresh(self):
-    marg_name, cond_name = None, None
-    marg_id, cond_id = None, None
-    self._rvs = []
-    self._keys = []
-    if self._marg:
-      marg_name = self._marg.ret_name()
-      marg_id = self._marg.ret_id()
-      marg_rvs = [rv for rv in self._marg.ret_rvs()]
-      self._rvs.extend([rv for rv in self._marg.ret_rvs()])
-    if self._cond:
-      cond_name = self._cond.ret_name()
-      cond_id = self._cond.ret_id()
-      cond_rvs = [rv for rv in self._cond.ret_rvs()]
-      self._rvs.extend([rv for rv in self._cond.ret_rvs()])
-    if self._marg is None and self._cond is None:
-      return
-    self._marg_cond = {'marg': self._marg, 'cond': self._cond}
-    self._nrvs = len(self._rvs)
-    self._keys = [rv.ret_name() for rv in self._rvs]
+    """ Updates RV summary objects, RF name and id, and delta factory. """
+    self._nrvs = self.number_of_nodes()
+    self._keys = list(self.nodes)
     self._keyset = set(self._keys)
-    self._defiid = self._marg.ret_keys(False)
-    names = [name for name in [marg_name, cond_name] if name]
-    self._name = '|'.join(names)
-    ids = [_id for _id in [marg_id, cond_id] if _id]
-    self._id = '_with_'.join(ids)
+    self._defiid = self._keyset
+    self._name = ','.join(self._keys)
+    self._id = '_and_'.join(self._keys)
+    if self._id:
+      self.delta = collections.namedtuple('ð', self._keys)
+      self._delta_type = self.delta
     self.set_pscale()
     self.eval_length()
-    self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
-
-    # Set the default proposal object and default the delta accordingly
-    self._def_prop_obj = self._cond if self._cond is not None else self._marg
-    self.delta = self._def_prop_obj.delta
-    self._delta_type = self._def_prop_obj._delta_type
-    self.set_prop_obj(None)
-
-    # Determine unit RVRF
-    self._unit_prob = False
-    self._unit_tran = False
-    if self._nrvs == 1:
-      rv = self._rvs[0]
-      self._unit_prob = self._prob is None and rv.ret_prob() is not None
-      self._unit_tran = self._tran is None and rv.ret_tran() is not None
 
 #-------------------------------------------------------------------------------
-  def set_prop_obj(self, prop_obj=None):
-    """ Sets the object used for assigning proposal distributions """
-    self._prop_obj = prop_obj
-    if self._prop_obj is None:
+  def set_prob(self, prob=None, *args, **kwds):
+    """ Sets the joint probability with optional arguments and keywords.
+
+    :param prob: may be a scalar, array, or callable function.
+    :param pscale: represents the scale used to represent probabilities.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
+    """
+    kwds = dict(kwds)
+    if 'pscale' in kwds:
+      pscale = kwds.pop('pscale')
+      self.set_pscale(pscale)
+    self.__callable = None
+    self.__isscalar = None
+    self._prob = prob
+    if self._prob is None:
       return
-    self.delta = self._prop_obj.delta
-    self._delta_type = self._prop_obj._delta_type
+    self._prob = Func(self._prob, *args, **kwds)
+    self.__callable = self._prob.ret_callable()
+    self.__isscalar = self._prob.ret_isscalar()
+
+#-------------------------------------------------------------------------------
+  def set_pscale(self, pscale=None):
+    """ Sets the probability scaling constant used for probabilities.
+
+    :param pscale: can be None, a real number, or a complex number, or 'log'
+
+       if pscale is None (default) the normalisation constant is set as 1.
+       if pscale is real, this defines the normalisation constant.
+       if pscale is complex, this defines the offset for log probabilities.
+       if pscale is 'log', this denotes a logarithmic scale with an offset of 0.
+
+    :return: pscale (either as a real or complex number)
+    """
+    if pscale is not None or not self._nrvs:
+      self._pscale = eval_pscale(pscale)
+      return self._pscale
+    rvs = self.ret_rvs(aslist=True)
+    pscales = [rv.ret_pscale() for rv in rvs]
+    self._pscale = prod_pscale(pscales)
+    return self._pscale
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
-    if not isinstance(prop, str) and prop not in self._marg_cond.values():
-      return super().set_prop(prop, *args, **kwds)
-    if isinstance(prop, str):
-      prop = self._marg_cond[prop]
-    self.set_prop_obj(prop)
-    self._prop = prop._prop
-    return self._prop
+    """ Sets the joint proposition function with optional arguments and keywords.
+
+    :param prop: may be a scalar, array, or callable function.
+    :param *args: optional arguments to pass if prop is callable.
+    :param **kwds: optional keywords to pass if prop is callable.
+    """
+    self._prop = prop
+    self._prop_deps = self._keys if 'deps' not in kwds else kwds.pop['deps']
+    if self._prop is None:
+      return
+    assert self._tran is None, \
+        "Cannot assign both proposition and transition probabilities"
+    self._prop = Func(self._prop, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
-    if not isinstance(delta, str) and delta not in self._marg_cond.values(): 
-      return super().set_delta(delta, *args, **kwds)
-    if isinstance(delta, str):
-      delta = self._marg_cond[delta]
-    self.set_prop_obj(delta)
-    self._delta = delta._delta
-    self._delta_args = delta._delta_args
-    self._delta_kwds = delta._delta_kwds
-    self._delta_type = delta._delta_type
-    self._spherise = delta._spherise
-    return self._delta
+    """ Sets the default delta function or operation.
+
+    :param delta: the delta function or operation (see below)
+    :param *args: optional arguments to pass if delta is callable.
+    :param **kwds: optional keywords to pass if delta is callable.
+
+    The input delta may be:
+
+    1. A callable function (for which args and kwds are passed on as usual).
+    2. An RV.delta instance (this defaults all RV deltas).
+    3. A dictionary for RVs, this is converted to an RF.delta.
+    4. A scalar that may contained in a list or tuple:
+      a) No container - the scalar is treated as a fixed delta.
+      b) List - delta is uniformly and independently sampled across RVs.
+      c) Tuple - delta is spherically sampled across RVs.
+
+      For non-tuples, an optional argument (args[0]) can be included as a 
+      dictionary to specify by RV-name deltas following the above conventions
+      except their values are not subject to scaling even if 'scale' is given,
+      but they are subject to bounding if 'bound' is specified.
+
+    For setting types 2-4, optional keywords are (default False):
+      'scale': Flag to denote scaling deltas to RV lengths
+      'bound': Flag to constrain delta effects to RV bounds (None bounces)
+      
+    """
+    self._delta = delta
+    self._delta_args = args
+    self._delta_kwds = dict(kwds)
+    self._spherise = {}
+    if self._delta is None:
+      return
+    elif callable(self._delta):
+      self._delta = Func(self._delta, *args, **kwds)
+      return
+
+    # Default scale and bound
+    if 'scale' not in self._delta_kwds:
+      self._delta_kwds.update({'scale': False})
+    if 'bound' not in self._delta_kwds:
+      self._delta_kwds.update({'bound': False})
+    scale = self._delta_kwds['scale']
+    bound = self._delta_kwds['bound']
+
+    # Handle deltas and dictionaries
+    if isinstance(self._delta, dict):
+      self._delta = self._delta_type(**self._delta)
+    if isinstance(delta, self._delta_type):
+      assert not args, \
+        "Optional args prohibited for dict/delta instance inputs"
+      rvs = self.ret_rvs(aslist=True)
+      for i, rv in enumerate(rvs):
+        rv.set_delta(self._delta[i], scale=scale, bound=bound)
+      return
+
+    # Default scale and bound and check args
+    if self._delta_args:
+      assert len(self._delta_args) == 1, \
+          "Optional positional arguments must comprises a single dict"
+      unscale = self._delta_args[0]
+      assert isinstance(unscale, dict), \
+          "Optional positional arguments must comprises a single dict"
+
+    # Non tuples can be converted to deltas; can pre-scale here
+    if not isinstance(self._delta, tuple):
+      scaling = self._lengths
+      delta = self._delta 
+      urand = isinstance(delta, list)
+      if urand:
+        assert len(delta) == 1, "List delta requires a single element"
+        delta = delta[0]
+      deltas = {key: delta for key in self._keys}
+      unscale = {} if not self._delta_args else self._delta_args[0]
+      deltas.update(unscale)
+      delta_dict = collections.OrderedDict(deltas)
+      for i, (key, val) in enumerate(deltas.items()):
+        delta = val
+        if scale and key not in unscale:
+          assert np.isfinite(self._lengths[i]), \
+              "Cannot scale by infinite length for RV {}".format(key)
+          delta = val * self._lengths[i]
+        if urand:
+          delta = [delta]
+        delta_dict.update({key: delta})
+      self._delta = self._delta_type(**delta_dict)
+      rvs = self.ret_rvs(aslist=True)
+      for i, rv in enumerate(rvs):
+        rv.set_delta(self._delta[i], scale=False, bound=bound)
+
+    # Tuple deltas must be evaluated on-the-fly and cannot be pre-scaled
+    else:
+      unscale = {} if not self._delta_args else self._delta_args[0]
+      self._spherise = {}
+      for i, key in enumerate(self._keys):
+        if key not in unscale.keys():
+          length = self._lengths[i]
+          assert np.isfinite(length), \
+              "Cannot spherise RV {} with infinite length".format(key)
+          self._spherise.update({key: length})
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
-    if not isinstance(tran, str) and tran not in self._marg_cond.values(): 
-      return super().set_tran(tran, *args, **kwds)
-    if isinstance(tran, str):
-      tran = self._marg_cond[tran]
-    self.set_prop_obj(tran)
-    self._tran = tran._tran
-    return self._tran
+    """ Sets the conditional transition function with optional arguments and 
+    keywords.
+
+    :param tran: may be a scalar, covariance array, or callable function.
+    :param *args: optional arguments to pass if tran is callable.
+    :param **kwds: optional keywords to pass if tran is callable.
+    """
+    # Set transition function
+    self._tran = tran
+    self._sym_tran = False
+    if self._tran is None:
+      return
+    assert self._prop is None, \
+        "Cannot assign both proposition and transition probabilities"
+    self._tran = Func(self._tran, *args, **kwds)
+    self._sym_tran = not self._tran.ret_istuple()
+
+    # If a covariance matrix, set the LU decomposition as the tfun
+    if not self._tran.ret_callable() and not isscalar(tran):
+      message = "Non-callable non-scalar tran objects must be a square 2D " + \
+                "Numpy array of size corresponding to number of variables {}".\
+                 format(self._nrvs)
+      assert isinstance(tran, np.ndarray), message
+      assert tran.ndim == 2, message
+      assert np.all(np.array(tran.shape) == self._nrvs), message
+      self.set_tfun(np.linalg.cholesky(tran))
+
+    # If a scipy object, set the tfun
+    elif self._tran.ret_isscipy():
+      scipyobj = self._tran.ret_scipyobj()
+      self.set_tfun(self._tran, scipyobj=self._tran.ret_scipyobj())
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
-    if not isinstance(tfun, str) and tfun not in self._marg_cond.values(): 
-      return super().set_tfun(tfun, *args, **kwds)
-    if isinstance(tfun, str):
-      tfun = self._marg_cond[tfun]
-    self.set_prop_obj(tfun)
-    self._tfun = tfun._tfun
-    return self._tfun
+    """ Sets a two-length tuple of functions that should correspond to the
+    (cumulative probability function, inverse cumulative function) with respect
+    to the callable function set by set_tran(). It is necessary to set these
+    functions for conditional sampling variables with non-flat distributions.
+
+    :param tfun: two-length tuple of callable functions or an LU decomposition
+    :param *args: arguments to pass to tfun functions
+    :param **kwds: keywords to pass to tfun functions
+    """
+    scipyobj = None if 'scipyobj' not in kwds else kwds['scipyobj']
+    self._tfun = tfun 
+    if self._tfun is None:
+      return
+    if scipyobj is None:
+      self._tfun = Func(self._tfun, *args, **kwds)
+      if not self._tfun.ret_callable():
+        message = "Non-callable tran objects must be a triangular 2D Numpy array " + \
+                  "of size corresponding to number of variables {}".format(self._nrvs)
+        assert isinstance(tfun, np.ndarray), message
+        assert tfun.ndim == 2, message
+        assert np.all(np.array(tfun.shape) == self._nrvs), message
+        assert np.allclose(tfun, np.tril(tfun)) or \
+               np.allclose(tfun, np.triu(tfun)), message
+        return
+
+    # Handle SciPy objects specifically
+    rvs = self.ret_rvs(aslist=True)
+    lims = np.array([rv.ret_lims() for rv in rvs])
+    mean = scipyobj.mean
+    cov = scipyobj.cov
+    self._cond_cov = CondCov(mean, cov, lims)
+    scipy_cond = sample_cond_cov if self._sym_tran else \
+                 (sample_cond_cov, sample_cond_cov)
+    self._tfun = Func(scipy_cond, cond_cov=self._cond_cov)
 
 #-------------------------------------------------------------------------------
-  def set_cfun(self, cfun=None, *args, **kwds):
-    if not isinstance(cfun, str) and cfun not in self._marg_cond.values(): 
-      return super().set_cfun(cfun, *args, **kwds)
-    if isinstance(cfun, str):
-      cfun = self._marg_cond[cfun]
-    self.set_prop_obj(cfun)
-    self._cfun = cfun._cfun
-    self._cfun_lud = cfun._cfun_lud
-    return self._cfun
+  def set_t1vt(self, t1vt=False):
+    """ Sets the flag to for transitional sampling one variable at a time """
+    self._t1vt = t1vt
 
 #-------------------------------------------------------------------------------
-  def eval_dist_name(self, values, suffix=None):
-    if suffix is not None:
-      return super().eval_dist_name(values, suffix)
-    keys = self._keys 
+  def ret_rvs(self, aslist=True):
+    """ Returns the RVs belonging to the random field either as a list
+    (by default) or as a dictionary {rv_name: rv_instance}. 
+
+    :param aslist: Boolean flag (default True) to return RVs as a list
+
+    :return: RVs an OrderedDict or a list.
+    """
+    rvs_data = collections.OrderedDict(self.nodes.data())
+    for key, val in rvs_data.items():
+      if 'rv' not in val: # quick debug check
+        import pdb; pdb.set_trace()
+    rvs = collections.OrderedDict({key:val['rv'] 
+                                       for key,val in rvs_data.items()})
+    if aslist:
+      if isinstance(rvs, dict):
+        rvs = list(rvs.values())
+      assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
+                                    format(type(rvs))
+    return rvs
+
+#-------------------------------------------------------------------------------
+  def eval_length(self):
+    """ Evaluates and returns the joint length of the random junction. """
+    rvs = self.ret_rvs(aslist=True)
+    self._lengths = np.array([rv.ret_length() for rv in rvs], dtype=float)
+    self._length = np.sqrt(np.sum(self._lengths))
+    return self._length
+
+#-------------------------------------------------------------------------------
+  def ret_length(self):
+    """ Returns the length of the random junction """
+    return self._length
+
+#-------------------------------------------------------------------------------
+  def ret_name(self):
+    """ Returns the name of the random junction """
+    return self._name
+
+#-------------------------------------------------------------------------------
+  def ret_id(self):
+    """ Returns the id of the random junction """
+    return self._id
+#-------------------------------------------------------------------------------
+  def ret_nrvs(self):
+    """ Returns the number of random variables belonging to the random junction.
+    """
+    return self._nrvs
+
+#-------------------------------------------------------------------------------
+  def ret_keys(self, aslist=True):
+    """ Returns the RV keys as a list (by default) otherwise as a set """
+    if aslist:
+      return self._keys
+    return self._keyset
+
+#-------------------------------------------------------------------------------
+  def ret_pscale(self):
+    """ Returns the real or complex scaling constant set for pscale """
+    return self._pscale
+
+#-------------------------------------------------------------------------------
+  def parse_args(self, *args, **kwds):
+    """ Returns (values, iid) from *args and **kwds """
+    args = tuple(args)
+    kwds = dict(kwds)
+    pass_all = False if 'pass_all' not in kwds else kwds.pop('pass_all')
+    
+    if not args and not kwds:
+      args = (None,)
+    if args:
+      assert len(args) == 1 and not kwds, \
+        "With order specified, calls argument must be a single " + \
+              "dictionary or keywords only"
+      kwds = dict(args[0]) if isinstance(args[0], dict) else \
+             ({key: args[0] for key in self._keys})
+
+    elif kwds:
+      assert not args, \
+        "With order specified, calls argument must be a single " + \
+              "dictionary or keywords only"
+    values = dict(kwds)
+    seen_keys = []
+    for key, val in values.items():
+      count_comma = key.count(',')
+      if count_comma:
+        seen_keys.extend(key.split(','))
+        if isinstance(val, (tuple, list)):
+          assert len(val) == count_comma+1, \
+              "Mismatch in key specification {} and number of values {}".\
+              format(key, len(val))
+        else:
+          values.update({key: [val] * (count_comma+1)})
+      else:
+        seen_keys.append(key)
+      if not pass_all:
+        assert seen_keys[-1] in self._keys, \
+            "Unrecognised key {} among available RVs {}".format(
+                seen_keys[-1], self._keys)
+    for key in self._keys:
+      if key not in seen_keys:
+        values.update({key: None})
+    if pass_all:
+      list_keys = list(values.keys())
+      for key in list_keys:
+        if key not in self._keys:
+          values.pop(key)
+
+    return values
+
+#-------------------------------------------------------------------------------
+  def eval_dist_name(self, values=None, suffix=None):
+    # Evaluates the string used to set the distribution name
     vals = collections.OrderedDict()
-    if not isinstance(vals, dict):
-      vals.update({key: vals for key in keys})
-    else:
+    if isinstance(values, dict):
       for key, val in values.items():
         if ',' in key:
           subkeys = key.split(',')
@@ -197,254 +525,511 @@ class RF (RJ):
       for key in self._keys:
         if key not in vals.keys():
           vals.update({key: None})
-    marg_vals = collections.OrderedDict()
-    if self._marg:
-      for key in self._marg.ret_keys():
-        if key in keys:
-          marg_vals.update({key: vals[key]})
-    cond_vals = collections.OrderedDict()
-    if self._cond:
-      for key in self._cond.ret_keys():
-        if key in keys:
-          cond_vals.update({key: vals[key]})
-    marg_dist_name = self._marg.eval_dist_name(marg_vals)
-    cond_dist_name = '' if not self._cond else \
-                     self._cond.eval_dist_name(cond_vals)
-    dist_name = marg_dist_name
-    if len(cond_dist_name):
-      dist_name += "|{}".format(cond_dist_name)
+    else:
+      vals.update({key: values for key in self._keys})
+    rvs = self.ret_rvs()
+    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()], suffix) \
+                     for rv in rvs]
+    dist_name = ','.join(rv_dist_names)
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def ret_marg(self):
-    return self._marg
+  def eval_vals(self, *args, _skip_parsing=False, min_dim=0, **kwds):
+    """ 
+    Keep args and kwds since could be called externally. This ignores self._prob.
+    """
+    values = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
+    dims = {}
+    
+    # Don't reshape if all scalars (and therefore by definition no shared keys)
+    if all([np.isscalar(value) for value in values.values()]): # use np.scalar
+      return values, dims
+
+    # Create reference mapping for shared keys across rvs
+    values_ref = collections.OrderedDict({key: [key, None] for key in self._keys})
+    for key in values.keys():
+      if ',' in key:
+        subkeys = key.split(',')
+        for i, subkey in enumerate(subkeys):
+          values_ref[subkey] = [key, i]
+
+    # Share dimensions for joint variables and do not dimension scalars
+    ndim = min_dim
+    dims = collections.OrderedDict({key: None for key in self._keys})
+    seen_keys = set()
+    for i, key in enumerate(self._keys):
+      new_dim = False
+      if values_ref[key][1] is None: # i.e. not shared
+        if not isdimensionless(values[key]):
+          dims[key] = ndim
+          new_dim = True
+        seen_keys.add(key)
+      elif key not in seen_keys:
+        val_ref = values_ref[key]
+        subkeys = val_ref[0].split(',')
+        for subkey in subkeys:
+          dims[subkey] = ndim
+          seen_keys.add(subkey)
+        if not isdimensionless(values[val_ref[0]][val_ref[1]]):
+          new_dim = True
+      if new_dim:
+        ndim += 1
+
+    # Reshape
+    vdims = [dim for dim in dims.values() if dim is not None]
+    ndims = max(vdims) + 1 if len(vdims) else 0
+    ones_ndims = np.ones(ndims, dtype=int)
+    vals = collections.OrderedDict()
+    rvs = self.ret_rvs(aslist=True)
+    for i, rv in enumerate(rvs):
+      key = rv.ret_name()
+      reshape = True
+      if key in values.keys():
+        vals.update({key: values[key]})
+        reshape = not np.isscalar(vals[key])
+        if vals[key] is None or isinstance(vals[key], set):
+          vals[key] = rv.eval_vals(vals[key])
+      else:
+        val_ref = values_ref[key]
+        vals_val = values[val_ref[0]][val_ref[1]]
+        if vals_val is None or isinstance(vals_val, set):
+          vals_val = rv.eval_vals(vals_val)
+        vals.update({key: vals_val})
+      if reshape and not isscalar(vals[key]):
+        re_shape = np.copy(ones_ndims)
+        re_dim = dims[key]
+        re_shape[re_dim] = vals[key].size
+        vals[key] = vals[key].reshape(re_shape)
+    
+    # Remove dimensionality for singletons
+    for key in self._keys:
+      if issingleton(vals[key]):
+        dims[key] = None
+    return vals, dims
 
 #-------------------------------------------------------------------------------
-  def ret_cond(self):
-    return self._cond
+  def eval_prob(self, values=None):
+    if values is None:
+      values = {}
+    else:
+      assert isinstance(values, dict), \
+          "Input to eval_prob() requires values dict"
+      assert set(values.keys()) == self._keyset, \
+        "Sample dictionary keys {} mismatch with RV names {}".format(
+          values.keys(), self._keys)
+
+    # If not specified, treat as independent variables
+    if self._prob is None:
+      rvs = self.ret_rvs(aslist=True)
+      if len(rvs) == 1 and rvs[0]._prob is not None:
+        prob = rvs[0].eval_prob(values[rvs[0].ret_name()])
+      else:
+        prob, _ = rv_prod_rule(values, rvs=rvs, pscale=self._pscale)
+      return prob
+
+    # Otherwise distinguish between uncallable and callables
+    if not self.__callable:
+      return self._prob()
+    elif isinstance(self._prob, Func) and self._prob.ret_isscipy():
+      return call_scipy_prob(self._prob, self._pscale, values)
+    return self._prob(values)
 
 #-------------------------------------------------------------------------------
-  def set_rvs(self, *args):
-    raise NotImplementedError()
+  def eval_delta(self, delta=None):
+
+    # Handle native delta types within RV deltas
+    if delta is None: 
+      if self._delta is None:
+        rvs = self.ret_rvs(aslist=True)
+        if len(rvs) == 1 and rvs[0]._delta is not None:
+          return rvs[0]._delta
+        return None
+      elif isinstance(self._delta, Func):
+        delta = self._delta()
+      elif isinstance(self._delta, self._delta_type):
+        delta_dict = collections.OrderedDict()
+        rvs = self.ret_rvs(aslist=True)
+        for i, key in enumerate(self._keys):
+          delta_dict.update({key: rvs[i].eval_delta()})
+        delta = self._delta_type(**delta_dict)
+      else:
+        delta = self._delta
+    elif isinstance(delta, Func):
+      delta = delta()
+    elif isinstance(delta, self._delta_type):
+      delta_dict = collections.OrderedDict()
+      rvs = self.ret_rvs(aslist=True)
+      for i, key in enumerate(self._keys):
+        delta_dict.update({key: rvs[i].eval_delta(delta[i])})
+      delta = self._delta_type(**delta_dict)
+
+    # Non spherical case
+    if not isinstance(self._delta_type, Func) and \
+         isinstance(delta, self._delta_type): # i.e. non-spherical
+      if self._tfun is None or self._tfun.ret_isscalar():
+        return delta
+      elif not self._tfun.ret_callable():
+        delta = np.ravel(delta)
+        delta = self._tfun().dot(delta)
+        return self._delta_type(*delta)
+      else:
+        delta = self._tfun(delta)
+        assert isinstance(delta, self._delta_type), \
+            "User supplied tfun did not output delta type {}".\
+            format(self._delta_type)
+        return delta
+
+    # Rule out possibility of all RVs contained in unscaling argument
+    assert isinstance(delta, tuple), \
+        "Unknown delta type: {}".format(delta)
+    unscale = {} if not self._delta_args else self._delta_args
+    if not len(self._spherise):
+      return self._delta_type(**unscale)
+
+    # Spherical version
+    delta = delta[0]
+    spherise = self._spherise
+    keys = self._spherise.keys()
+    rss = real_sqrt(np.sum(np.array(list(spherise.values()))**2))
+    if self._delta_kwds['scale']:
+      delta *= rss
+    deltas = np.random.uniform(-delta, delta, size=len(spherise))
+    rss_deltas = real_sqrt(np.sum(deltas ** 2.))
+    deltas = (deltas * delta) / rss_deltas
+    delta_dict = collections.OrderedDict()
+    rvs = [self[key] for key in keys]
+    idx = 0
+    for i, key in enumerate(keys):
+      if key in unscale:
+        val = unscale[key]
+      else:
+        val = deltas[idx]
+        idx += 1
+        if self._delta_kwds['scale']:
+          val *= self._lengths[i]
+      delta_dict.update({key: val})
+    delta = self._delta_type(**delta_dict)
+    if self._tfun is None or self._tfun.ret_isscalar():
+      return delta
+    elif not self._tfun.ret_callable():
+      delta = self._tfun().dot(np.array(delta, dtype=float))
+      return self._delta_type(*delta)
+    else:
+      delta = self._tfun(delta)
+      assert isinstance(delta, self._delta_type), \
+          "User supplied tfun did not output delta type {}".\
+          format(self._delta_type)
+      return delta
 
 #-------------------------------------------------------------------------------
-  def add_rv(self, rv):
-    raise NotImplementedError()
+  def apply_delta(self, values, delta=None):
+    delta = delta or self._delta
+    if delta is None:
+      return values
+    if not isinstance(delta, self._delta_type):
+      rvs = self.ret_rvs(aslist=True)
+      if len(rvs) == 1 and isinstance(delta, rvs[0].delta):
+        return rvs[0].apply_delta(values, delta)
+      raise TypeError("Cannot apply delta without providing delta type {}".\
+        format(self._delta_type))
+    bound = False if 'bound' not in self._delta_kwds \
+           else self._delta_kwds['bound']
+    vals = collections.OrderedDict(values)
+    keys = delta._fields
+    rvs = [self[key] for key in keys]
+    for i, key in enumerate(keys):
+      vals.update({key: rvs[i].apply_delta(values[key], delta[i], bound=bound)})
+    return vals
 
 #-------------------------------------------------------------------------------
-  def eval_marg_prod(self, samples):
-    raise NotImplementedError()
+  def eval_prop(self, values, **kwargs):
+    if self._tran is not None:
+      return self.eval_tran(values, **kwargs)
+    if values is None:
+      values = {}
+    if self._prop is None:
+      return self.eval_prob(values, **kwargs)
+    if not self._prop.ret_callable():
+      return self._prop()
+    return self._prop(values)
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, *args, _skip_parsing=False, **kwds):
-    assert self._marg, "No marginal stochastic random variables defined"
-    return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
+  def eval_step(self, pred_vals, succ_vals, reverse=False):
+    """ Returns adjusted succ_vals """
+
+    # Evaluate deltas if required
+    if succ_vals is None:
+      if self._delta is None:
+        pred_values = list(pred_vals.values())
+        if all([isscalar(pred_value) for pred_value in pred_values]):
+          succ_vals = {0}
+        else:
+          succ_vals = pred_vals
+      else:
+        succ_vals = self.eval_delta()
+    elif isinstance(succ_vals, Func) or \
+        isinstance(succ_vals, (tuple, self._delta_type)):
+      succ_vals = self.eval_delta(succ_vals)
+
+    # Apply deltas
+    cond = None
+    if isinstance(succ_vals, self._delta_type):
+      succ_vals = self.apply_delta(pred_vals, succ_vals)
+    elif isunitsetint(succ_vals):
+      if self._tfun is not None and self._tfun.ret_callable():
+        number = list(succ_vals)[0]
+        succ_vals = collections.OrderedDict()
+        succ_lims = collections.OrderedDict()
+        succ_vset = collections.OrderedDict()
+        for key in self._keys:
+          if key in pred_vals:
+            succ_vals.update({key: pred_vals[key]})
+            lims = self[key].ret_lims()
+            assert np.all(np.isfinite(lims)), \
+                "Cannot sample RV {} exhibiting limits {}".\
+                format(key, lims)
+            succ_vals.update({key: pred_vals[key]})
+            succ_lims.update({key: lims})
+            succ_vset.update({key: self[key].ret_vset()})
+      elif self._nrvs == 1:
+        rv = self.ret_rvs(aslist=True)[0]
+        tran = rv.ret_tran()
+        tfun = rv.ret_tfun()
+        if (tran is not None and not tran.ret_callable()) or \
+            (tfun is not None and tfun.ret_callable()):
+          vals, dims, kwargs = rv.eval_step(pred_vals[rv.ret_name()], succ_vals, reverse=reverse)
+          return vals, dims, kwargs
+        raise ValueError("Transitional CDF calling requires callable tfun")
+      else:
+        raise ValueError("Transitional CDF calling requires callable tfun")
+      keys = list(succ_vals.keys())
+
+      # One variable at a time modification
+      if self._t1vt:
+        if self.__cond_mod is None:
+          self.__cond_mod = 0
+        keys = [keys[self.__cond_mod]]
+        self.__cond_mod += 1
+        if self.__cond_mod >= len(succ_vals):
+          self.__cond_mod = 0
+
+      # Iterate through values
+      cond = np.nan
+      if self._tfun.ret_istuple():
+        for key in keys:
+          succ_vals[key] = {0}
+          succ_vals[key] = self._tfun[int(reverse)](succ_vals)
+      else:
+        for key in keys:
+          succ_vals[key] = {0}
+          succ_vals[key] = self._tfun(succ_vals)
+
+    # Initialise outputs with predecessor values
+    dims = {}
+    kwargs = {'reverse': reverse}
+    if cond is not None:
+      kwargs = {'cond': cond}
+    vals = collections.OrderedDict()
+    for key in self._keys:
+      vals.update({key: pred_vals[key]})
+    if succ_vals is None and self._tran is None:
+      return vals, dims, kwargs
+
+    # If stepping or have a transition function, add successor values
+    for key in self._keys:
+      mod_key = key+"'"
+      succ_key = key if mod_key not in succ_vals else mod_key
+      vals.update({key+"'": succ_vals[succ_key]})
+
+    return vals, dims, kwargs
+
+#-------------------------------------------------------------------------------
+  def eval_tran(self, values, **kwargs):
+    if 'cond' in kwargs:
+      return kwargs['cond']
+    reverse = False if 'reverse' not in kwargs else kwargs['reverse']
+    if self._tran is None:
+      rvs = self.ret_rvs(aslist=True)
+      if len(rvs) == 1 and rvs[0]._tran is not None:
+        return rvs[0].eval_tran(values, **kwargs)
+      pred_vals = dict()
+      succ_vals = dict()
+      for key_, val in values.items():
+        prime = key_[-1] == "'"
+        key = key_[:-1] if prime else key_
+        if key in self._keys:
+          if prime:
+            succ_vals.update({key: val})
+          else:
+            pred_vals.update({key: val})
+      cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)
+    elif self._tran.ret_isscalar():
+      cond = self._tran()
+    elif not self._tran.ret_callable():
+      cond = 0. if iscomplex(self._pscale) else 1.
+    else:
+      cond = self._tran(values) if self._sym_tran else \
+             self._tran[int(reverse)](values)
+    return cond
+
+#-------------------------------------------------------------------------------
+  def reval_tran(self, dist):
+    """ Evaluates the conditional reverse-transition function for corresponding 
+    transition conditional distribution dist. This requires a tuple input for
+    self.set_tran() to evaluate a new conditional.
+    """
+    assert isinstance(dist, Dist), \
+        "Input must be a distribution, not {} type.".format(type(dist))
+    marg, cond = dist.cond, dist.marg
+    name = margcond_str(marg, cond)
+    vals = dist.vals
+    dims = dist.dims
+    prob = dist.prob if self._sym_tran else self._tran[1](dist.vals)
+    pscale = dist.ret_pscale()
+    return Dist(name, vals, dims, prob, pscale)
+
+#-------------------------------------------------------------------------------
+  def _eval_iid(self, dist_name, vals, dims, prob, iid):
+    if not iid: 
+      return Dist(dist_name, vals, dims, prob, self._pscale)
+
+    # Deal with IID cases
+    max_dim = None
+    for dim in dims.values():
+      if dim is not None:
+        max_dim = dim if max_dim is None else max(dim, max_dim)
+
+    # If scalar or prob is expected shape then perform product here
+    if max_dim is None or max_dim == prob.ndim - 1:
+      dist = Dist(dist_name, vals, dims, prob, self._pscale)
+      return dist.prod(iid)
+
+    # Otherwise it is left to the user function to perform the iid product
+    for key in iid:
+      vals[key] = {len(vals[key])}
+      dims[key] = None
+
+    # Tidy up probability
+    return Dist(dist_name, vals, dims, prob, self._pscale)
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    """ Like RJ.__call__ but optionally takes 'joint' keyword """
-
-    if self._rvs is None:
+    """ Returns a joint distribution p(args) """
+    if not self._nrvs:
       return None
-    joint = False if 'joint' not in kwds else kwds.pop('joint')
-    dist = super().__call__(*args, **kwds)
-    if not joint:
-      return dist
-    vals = dist.ret_cond_vals()
-    cond_dist = self._cond(vals)
-    return product(cond_dist, dist)
-
-#-------------------------------------------------------------------------------
-  def step(self, *args, **kwds):
-    prop_obj = self._prop_obj
-    if prop_obj is None and (self._tran is not None or self._prop is not None):
-      return super().step(*args, **kwds)
-    prop_obj = prop_obj or self._def_prop_obj
-    return prop_obj.step(*args, **kwds)
+    iid = False if 'iid' not in kwds else kwds.pop('iid')
+    if type(iid) is bool and iid:
+      iid = self._defiid
+    values = self.parse_args(*args, **kwds)
+    dist_name = self.eval_dist_name(values)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    prob = self.eval_prob(vals)
+    return self._eval_iid(dist_name, vals, dims, prob, iid)
 
 #-------------------------------------------------------------------------------
   def propose(self, *args, **kwds):
-    prop_obj = self._prop_obj
-    if prop_obj is None and (self._tran is not None or self._prop is not None):
-      return super().propose(*args, **kwds)
-    prop_obj = prop_obj or self._def_prop_obj
-    return prop_obj.propose(*args, **kwds)
+    """ Returns a proposal distribution p(args[0]) for values """
+    suffix = "'" if 'suffix' not in kwds else kwds.pop('suffix')
+    values = self.parse_args(*args, **kwds)
+    dist_name = self.eval_dist_name(values, suffix)
+    vals, dims = self.eval_vals(values, _skip_parsing=True)
+    prop = self.eval_prop(vals) if self._prop is not None else \
+           self.eval_prob(vals)
+    if suffix:
+      keys = list(vals.keys())
+      for key in keys:
+        mod_key = key + suffix
+        vals.update({mod_key: vals.pop(key)})
+        if key in dims:
+          dims.update({mod_key: dims.pop(key)})
+    return Dist(dist_name, vals, dims, prop, self._pscale)
 
 #-------------------------------------------------------------------------------
-  def parse_pred_args(self, *args):
-    obj = None
-    if self._tran == 'marg': obj = self._marg
-    if self._tran == 'cond': obj = self._cond
-    if obj is None:
-      return self.parse_args(*args)
-    if len(args) == 1 and isinstance(args[0], dict):
-      arg = args[0]
-      keyset = obj.ret_keys(False)
-      pred = collections.OrderedDict({key: val for key, val in arg.items() 
-                                               if key in keyset})
-      return obj.parse_args(pred)
-    return obj.parse_args(*args)
+  def step(self, *args, **kwds):
+    """ Returns a proposal distribution p(args[1]) given args[0], depending on
+    whether using self._prop, that denotes a simple proposal distribution,
+    or self._tran, that denotes a transitional distirbution. """
+
+    reverse = False if 'reverse' not in kwds else kwds.pop('reverse')
+    pred_vals, succ_vals = None, None 
+    if len(args) == 1:
+      if isinstance(args[0], (list, tuple)) and len(args[0]) == 2:
+        pred_vals, succ_vals = args[0][0], args[0][1]
+      else:
+        pred_vals = args[0]
+    elif len(args) == 2:
+      pred_vals, succ_vals = args[0], args[1]
+
+    # Evaluate predecessor values
+    pred_vals = self.parse_args(pred_vals, pass_all=True)
+    dist_pred_name = self.eval_dist_name(pred_vals)
+    pred_vals, pred_dims = self.eval_vals(pred_vals)
+
+    # Default successor values if None and delta is None
+    if succ_vals is None and self._delta is None:
+      pred_values = list(pred_vals.values())
+      if all([isscalar(pred_value) for pred_value in pred_values]):
+        succ_vals = {0}
+      else:
+        succ_vals = pred_vals
+
+    # Evaluate successor evaluates
+    vals, dims, kwargs = self.eval_step(pred_vals, succ_vals, reverse=reverse)
+    succ_vals = {key[:-1]: val for key, val in vals.items() if key[-1] == "'"}
+    cond = self.eval_tran(vals, **kwargs)
+    dist_succ_name = self.eval_dist_name(succ_vals, "'")
+    dist_name = '|'.join([dist_succ_name, dist_pred_name])
+
+    return Dist(dist_name, vals, dims, cond, self._pscale)
 
 #-------------------------------------------------------------------------------
-  def sample(self, *args, **kwds):
-    """ A function for unconditional and conditional sampling. For conditional
-    sampling, use RF.set_delta() to set the delta specification. if neither
-    set_prob() nor set_tran() are set, then opqr inputs are disallowed and this
-    function outputs a normal __call__(). Otherwise this function returns a 
-    namedtuple-generated opqr object that can be accessed using opqr.p or 
-    opqr[1] for the probability distribution and opqr.q or opqr[2] for the 
-    proposal. Unavailable values are set to None. 
-    
-    If using set_prop() the output opqr comprises:
-
-    opqr.o: None
-    opqr.p: Probability distribution 
-    opqr.q: Proposition distribution
-    opqr.r: None
-
-    If using set_tran() the output opqr comprises:
-
-    opqr.o: Probability distribution for predecessor
-    opqr.p: Probability distribution for successor
-    opqr.q: Proposition distribution (successor | predecessor)
-    opqr.r: None [for now, reserved for proposition (predecessor | successor)]
-
-    If inputting and opqr object using set_prop(), the values for performing any
-    delta operations are taken from the entered proposition distribution. If using
-    set_prop(), optional keyword flag suffix=False may be used to remove prime
-    notation in keys.
-
-    An optional argument args[1] can included in order to input a dictionary
-    of values beyond outside the proposition distribution required to evaluate
-    the probability distribution.
-    """
-    if not args:
-      args = {0},
-    assert len(args) < 3, "Maximum of two positional arguments"
-    if self._tran is None and not self._unit_tran:
-      if self._prop is None:
-        assert not isinstance(args[0], self.opqr),\
-            "Cannot input opqr object with neither set_prob() nor set_tran() set"
-        return self.__call__(*args, **kwds)
-      return self._sample_prop(*args, **kwds)
-    return self._sample_tran(*args, **kwds)
-
-#-------------------------------------------------------------------------------
-  def _sample_prop(self, *args, **kwds):
-
-    # Extract suffix status; it is latter popped by propose()
-    suffix = "'" if 'suffix' not in kwds else kwds['suffix'] 
-
-    # Non-opqr argument requires no parsing
-    if not isinstance(args[0], self.opqr):
-      prop = self.propose(args[0], **kwds)
-
-    # Otherwise parse:
-    else:
-      assert args[0].q is not None, \
-          "An input opqr argument must contain a non-None value for opqr.q"
-      vals = desuffix(args[0].q.vals)
-      prop = self.propose(vals, **kwds)
-
-    # Evaluation of probability
-    vals = desuffix(prop.vals)
-    if len(args) > 1:
-      assert isinstance(args[1], dict),\
-          "Second argument must be dictionary type, not {}".format(
-              type(args[1]))
-      vals.update(args[1])
-    call = self.__call__(vals, **kwds)
-
-    return self.opqr(None, call, prop, None)
-
-#-------------------------------------------------------------------------------
-  def _sample_tran(self, *args, **kwds):
-    assert 'suffix' not in kwds, \
-        "Disallowed keyword 'suffix' when using set_tran()"
-
-    # Original probability distribution, proposal, and revp defaults to None
-    orig = None
-    prop = None
-    revp = None
-
-    # Non-opqr argument requires no parsing
-    if not isinstance(args[0], self.opqr):
-      prop = self.step(args[0], **kwds)
-
-    # Otherwise parse successor:
-    else:
-      dist = args[0].q
-      orig = args[0].p
-      assert dist is not None, \
-          "An input opqr argument must contain a non-None value for opqr.q"
-      vals = get_suffixed(dist.vals)
-      prop = self.step(vals, **kwds)
-
-    # Evaluate reverse proposal if transition function not symmetric
-    if not self._sym_tran and not self._unit_tran:
-      revp = self.reval_tran(prop)
-
-    # Extract values evaluating probability
-    vals = get_suffixed(prop.vals)
-    if len(args) > 1:
-      assert isinstance(args[1], dict),\
-          "Second argument must be dictionary type, not {}".format(
-              type(args[1]))
-      vals.update(args[1])
-    prob = self.__call__(vals, **kwds)
-
-    return self.opqr(orig, prob, prop, revp)
+  def __len__(self):
+    return self._nrvs
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):
+    if type(key) is int:
+      key = self._keys[key]
     if isinstance(key, str):
       if key not in self._keys:
         return None
-      key = self._keys.index(key)
-    return self._rvs[key]
+    return self.ret_rvs(False)[key]
+
+#-------------------------------------------------------------------------------
+  def __repr__(self):
+    if not self._name:
+      return super().__repr__()
+    return super().__repr__() + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
     from probayes.rv import RV
-    from probayes.rj import RJ
+    from probayes.sd import SD
+    if isinstance(other, SD):
+      leafs = self.ret_rvs() + other.ret_leafs().ret_rvs()
+      stems = other.ret_stems()
+      roots = other.ret_roots()
+      args = RF(*tuple(leafs))
+      if stems:
+        args += list(stems.values())
+      if roots:
+        args += roots.ret_rvs()
+      return SD(*tuple(args))
 
-    marg = self.ret_marg().ret_rvs()
-    cond = self.ret_cond().ret_rvs()
     if isinstance(other, RF):
-      marg = marg + other.ret_marg().ret_rvs()
-      cond = cond + other.ret_cond().ret_rvs()
-      return RF(marg, cond)
-
-    if isinstance(other, RJ):
-      marg = marg + other.ret_rvs()
-      return RF(marg, cond)
+      rvs = self.ret_rvs() + other.ret_rvs()
+      return RF(*tuple(rvs))
 
     if isinstance(other, RV):
-      marg = marg + [other]
-      return RF(marg, cond)
+      rvs = self.ret_rvs() + [other]
+      return RF(*tuple(rvs))
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from probayes.rv import RV
-    from probayes.rj import RJ
-
-    marg = self.ret_marg().ret_rvs()
-    cond = self.ret_cond().ret_rvs()
-    if isinstance(other, RF):
-      marg = marg + other.ret_cond().ret_rvs()
-      cond = cond + other.ret_marg().ret_rvs()
-      return RF(marg, cond)
-
-    if isinstance(other, RJ):
-      cond = cond + other.ret_rvs()
-      return RF(marg, cond)
-
-    if isinstance(other, RV):
-      cond = cond + [self]
-      return RF(marg, cond)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+    """ Conditional operator between RF and another RV, RF, or SD. """
+    from probayes.sd import SD
+    return SD(self, other)
 
 #-------------------------------------------------------------------------------

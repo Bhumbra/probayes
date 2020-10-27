@@ -492,39 +492,33 @@ class RV (Domain, Prob):
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):
-    """ Logical 'AND' operator between RV and another RV, RJ, or RF. """
-    from probayes.rj import RJ
+    """ Logical 'AND' operator between RV and another RV, RF, or SD. """
     from probayes.rf import RF
-    if isinstance(other, RF):
-      marg = [self] + other.ret_marg().ret_rvs()
-      cond = other.ret_cond().ret_rvs()
-      return RF(marg, cond)
+    from probayes.sd import SD
+    if isinstance(other, SD):
+      leafs = [self] + other.ret_leafs().ret_rvs()
+      stems = other.ret_stems()
+      roots = other.ret_roots()
+      args = RF(*tuple(leafs))
+      if stems:
+        args += list(stems.values())
+      if roots:
+        args += roots.ret_rvs()
+      return SD(*args)
 
-    if isinstance(other, RJ):
+    if isinstance(other, RF):
       rvs = [self] + other.ret_rvs()
-      return RJ(*tuple(rvs))
+      return RF(*tuple(rvs))
 
     if isinstance(other, RV):
-      return RJ(self, other)
+      return RF(self, other)
 
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    """ Conditional operator between RV and another RV, RJ, or RF. """
-    from probayes.rj import RJ
-    from probayes.rf import RF
-    if isinstance(other, RF):
-      marg = [self] + other.ret_cond().ret_rvs()
-      cond = other.ret_marg().ret_rvs()
-      return RF(marg, cond)
-
-    if isinstance(other, RJ):
-      return RF(self, other)
-
-    if isinstance(other, RV):
-      return RF(self, other)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+    """ Conditional operator between RV and another RV, RF, or SD. """
+    from probayes.sd import SD
+    return SD(self, other)
 
 #-------------------------------------------------------------------------------

@@ -1,21 +1,21 @@
 """
-A stocastic process is an indexable sequence of realisations of a stochastic 
-condition. It is therefore implemented here using a sample generator that 
-iteratively samples a stochastic condition.
+A stocastic process is an indexable sequence of realisations of a directed graph. 
+It is therefore implemented here using a sample generator that iteratively 
+samples a directed graph.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
 import inspect
 import warnings
-from probayes.rf import RF
+from probayes.sd import SD
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
-class SP (RF):
+class SP (SD):
 
   # Public
   stuv = None     # scores + thresholds + update + veridct
@@ -39,7 +39,7 @@ class SP (RF):
 #-------------------------------------------------------------------------------
   def _refresh(self):
     super()._refresh()
-    if self._marg is None and self._cond is None:
+    if not self._nrvs:
       return
     self.stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
     self.opqrstuv = collections.namedtuple(self._id, 
