@@ -10,10 +10,10 @@ y = pb.RV('y', set_lims, vtype=float)
 z = pb.RV('z', set_lims, vtype=float)
 
 xyz = x * y * z
-xyz.set_delta(delta, scale=True)
+xyz.set_delta(delta, scale=False)
 deltas = [xyz.eval_delta() for _ in range(num_deltas)]
 dxdydz = np.array([np.array(list(_delta)) for _delta in deltas])
 means = np.mean(dxdydz, axis=0)
 stdvs = np.std(dxdydz, axis=0)
-lengths = np.sqrt(np.sum(dxdydz**2, axis=1))
-print(lengths)
+lengths = np.sqrt(np.sum(dxdydz**2, axis=1)) 
+print(lengths) # should all be 0.1 if scale is False

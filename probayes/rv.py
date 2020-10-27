@@ -496,9 +496,15 @@ class RV (Domain, Prob):
     from probayes.rf import RF
     from probayes.sd import SD
     if isinstance(other, SD):
-      marg = [self] + other.ret_marg().ret_rvs()
-      cond = other.ret_cond().ret_rvs()
-      return SD(marg, cond)
+      leafs = [self] + other.ret_leafs().ret_rvs()
+      stems = other.ret_stems()
+      roots = other.ret_roots()
+      args = RF(*tuple(leafs))
+      if stems:
+        args += list(stems.values())
+      if roots:
+        args += roots.ret_rvs()
+      return SD(*args)
 
     if isinstance(other, RF):
       rvs = [self] + other.ret_rvs()
@@ -512,19 +518,7 @@ class RV (Domain, Prob):
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
     """ Conditional operator between RV and another RV, RF, or SD. """
-    from probayes.rf import RF
     from probayes.sd import SD
-    if isinstance(other, SD):
-      marg = [self] + other.ret_cond().ret_rvs()
-      cond = other.ret_marg().ret_rvs()
-      return SD(marg, cond)
-
-    if isinstance(other, RF):
-      return SD(self, other)
-
-    if isinstance(other, RV):
-      return SD(self, other)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+    return SD(self, other)
 
 #-------------------------------------------------------------------------------

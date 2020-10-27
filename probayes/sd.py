@@ -28,17 +28,19 @@ class SD (NX_DIRECTED_GRAPH, RF):
   opqr = None          # (p(pred), p(succ), q(succ|pred), q(pred|succ))
 
   # Protected
-  _roots = None        # RF of RVs not dependent on others
   _leafs = None        # RF of RVs that do not condition others
+  _roots = None        # RF of RVs not dependent on others
   _stems = None        # OrderedDict of latent RVs
-  _def_prop_obj = None
-  _prop_obj = None
+  _def_prop_obj = None # Default value for prop_obj
+  _prop_obj = None     # Object referencing propositional conditions
+  _tran_obj = None     # Object referencing transitional conditions
   _unit_prob = None    # Flag for single RV probability
   _unit_tran = None    # Flag for single RV transitional
 
   # Private
-  __roots_leafs = None # Convenience dictionary for the roots and leafs RFs
-  __obj_tran = None    # Object referencing transitional conditions
+  __def_leafs = None   # Default leafs - provides convenience interface
+  __def_roots = None   # Default roots - provides convenience interface
+  __sub_rfs = None     # Convenience dictionary for the roots and leafs RFs
   __sym_tran = None    # Flag to denote symmetrical conditionals
   __explicit = None    # Flag to denote explicit specification of edges
 
@@ -58,6 +60,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     """
     self.__explicit = False
     self.__sym_tran = self
+    self.__def_leafs = None
+    self.__def_roots = None
     if not args:
       return
     run_leafs = None
@@ -68,6 +72,10 @@ class SD (NX_DIRECTED_GRAPH, RF):
           NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
         if isinstance(arg, RF):
           run_roots = rvs
+          if i == 0:
+            self.__def_leafs = arg
+          elif i == len(args) - 1:
+            self.__def_roots = arg
         else:
           run_roots = arg.get_roots()
           NX_DIRECTED_GRAPH.add_edges_from(self, arg)
@@ -93,8 +101,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     super()._refresh()
 
     # Distinguish RVs belonging to leafs, roots, and stems
-    leafs = []
-    roots = []
+    leafs = [] # RF of vertices with no children
+    roots = [] # RF of vertices with no parents (and not a leaf)
     self._stems = collections.OrderedDict()
     rvs = collections.OrderedDict(self.nodes.data())
     for key, val in rvs.items():
@@ -102,23 +110,30 @@ class SD (NX_DIRECTED_GRAPH, RF):
       children = list(self.successors(key))
       if parents and children:
         self._stems.update({key: val})
-      elif parents:
+      elif children: # roots must have children
         roots += [val]
-      else: # leafs can be childless
+      else: # leafs can be parentless
         leafs += [val]
 
-    self._leafs = RF(*tuple(leafs))
-    self._roots = None if not roots else RF(*tuple(roots))
+    # Setup leafs and roots RF objects
+    self._leafs, self._roots = None, None
+    if not self.__explicit:
+      self._leafs = self.__def_leafs
+      self._roots = self.__def_roots
+    if not self._leafs:
+      self._leafs = RF(*tuple(leafs))
+    if not self._roots and roots:
+      self._roots = RF(*tuple(roots))
     self._defiid = self._leafs.ret_keys(False)
 
     # Evaluate name and id from leafs and roots only
     self._name = self._leafs.ret_name()
     self._id = self._leafs.ret_id()
-    self.__leafs_roots = {'leafs': self._leafs}
+    self.__sub_rfs = {'leafs': self._leafs}
     if self._roots:
       self._name += "|{}".format(self._roots.ret_name())
       self._id += "_with_{}".format(self._roots.ret_id())
-      self.__leafs_roots.update({'roots': self._roots})
+      self.__sub_rfs.update({'roots': self._roots})
     self.set_pscale()
     self.eval_length()
     self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
@@ -148,16 +163,28 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def ret_leafs_roots(self, spec=None):
-    """ Returns a proxy object from __leafs_roots. """
+    """ Returns a proxy object from __sub_rfs. """
     if spec is None:
-      return self.__leafs_roots
-    if not isinstance(spec, str) and spec not in self.__leafs_roots.values(): 
+      return self.__sub_rfs
+    if not isinstance(spec, str) and spec not in self.__sub_rfs.values(): 
       return False
     if isinstance(spec, str):
-      assert spec in self.__leafs_roots, \
+      assert spec in self.__sub_rfs, \
           '{} absent from {}'.format(spec, self._name)
-      return self.__leafs_roots[spec]
+      return self.__sub_rfs[spec]
     return spec
+
+#-------------------------------------------------------------------------------
+  def ret_leafs(self):
+    return self._leafs
+
+#-------------------------------------------------------------------------------
+  def ret_roots(self):
+    return self._roots
+
+#-------------------------------------------------------------------------------
+  def ret_stems(self):
+    return self._stems
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
@@ -185,10 +212,10 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def set_tran(self, tran=None, *args, **kwds):
     _tran = self.ret_leafs_roots(tran)
     if not _tran:
-      self.__obj_tran = self
+      self._tran_obj = self
       return super().set_tran(tran, *args, **kwds)
-    self.__obj_tran = _tran
-    self.set_prop_obj(self.__obj_tran)
+    self._tran_obj = _tran
+    self.set_prop_obj(self._tran_obj)
     self._tran = _tran._tran
     return self._tran
 
@@ -305,15 +332,15 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def parse_pred_args(self, *args):
-    if self.__obj_tran == self:
+    if self._tran_obj == self:
       return self.parse_args(*args)
     if len(args) == 1 and isinstance(args[0], dict):
       arg = args[0]
-      keyset = self.__obj_tran.ret_keys(False)
+      keyset = self._tran_obj.ret_keys(False)
       pred = collections.OrderedDict({key: val for key, val in arg.items() 
                                                if key in keyset})
-      return self.__obj_tran.parse_args(pred)
-    return self.__obj_tran.parse_args(*args)
+      return self._tran_obj.parse_args(pred)
+    return self._tran_obj.parse_args(*args)
 
 #-------------------------------------------------------------------------------
   def sample(self, *args, **kwds):

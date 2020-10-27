@@ -410,7 +410,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     """
     rvs_data = collections.OrderedDict(self.nodes.data())
     for key, val in rvs_data.items():
-      if 'rv' not in val:
+      if 'rv' not in val: # quick debug check
         import pdb; pdb.set_trace()
     rvs = collections.OrderedDict({key:val['rv'] 
                                        for key,val in rvs_data.items()})
@@ -1006,9 +1006,15 @@ class RF (NX_UNDIRECTED_GRAPH):
     from probayes.rv import RV
     from probayes.sd import SD
     if isinstance(other, SD):
-      marg = self.ret_rvs() + other.ret_marg().ret_rvs()
-      cond = other.ret_cond().ret_rvs()
-      return SD(marg, cond)
+      leafs = self.ret_rvs() + other.ret_leafs().ret_rvs()
+      stems = other.ret_stems()
+      roots = other.ret_roots()
+      args = RF(*tuple(leafs))
+      if stems:
+        args += list(stems.values())
+      if roots:
+        args += roots.ret_rvs()
+      return SD(*tuple(args))
 
     if isinstance(other, RF):
       rvs = self.ret_rvs() + other.ret_rvs()
@@ -1022,19 +1028,8 @@ class RF (NX_UNDIRECTED_GRAPH):
 
 #-------------------------------------------------------------------------------
   def __truediv__(self, other):
-    from probayes.rv import RV
+    """ Conditional operator between RF and another RV, RF, or SD. """
     from probayes.sd import SD
-    if isinstance(other, SD):
-      marg = self.ret_rvs() + other.ret_cond().ret_rvs()
-      cond = other.ret_marg().ret_rvs()
-      return SD(marg, cond)
-
-    if isinstance(other, RF):
-      return SD(self, other)
-
-    if isinstance(other, RV):
-      return SD(self, other)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+    return SD(self, other)
 
 #-------------------------------------------------------------------------------
