@@ -13,7 +13,7 @@ from probayes.rf import RF
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import product
-from probayes.sd_utils import desuffix, get_suffixed
+from probayes.sd_utils import desuffix, get_suffixed, sd_prod_rule
 
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 
@@ -31,6 +31,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   _leafs = None        # RF of RVs that do not condition others
   _roots = None        # RF of RVs not dependent on others
   _stems = None        # OrderedDict of latent RVs
+  _cdeps = None        # Edges of dependencies
   _def_prop_obj = None # Default value for prop_obj
   _prop_obj = None     # Object referencing propositional conditions
   _tran_obj = None     # Object referencing transitional conditions
@@ -41,8 +42,10 @@ class SD (NX_DIRECTED_GRAPH, RF):
   __def_leafs = None   # Default leafs - provides convenience interface
   __def_roots = None   # Default roots - provides convenience interface
   __sub_rfs = None     # Convenience dictionary for the roots and leafs RFs
+  __sub_sds = None     # Convenience list if SDs in parallel/series
   __sym_tran = None    # Flag to denote symmetrical conditionals
   __explicit = None    # Flag to denote explicit specification of edges
+  __implicit = None    # Implicit configuration: None, "parallel" or "series"
 
 #------------------------------------------------------------------------------- 
   def __init__(self, *args):
@@ -59,36 +62,89 @@ class SD (NX_DIRECTED_GRAPH, RF):
                  running from right to left.
     """
     self.__explicit = False
-    self.__sym_tran = self
+    self.__implicit = None
+    self.__sym_tran = False
     self.__def_leafs = None
     self.__def_roots = None
     if not args:
       return
-    run_leafs = None
+
+    # Iterate through arguments to add RV vertices detect running roots
+    run_roots = [None] * len(args)
     for i, arg in enumerate(args):
       if isinstance(arg, (SD, RF)):
         rvs = arg.ret_rvs(aslist=True)
         for rv in rvs:
           NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
-        if isinstance(arg, RF):
-          run_roots = rvs
+        if isinstance(arg, SD):
+          run_roots[i] = arg.ret_roots()
+          NX_DIRECTED_GRAPH.add_edges_from(self, arg.edges)
+        else:
+          run_roots[i] = rvs
           if i == 0:
             self.__def_leafs = arg
           elif i == len(args) - 1:
             self.__def_roots = arg
-        else:
-          run_roots = arg.get_roots()
-          NX_DIRECTED_GRAPH.add_edges_from(self, arg)
       elif isinstance(arg, RV):
         NX_DIRECTED_GRAPH.add_node(self, arg.ret_name(), **{'rv': arg})
-        run_roots = [arg]
-      if i > 0:
-        root_keys = [rv.ret_name() for rv in run_roots]
-        leaf_keys = [rv.ret_name() for rv in run_leafs]
-        for root_key in root_keys:
-          for leaf_key in leaf_keys:
-            NX_DIRECTED_GRAPH.add_edge(self, root_key, leaf_key)
-      run_leafs = run_roots
+        run_roots[i] = [arg]
+    
+    # Identify parallel dependencies
+    self.__implicit = len(args) > 1 and \
+                          all([isinstance(arg, SD) for arg in args])
+    leafs = set()
+    roots = []
+    self.__sub_sds = None
+    if self.__implicit:
+      self.__implicit = 'parallel'
+      self.__sub_sds = []
+      for arg in args:
+        arg_roots = arg.ret_roots()
+        roots += arg_roots.ret_rvs(aslist=True)
+        if self.__sub_sds is not None:
+          prob = arg.ret_prob()
+          if prob is None:
+            self.__sub_sds = None
+          else:
+            self.__sub_sds += [arg]
+        if not len(arg_roots):
+          self.__implicit = None
+        elif not len(leafs):
+          leafs = arg.ret_leafs().ret_rvs(aslist=False)
+        elif leafs != arg.ret_leafs().ret_rvs(aslist=False):
+          self.__implicit = False
+        if not self.__implicit:
+          self.__sub_sds = None
+          self.__implicit = None
+          break
+
+    # Default leafs and roots in parallel or series
+    if self.__implicit == 'parallel':
+      assert len(roots) == len(set(roots)), \
+          "For arguments with common leafs, roots must not share RVs"
+      self.__def_leafs = args[0].ret_leafs()
+      self.__def_roots = RF(*tuple(roots))
+      root_keys = [rv.ret_name() for rv in self.__def_leafs.ret_rvs()]
+      leaf_keys = [rv.ret_name() for rv in self.__def_roots.ret_rvs()]
+      for root_key in root_keys:
+        for leaf_key in leaf_keys:
+          NX_DIRECTED_GRAPH.add_edge(self, root_key, leaf_key)
+    else:
+      run_leafs = None
+      for i, arg in enumerate(args):
+        if type(arg) is RF:
+          if i == 0:
+            self.__def_leafs = arg
+          elif i == len(args) - 1:
+            self.__def_roots = arg
+        if i > 0:
+          root_keys = [rv.ret_name() for rv in run_roots[i]]
+          leaf_keys = [rv.ret_name() for rv in run_leafs]
+          for root_key in root_keys:
+            for leaf_key in leaf_keys:
+              NX_DIRECTED_GRAPH.add_edge(self, root_key, leaf_key)
+        run_leafs = run_roots[i]
+
     self._refresh()
 
 #-------------------------------------------------------------------------------
@@ -101,8 +157,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     super()._refresh()
 
     # Distinguish RVs belonging to leafs, roots, and stems
-    leafs = [] # RF of vertices with no children
-    roots = [] # RF of vertices with no parents (and not a leaf)
+    leafs = [] # RF of vertices with no children/successors
+    roots = [] # RF of vertices with no parents/predecessors (and not a leaf)
     self._stems = collections.OrderedDict()
     rvs = collections.OrderedDict(self.nodes.data())
     for key, val in rvs.items():
@@ -185,6 +241,14 @@ class SD (NX_DIRECTED_GRAPH, RF):
 #-------------------------------------------------------------------------------
   def ret_stems(self):
     return self._stems
+
+#-------------------------------------------------------------------------------
+  def ret_explicit(self):
+    return self.__explicit 
+
+#-------------------------------------------------------------------------------
+  def ret_implicit(self):
+    return self.__implicit 
 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
@@ -299,6 +363,18 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def eval_vals(self, *args, _skip_parsing=False, **kwds):
     assert self._leafs, "No marginal stochastic random variables defined"
     return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
+
+#-------------------------------------------------------------------------------
+  def eval_prob(self, values=None, dims=None):
+    if self._prob is not None or not self.__implicit or self.__sub_sds is None:
+      return super().eval_prob(values, dims)
+    if self.__implicit == 'parallel':
+      prob, _ = sd_prod_rule(values, dims=dims, sds=self.__sub_sds, 
+                             pscale=self._pscale)
+    else:
+      raise ValueError("Unknown implicit specification: {}".format(
+        self.__implicit))
+    return prob
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):

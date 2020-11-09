@@ -172,9 +172,12 @@ class RF (NX_UNDIRECTED_GRAPH):
     :param **kwds: optional keywords to pass if prob is callable.
     """
     kwds = dict(kwds)
+    self.__passdims = False
     if 'pscale' in kwds:
       pscale = kwds.pop('pscale')
       self.set_pscale(pscale)
+    if 'passdims' in kwds:
+      self.__passdims = kwds.pop('passdims')
     self.__callable = None
     self.__isscalar = None
     self._prob = prob
@@ -608,7 +611,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     return vals, dims
 
 #-------------------------------------------------------------------------------
-  def eval_prob(self, values=None):
+  def eval_prob(self, values=None, dims=None):
     if values is None:
       values = {}
     else:
@@ -632,7 +635,9 @@ class RF (NX_UNDIRECTED_GRAPH):
       return self._prob()
     elif isinstance(self._prob, Func) and self._prob.ret_isscipy():
       return call_scipy_prob(self._prob, self._pscale, values)
-    return self._prob(values)
+    if self.__passdims:
+      return self._prob(values, dims=dims)
+    return self._prob
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):
@@ -923,7 +928,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     values = self.parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values)
     vals, dims = self.eval_vals(values, _skip_parsing=True)
-    prob = self.eval_prob(vals)
+    prob = self.eval_prob(vals, dims)
     return self._eval_iid(dist_name, vals, dims, prob, iid)
 
 #-------------------------------------------------------------------------------
@@ -934,7 +939,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     dist_name = self.eval_dist_name(values, suffix)
     vals, dims = self.eval_vals(values, _skip_parsing=True)
     prop = self.eval_prop(vals) if self._prop is not None else \
-           self.eval_prob(vals)
+           self.eval_prob(vals, dims)
     if suffix:
       keys = list(vals.keys())
       for key in keys:
@@ -985,6 +990,23 @@ class RF (NX_UNDIRECTED_GRAPH):
 #-------------------------------------------------------------------------------
   def __len__(self):
     return self._nrvs
+
+#-------------------------------------------------------------------------------
+  def __eq__(self, other):
+    """ Equality for RFs is defined as comprising the same RVs """
+    if type(self) is not RF or type(other) is not RF:
+      return super().__eq__(other)
+    return self.ret_keys(aslist=False) == other.ret_keys(aslist==False)
+
+#-------------------------------------------------------------------------------
+  def __ne__(self, other):
+    """ Equality for RFs is defined as comprising the same RVs """
+    return not self.__eq__(other)
+
+#-------------------------------------------------------------------------------
+  def ret_prob(self):
+    """ Returns object set by set_prob() """
+    return self._prob
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

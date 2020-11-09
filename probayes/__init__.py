@@ -8,4 +8,5 @@ from probayes.sp import SP
 from probayes.manifold import Manifold
 from probayes.dist import Dist
 from probayes.dist_utils import product, summate, iterdict
+from probayes.likelihoods import bool_perm_freq
 

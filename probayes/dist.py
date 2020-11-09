@@ -26,6 +26,8 @@ class Dist (Manifold):
 
 #-------------------------------------------------------------------------------
   def __init__(self, name=None, vals=None, dims=None, prob=None, pscale=None):
+    if dims is not None and prob is None and not isinstance(dims, dict):
+      dims, prob = prob, dims
     self.set_name(name)
     self.set_vals(vals, dims)
     self.set_prob(prob, pscale)
