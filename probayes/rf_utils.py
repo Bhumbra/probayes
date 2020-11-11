@@ -162,3 +162,45 @@ def slice_by_keyvals(spec, vals, prob, vals_dims=None, spec_dims=None):
   return prob[tuple(slices)].reshape(reshape)
 
 #-------------------------------------------------------------------------------
+def rf_prod_rule(*args, dims, rfs, pscale=None):
+  """ Returns the probability product treating all RFs as independent.
+  Values (=args[0]) are keyed by RV name as are dimensions dims, and rfs is a 
+  list of RFs.
+  """
+  values = args[0]
+  pscales = [rf.ret_pscale() for rf in rfs]
+  pscale = pscale or prod_pscale(pscales)
+  use_logs = iscomplex(pscale)
+  probs = [None] * len(rfs)
+  for i, rf in enumerate(rfs):
+    keys = rf.ret_keys()
+    vals = {key: values[key] for key in keys}
+    subdims = {key: dims[key] for key in keys}
+    probs[i] = rf.eval_prob(vals, subdims)
+  
+  prob, pscale = prod_rule(*tuple(probs),
+                           pscales=pscales,
+                           pscale=pscale)
+
+  # This section below is there just to play nicely with conditionals
+  if len(args) > 1:
+    if use_logs:
+      prob = rescale(prob, pscale, 0.j)
+    else:
+      prob = rescale(prob, pscale, 1.)
+    for arg in args[1:]:
+      if use_logs:
+        offs, _ = rf_prod_rule(arg, rfs=rfs, pscale=0.j)
+        prob = prob + offs
+      else:
+        coef, _ = rf_prod_rule(arg, rfs=rfs, pscale=1.)
+        prob = prob * coef
+    if use_logs:
+      prob = prob / float(len(args))
+      prob = rescale(prob, 0.j, pscale)
+    else:
+      prob = prob ** (1. / float(len(args)))
+      prob = rescale(prob, 1., pscale)
+  return prob, pscale
+
+#-------------------------------------------------------------------------------

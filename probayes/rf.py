@@ -894,6 +894,36 @@ class RF (NX_UNDIRECTED_GRAPH):
     return Dist(name, vals, dims, prob, pscale)
 
 #-------------------------------------------------------------------------------
+  def subfield(self, vertices):
+    """ Returns a view of vertices, which must all be members, as an RF.
+
+    :param vertices: str/RV/RF or list/tuple of str/RVs/RF to include in RF
+
+    :return: an RF including only those vertices
+    """
+
+    # Convert to list
+    if isinstance(vertices, tuple):
+      vertices = list(vertices)
+    if not isinstance(vertices, list):
+      vertices = [vertices]
+
+    # Collate RVs and return as RF
+    rvs = []
+    rv_dict = self.ret_rvs(aslist=False)
+    for vertex in vertices:
+      if isinstance(vertex, RF):
+        rvs += [vertex.ret_rvs(aslist=True)]
+      elif isinstance(vertex, RV):
+        rvs += [vertex]
+      elif isinstance(vertex, str):
+        rvs += [rv_dict[vertex]]
+      else:
+        raise TypeError("Unrecognised vertex specification type: {}".format(
+            type(vertex)))
+    return RF(*tuple(rvs))
+
+#-------------------------------------------------------------------------------
   def _eval_iid(self, dist_name, vals, dims, prob, iid):
     if not iid: 
       return Dist(dist_name, vals, dims, prob, self._pscale)

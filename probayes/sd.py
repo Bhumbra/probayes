@@ -13,9 +13,11 @@ from probayes.rf import RF
 from probayes.func import Func
 from probayes.dist import Dist
 from probayes.dist_utils import product
-from probayes.sd_utils import desuffix, get_suffixed, sd_prod_rule
+from probayes.rf_utils import rf_prod_rule
+from probayes.sd_utils import desuffix, get_suffixed
 
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
+DEFAULT_CONVERGENCE_FUNCTION = 'mul'
 
 #-------------------------------------------------------------------------------
 class SD (NX_DIRECTED_GRAPH, RF):
@@ -31,7 +33,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
   _leafs = None        # RF of RVs that do not condition others
   _roots = None        # RF of RVs not dependent on others
   _stems = None        # OrderedDict of latent RVs
-  _cdeps = None        # Edges of dependencies
+  _cverg = None        # Convergence function (defaults to multiplication)
+  _cdeps = None        # OrderedDict of conditional dependency graphs
   _def_prop_obj = None # Default value for prop_obj
   _prop_obj = None     # Object referencing propositional conditions
   _tran_obj = None     # Object referencing transitional conditions
@@ -42,9 +45,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
   __def_leafs = None   # Default leafs - provides convenience interface
   __def_roots = None   # Default roots - provides convenience interface
   __sub_rfs = None     # Convenience dictionary for the roots and leafs RFs
-  __sub_sds = None     # Convenience list if SDs in parallel/series
+  __sub_deps = None    # Convenience list if SDs in parallel/series
   __sym_tran = None    # Flag to denote symmetrical conditionals
-  __explicit = None    # Flag to denote explicit specification of edges
   __implicit = None    # Implicit configuration: None, "parallel" or "series"
 
 #------------------------------------------------------------------------------- 
@@ -53,6 +55,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     NX_DIRECTED_GRAPH.__init__(self)
     self.set_prob()
     self.def_deps(*args)
+    self.set_cverg()
 
 #-------------------------------------------------------------------------------
   def def_deps(self, *args):
@@ -61,7 +64,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     :param args: each arg may be an RV, RF, or SD with the dependency chain
                  running from right to left.
     """
-    self.__explicit = False
+    self._cdeps = None
     self.__implicit = None
     self.__sym_tran = False
     self.__def_leafs = None
@@ -94,19 +97,19 @@ class SD (NX_DIRECTED_GRAPH, RF):
                           all([isinstance(arg, SD) for arg in args])
     leafs = set()
     roots = []
-    self.__sub_sds = None
+    self.__sub_deps = None
     if self.__implicit:
       self.__implicit = 'parallel'
-      self.__sub_sds = []
+      self.__sub_deps = []
       for arg in args:
         arg_roots = arg.ret_roots()
         roots += arg_roots.ret_rvs(aslist=True)
-        if self.__sub_sds is not None:
+        if self.__sub_deps is not None:
           prob = arg.ret_prob()
           if prob is None:
-            self.__sub_sds = None
+            self.__sub_deps = None
           else:
-            self.__sub_sds += [arg]
+            self.__sub_deps += [arg]
         if not len(arg_roots):
           self.__implicit = None
         elif not len(leafs):
@@ -114,7 +117,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
         elif leafs != arg.ret_leafs().ret_rvs(aslist=False):
           self.__implicit = False
         if not self.__implicit:
-          self.__sub_sds = None
+          self.__sub_deps = None
           self.__implicit = None
           break
 
@@ -173,7 +176,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
     # Setup leafs and roots RF objects
     self._leafs, self._roots = None, None
-    if not self.__explicit:
+    if not self._cdeps:
       self._leafs = self.__def_leafs
       self._roots = self.__def_roots
     if not self._leafs:
@@ -207,6 +210,58 @@ class SD (NX_DIRECTED_GRAPH, RF):
       rv = self.ret_rvs()[0]
       self._unit_prob = self._prob is None and rv.ret_prob() is not None
       self._unit_tran = self._tran is None and rv.ret_tran() is not None
+
+#-------------------------------------------------------------------------------
+  def set_prob(self, prob=None, *args, **kwds):
+    """ Sets the joint probability with optional arguments and keywords.
+
+    :param prob: may be a scalar, array, or callable function.
+    :param pscale: represents the scale used to represent probabilities.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
+    """
+    if prob is not None:
+      assert self._cdeps is None, \
+          "Cannot specify probabilities alongside cdeps conditional dependencies"
+    return super().set_prob(prob, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def add_cdep(self, conditioned, conditioning, func, *args, **kwds):
+    """ Adds a conditional dependence that conditions conditioning with respect
+    to condiitioning with functional inputs *args and **kwds.
+    """
+    if self.__implicit:
+      self.remove_edges_from(self.edges)
+      self.__implicit = False
+    if self._cdeps is None:
+      self._cdeps = collections.OrderedDict()
+    assert not self._prob, \
+        "Cannot assign conditional dependencies alongside specified probability"
+    conditioned = self.subfield(conditioned)
+    conditioning = self.subfield(conditioning)
+    conditioned_rvs = conditioned.ret_rvs(aslist=False)
+    conditioning_rvs = conditioning.ret_rvs(aslist=False)
+    conditioned_keys = list(conditioned_rvs.keys())
+    conditioning_keys = list(conditioning_rvs.keys())
+    assert len(set(conditioned_keys).union(set(conditioning_keys))) == \
+           len(conditioned_keys) + len(conditioning_keys), \
+           "Duplicate RV detected among conditioned and conditioned inputs"
+    cdep_key = '|'.join([','.join(conditioned_keys), ','.join(conditioning_keys)])
+    self._cdeps.update({cdep_key: 
+                        NX_DIRECTED_GRAPH(None, func=Func(func, *args, **kwds))})
+    for conditioned_key in conditioned_keys:
+      for conditioning_key in conditioning_keys:
+        self._cdeps[cdep_key].add_edge(conditioning_key, conditioned_key)
+    self.add_edges_from(self._cdeps[cdep_key])
+    return self._cdeps[cdep_key]
+
+#-------------------------------------------------------------------------------
+  def ret_cdeps(self, key=None):
+    if self._cdeps is None:
+      return None
+    if key is not None:
+      return self._cdeps[key]
+    return self._cdeps
 
 #-------------------------------------------------------------------------------
   def set_prop_obj(self, prop_obj=None):
@@ -243,13 +298,9 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return self._stems
 
 #-------------------------------------------------------------------------------
-  def ret_explicit(self):
-    return self.__explicit 
-
-#-------------------------------------------------------------------------------
   def ret_implicit(self):
     return self.__implicit 
-
+ 
 #-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
     _prop = self.ret_leafs_roots(prop)
@@ -301,6 +352,13 @@ class SD (NX_DIRECTED_GRAPH, RF):
     self._cfun = _cfun._cfun
     self._cfun_lud = _cfun._cfun_lud
     return self._cfun
+
+#-------------------------------------------------------------------------------
+  def set_cverg(self, cverg=None, *args, **kwds):
+    self._cverg = cverg or DEFAULT_CONVERGENCE_FUNCTION
+    if isinstance(self._cverg, str):
+      return
+    self._cverg = Func(self._cverg, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
@@ -366,15 +424,26 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None, dims=None):
-    if self._prob is not None or not self.__implicit or self.__sub_sds is None:
+    if self._prob is not None or self.__sub_deps is None or \
+        not (self._cdeps or self.__implicit):
       return super().eval_prob(values, dims)
-    if self.__implicit == 'parallel':
-      prob, _ = sd_prod_rule(values, dims=dims, sds=self.__sub_sds, 
-                             pscale=self._pscale)
-    else:
-      raise ValueError("Unknown implicit specification: {}".format(
-        self.__implicit))
-    return prob
+
+    # Implicit vergence
+    if self.__implicit:
+      if self.__implicit == 'parallel':
+        if self._cverg == 'mul':
+          prob, _ = rf_prod_rule(values, dims=dims, rfs=self.__sub_deps, 
+                                 pscale=self._pscale)
+        else:
+          raise ValueError("Unrecognised vergence function {} ".format(
+            self._cverg) + "for implicit parallel dependencies")
+      else:
+        raise ValueError("Unknown implicit specification: {}".format(
+          self.__implicit))
+      return prob
+
+    # Explicit vergence
+    
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
