@@ -1,8 +1,10 @@
 """
-A stochastic dependency is a random field that accommodates directed 
+A stochastic dependence is a random field that accommodates directed 
 conditionality according to one or more conditional probability distribution 
-functions. The dependency is represented as a graph of nodes, for the random 
-variables, and edges for their corresponding inter-relations.
+functions. The dependence architecture is represented as a graph, representing
+RVs as vertices and edges for their corresponding inter-relations. Direct
+conditional dependences across groups of RVs are set using conditional functions
+that inter-relate RFs.
 """
 #-------------------------------------------------------------------------------
 import numpy as np
@@ -15,15 +17,16 @@ from probayes.dist import Dist
 from probayes.dist_utils import product
 from probayes.rf_utils import rf_prod_rule
 from probayes.sd_utils import desuffix, get_suffixed
+from probayes.cf import CF
 
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 DEFAULT_CONVERGENCE_FUNCTION = 'mul'
 
 #-------------------------------------------------------------------------------
 class SD (NX_DIRECTED_GRAPH, RF):
-  """ A stochastic dependency is a random field that accommodates directed 
+  """ A stochastic dependence is a random field that accommodates directed 
   conditionality according to one or more conditional probability distribution 
-  functions. The dependency is represented as a graph of nodes, for the random 
+  functions. The dependence is represented as a graph of nodes, for the random 
   variables, and edges for their corresponding inter-relations.
   """
   # Public
@@ -33,8 +36,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   _leafs = None        # RF of RVs that do not condition others
   _roots = None        # RF of RVs not dependent on others
   _stems = None        # OrderedDict of latent RVs
-  _cverg = None        # Convergence function (defaults to multiplication)
-  _cdeps = None        # OrderedDict of conditional dependency graphs
+  _cverg = None        # Convergence function for parallel implicit
   _def_prop_obj = None # Default value for prop_obj
   _prop_obj = None     # Object referencing propositional conditions
   _tran_obj = None     # Object referencing transitional conditions
@@ -45,7 +47,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   __def_leafs = None   # Default leafs - provides convenience interface
   __def_roots = None   # Default roots - provides convenience interface
   __sub_rfs = None     # Convenience dictionary for the roots and leafs RFs
-  __sub_deps = None    # Convenience list if SDs in parallel/series
+  __sub_cfs = None     # Dictionary of conditional functions
   __sym_tran = None    # Flag to denote symmetrical conditionals
   __implicit = None    # Implicit configuration: None, "parallel" or "series"
 
@@ -59,9 +61,9 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def def_deps(self, *args):
-    """ Defaults the dependency of SD with RVs, RFs. or SD arguments.
+    """ Defaults the dependence of SD with RVs, RFs. or SD arguments.
 
-    :param args: each arg may be an RV, RF, or SD with the dependency chain
+    :param args: each arg may be an RV, RF, or SD with the dependence chain
                  running from right to left.
     """
     self._cdeps = None
@@ -72,54 +74,86 @@ class SD (NX_DIRECTED_GRAPH, RF):
     if not args:
       return
 
-    # Iterate through arguments to add RV vertices detect running roots
+    # Iterate args, add RV vertices, detect running roots/leafs and explicit
+    run_leafs = [None] * len(args)
     run_roots = [None] * len(args)
+    arg_issd = [None] * len(args)
+    implicit = True
     for i, arg in enumerate(args):
       if isinstance(arg, (SD, RF)):
         rvs = arg.ret_rvs(aslist=True)
         for rv in rvs:
           NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
-        if isinstance(arg, SD):
-          run_roots[i] = arg.ret_roots()
+        arg_issd[i] = isinstance(arg, SD)
+        if arg_issd[i]:
+          if not arg.ret_implicit():
+            implicit = False
+          run_leafs[i] = arg.ret_leafs().ret_rvs(aslist=True)
+          run_roots[i] = arg.ret_roots().ret_rvs(aslist=True)
           NX_DIRECTED_GRAPH.add_edges_from(self, arg.edges)
         else:
-          run_roots[i] = rvs
+          run_leafs[i] = rvs
           if i == 0:
             self.__def_leafs = arg
           elif i == len(args) - 1:
             self.__def_roots = arg
       elif isinstance(arg, RV):
         NX_DIRECTED_GRAPH.add_node(self, arg.ret_name(), **{'rv': arg})
-        run_roots[i] = [arg]
-    
-    # Identify parallel dependencies
-    self.__implicit = len(args) > 1 and \
-                          all([isinstance(arg, SD) for arg in args])
-    leafs = set()
-    roots = []
-    self.__sub_deps = None
-    if self.__implicit:
-      self.__implicit = 'parallel'
-      self.__sub_deps = []
-      for arg in args:
-        arg_roots = arg.ret_roots()
-        roots += arg_roots.ret_rvs(aslist=True)
-        if self.__sub_deps is not None:
-          prob = arg.ret_prob()
-          if prob is None:
-            self.__sub_deps = None
-          else:
-            self.__sub_deps += [arg]
-        if not len(arg_roots):
-          self.__implicit = None
-        elif not len(leafs):
-          leafs = arg.ret_leafs().ret_rvs(aslist=False)
-        elif leafs != arg.ret_leafs().ret_rvs(aslist=False):
-          self.__implicit = False
-        if not self.__implicit:
+        run_leafs[i] = [arg]
+
+    # If multiple non-SD arguments with no roots, set the last argument as root
+    if len(args) > 1 and not any(arg_issd):
+      run_roots[-1], run_leafs[-1] = run_leafs[-1], run_roots[-1]
+
+    # Handle explicit cases separately or entertained implied serial or parallel
+    serial = None
+    parallel = None
+    if not implicit: # If not implicit, add cdeps in reverse order
+      for arg in args[::-1]:
+        if isinstance(arg, SD):
+          self.add_cdeps(arg.ret_cdeps())
+    else: # Detect whether serial or parallel
+      serial = True
+      if any(arg_issd):
+        for i in range(len(args)-1):
+          if run_roots[i] is None:
+            serial = False
+            break
+          elif set(run_roots[i]) != set(run_leafs[i+1]):
+            serial = False
+            break
+      if serial:
+        self.__implicit = 'serial'
+      else: 
+        parallel = len(args) > 1 and \
+                   all([isinstance(arg, SD) for arg in args])
+        leafs = set()
+        roots = []
+        self.__sub_deps = None
+        if parallel:
+          self.__sub_deps = []
+          for i, arg in enumerate(args):
+            roots += run_roots[i]
+            if self.__sub_deps is not None:
+              prob = arg.ret_prob()
+              if prob is None:
+                self.__sub_deps = None
+              else:
+                self.__sub_deps += [arg]
+            if not len(run_roots):
+              parallel = False
+            elif not len(leafs):
+              leafs = run_leafs[i]
+            elif leafs != run_leafs[i]:
+              parallel = False
+            if not parallel:
+              self.__sub_deps = None
+              self.__implicit = None
+              break
+        if parallel:
+          self.__implicit = 'parallel'
+        else:
           self.__sub_deps = None
-          self.__implicit = None
-          break
 
     # Default leafs and roots in parallel or series
     if self.__implicit == 'parallel':
@@ -132,21 +166,23 @@ class SD (NX_DIRECTED_GRAPH, RF):
       for root_key in root_keys:
         for leaf_key in leaf_keys:
           NX_DIRECTED_GRAPH.add_edge(self, root_key, leaf_key)
-    else:
-      run_leafs = None
+    elif self.__implicit == 'serial':
       for i, arg in enumerate(args):
         if type(arg) is RF:
           if i == 0:
-            self.__def_leafs = arg
+            self.__def_leafs = run_leafs[i]
           elif i == len(args) - 1:
             self.__def_roots = arg
-        if i > 0:
+        if i > 0 and run_leafs[i-1]:
           root_keys = [rv.ret_name() for rv in run_roots[i]]
-          leaf_keys = [rv.ret_name() for rv in run_leafs]
+          leaf_keys = [rv.ret_name() for rv in run_leafs[i-1]]
           for root_key in root_keys:
             for leaf_key in leaf_keys:
               NX_DIRECTED_GRAPH.add_edge(self, root_key, leaf_key)
-        run_leafs = run_roots[i]
+    elif self._cdeps is None: # Otherwise add what edges we can
+      for arg in args[::-1]:
+        if isinstance(arg, SD):
+          self.add_edges_from(arg)
 
     self._refresh()
 
@@ -154,7 +190,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def _refresh(self):
     """ Refreshes tree summaries, SD name and identity, and default states. 
     While roots and leafs are represented as RFs, stems are contained within a
-    single ordered dictionary to be flexible enough to accommodate dependency 
+    single ordered dictionary to be flexible enough to accommodate dependence 
     arborisations.
     """
     super()._refresh()
@@ -253,7 +289,26 @@ class SD (NX_DIRECTED_GRAPH, RF):
       for conditioning_key in conditioning_keys:
         self._cdeps[cdep_key].add_edge(conditioning_key, conditioned_key)
     self.add_edges_from(self._cdeps[cdep_key])
-    return self._cdeps[cdep_key]
+    return collections.OrderedDict({cdep_key: self._cdeps[cdep_key]})
+
+#-------------------------------------------------------------------------------
+  def add_cdeps(self, cdeps=None):
+    """ Adds cdeps to the SD where cdeps is an orderedDict. """
+    if cdeps is None:
+      return self._cdeps
+    assert isinstance(cdeps, collections.OrderedDict), \
+        "Input cdeps must be a an OrderedDict, not {}".format(type(cdeps))
+    if self.__implicit:
+      self.remove_edges_from(self.edges)
+      self.__implicit = False
+    if self._cdeps is None:
+      self._cdeps = collections.OrderedDict()
+    assert not self._prob, \
+        "Cannot assign conditional dependencies alongside specified probability"
+    for key, val in cdeps.items():
+      self._cdeps.update({key: val})
+      self.add_edges_from(val)
+    return self._cdeps
 
 #-------------------------------------------------------------------------------
   def ret_cdeps(self, key=None):

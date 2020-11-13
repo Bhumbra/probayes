@@ -199,7 +199,7 @@ class RV (Domain, Prob):
     if self._tran is None:
       return
     self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = not self._tran.ret_istuple()
+    self.__sym_tran = not self._tran.ret_ismulti()
     if self._tran.ret_callable() or self._tran.ret_isscalar():
       return
     assert self._vtype not in VTYPES[float],\
@@ -226,7 +226,7 @@ class RV (Domain, Prob):
     self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
     if self._tfun is None:
       return
-    assert self._tfun.ret_istuple(), "Tuple of two functions required"
+    assert self._tfun.ret_ismulti(), "Tuple of two functions required"
     assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
@@ -360,9 +360,9 @@ class RV (Domain, Prob):
                   
     # Handle discrete non-callables
     elif not self._tran.ret_callable():
-      if reverse and not self._tran.ret_istuple() and not self.__sym_tran:
+      if reverse and not self._tran.ret_ismulti() and not self.__sym_tran:
         warnings.warn("Reverse direction called from asymmetric transitional")
-      prob = self._tran() if not self._tran.ret_istuple() else \
+      prob = self._tran() if not self._tran.ret_ismulti() else \
              self._tran[int(reverse)]()
       if isunitset(succ_vals):
         succ_vals, pred_idx, succ_idx = matrix_cond_sample(pred_vals, 
@@ -425,7 +425,7 @@ class RV (Domain, Prob):
 
     # Handle discrete non-callables
     elif not self._tran.ret_callable():
-      prob = self._tran() if not self._tran.ret_istuple() else \
+      prob = self._tran() if not self._tran.ret_ismulti() else \
              self._tran[int(reverse)]()
       cond = lookup_square_matrix(pred_vals,
                                   succ_vals, 
@@ -437,7 +437,7 @@ class RV (Domain, Prob):
 
     # That just leaves callables
     else:
-      prob = self._tran if not self._tran.ret_istuple() else \
+      prob = self._tran if not self._tran.ret_ismulti() else \
              self._tran[int(reverse)]
       kwds = {self._name: pred_vals,
               self._name+"'": succ_vals}

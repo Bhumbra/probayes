@@ -5,6 +5,7 @@ from probayes.rv import RV
 from probayes.rf import RF
 from probayes.sd import SD
 from probayes.sp import SP
+from probayes.cf import CF
 from probayes.manifold import Manifold
 from probayes.dist import Dist
 from probayes.dist_utils import product, summate, iterdict

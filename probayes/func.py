@@ -55,7 +55,7 @@ class Func:
   _kwds = None
 
   # Private
-  __istuple = None
+  __ismulti = None
   __isscalar = None # not of interest to Func but to objects that call Func
   __isscipy = None
   __callable = None
@@ -100,9 +100,9 @@ class Func:
     # Sanity check func
     if self._func is None:
       assert not args and not kwds, "No optional args without a function"
-    self.__istuple = isinstance(self._func, tuple)
+    self.__ismulti = isinstance(self._func, tuple)
     self.__isscalar = False
-    if not self.__istuple:
+    if not self.__ismulti:
       self.__callable = callable(self._func)
       if not self.__callable:
         assert not args and not kwds, "No optional args with uncallable function"
@@ -133,7 +133,7 @@ class Func:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
       self.set_delta(self._kwds.pop('delta'))
-    
+
 #-------------------------------------------------------------------------------
   def set_order(self, order=None):
     """ Sets an order remapping dictionary for functional calls in which
@@ -186,6 +186,21 @@ class Func:
           "Index specification non_sequitur: {}".format(indset)
 
 #-------------------------------------------------------------------------------
+  def ret_func(self):
+    """ Returns function argument set by set_func() """
+    return self._func
+
+#-------------------------------------------------------------------------------
+  def ret_args(self):
+    """ Returns args as set by set_func() """
+    return self._args
+
+#-------------------------------------------------------------------------------
+  def ret_kwds(self):
+    """ Returns kwds as set by set_func() """
+    return self._kwds
+
+#-------------------------------------------------------------------------------
   def ret_callable(self):
     """ Returns boolean flag as to whether func is callable """
     return self.__callable
@@ -196,9 +211,9 @@ class Func:
     return self.__isscalar
 
 #-------------------------------------------------------------------------------
-  def ret_istuple(self):
-    """ Returns boolean flag as to whether func comprises a tuple """
-    return self.__istuple
+  def ret_ismulti(self):
+    """ Returns boolean flag as to whether func comprises a multiple """
+    return self.__ismulti
 
 #-------------------------------------------------------------------------------
   def ret_isscipy(self):
@@ -209,6 +224,16 @@ class Func:
   def ret_scipyobj(self):
     """ Returns scipy object if specified """
     return self.__scipyobj
+
+#-------------------------------------------------------------------------------
+  def ret_order(self):
+    """ Returns order object if set """
+    return self.__order
+
+#-------------------------------------------------------------------------------
+  def ret_delta(self):
+    """ Returns delta object if set """
+    return self.__delta
 
 #-------------------------------------------------------------------------------
   def _call(self, *args, **kwds):
@@ -312,24 +337,24 @@ class Func:
    """ Wrapper call to the function with optional inclusion of additional
    args and kwds. """
 
-   assert not self.__istuple or self.__isscipy, \
-       "Cannot call with tuple func, use Func[]"
+   assert not self.__ismulti or self.__isscipy, \
+       "Cannot call with multiple func, use Func[]"
    return self._call(*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def __getitem__(self, index=None):
-   r""" Calls the $i$th function from the Func tuple where the index is $i$ """
-   if index is None:
+  def __getitem__(self, spec=None):
+   r""" Calls the $i$th function from the Func tuple where the spec is $i$ """
+   if spec is None:
      return self._func
-   assert self.__istuple or self.__isscipy, \
+   assert self.__ismulti or self.__isscipy, \
      "Cannot index without single func, use Func()"
-   self.__index = index
+   self.__index = spec
    return self._call
 
 #-------------------------------------------------------------------------------
   def __len__(self):
     """ Returns the number of functions in the tuple set by set_func() """
-    if not self.__istuple:
+    if not self.__ismulti:
       return None
     return len(self._func)
 

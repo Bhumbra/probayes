@@ -17,7 +17,8 @@ from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless
 from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
                          rescale, eval_pscale, prod_pscale
 from probayes.rf_utils import rv_prod_rule, call_scipy_prob, sample_cond_cov
-from probayes.func import Func
+from probayes.func import Func, is_scipy_stats_mvar
+from probayes.cf import CF
 from probayes.cond_cov import CondCov
 
 NX_UNDIRECTED_GRAPH = nx.OrderedGraph
@@ -342,23 +343,53 @@ class RF (NX_UNDIRECTED_GRAPH):
       return
     assert self._prop is None, \
         "Cannot assign both proposition and transition probabilities"
-    self._tran = Func(self._tran, *args, **kwds)
-    self._sym_tran = not self._tran.ret_istuple()
+
+    # Pass CF objects directly
+    if isinstance(tran, CF):
+      assert not args and not kwds, \
+        "Setting args and kwds not supported if inputting a CF instance"
+      self._tran = CF(self, 
+                      tran.ret_inp(), 
+                      tran.ret_func(), 
+                      *tran.ret_args(), 
+                      **tran.ret_kwds())
+      return
+
+    # Handle scalars explicitly
+    elif isscalar(tran):
+      self._tran = Func(tran, *args, **kwds)
+      self._sym_tran = not self._tran.ret_ismulti()
+      return
 
     # If a covariance matrix, set the LU decomposition as the tfun
-    if not self._tran.ret_callable() and not isscalar(tran):
+    elif not callable(tran):
       message = "Non-callable non-scalar tran objects must be a square 2D " + \
                 "Numpy array of size corresponding to number of variables {}".\
                  format(self._nrvs)
       assert isinstance(tran, np.ndarray), message
       assert tran.ndim == 2, message
       assert np.all(np.array(tran.shape) == self._nrvs), message
+      self._tran = Func(tran, *args, **kwds)
+      self._sym_tran = not self._tran.ret_ismulti()
       self.set_tfun(np.linalg.cholesky(tran))
+      return
 
     # If a scipy object, set the tfun
-    elif self._tran.ret_isscipy():
+    elif is_scipy_stats_mvar(tran):
+      self._tran = Func(tran, *args, **kwds)
+      self._sym_tran = not self._tran.ret_ismulti()
       scipyobj = self._tran.ret_scipyobj()
       self.set_tfun(self._tran, scipyobj=self._tran.ret_scipyobj())
+      return
+
+    # Otherwise instantiate a formal conditional function
+    inp = None
+    if len(args):
+      if isinstance(args[0], collections.OrderedDict):
+        args = tuple(args)
+        inp, args = args[0], args[1:]
+    self._tran = CF(self, inp, tran, *args, **kwds)
+    self._sym_tran = not self._tran.ret_ismulti()
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -820,7 +851,7 @@ class RF (NX_UNDIRECTED_GRAPH):
 
       # Iterate through values
       cond = np.nan
-      if self._tfun.ret_istuple():
+      if self._tfun.ret_ismulti():
         for key in keys:
           succ_vals[key] = {0}
           succ_vals[key] = self._tfun[int(reverse)](succ_vals)
