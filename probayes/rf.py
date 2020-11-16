@@ -668,7 +668,7 @@ class RF (NX_UNDIRECTED_GRAPH):
       return call_scipy_prob(self._prob, self._pscale, values)
     if self.__passdims:
       return self._prob(values, dims=dims)
-    return self._prob
+    return self._prob(values)
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):

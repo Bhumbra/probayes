@@ -1,7 +1,7 @@
 """
 Examples of naive 'Bayes' implicit example where: 
 p(z | x, y) = p(z | x) * p(z | y)
-- assumes RHS conditionls are mutually independent
+- assumes RHS conditionals are mutually independent
 """
 import numpy as np
 import probayes as pb
@@ -37,4 +37,3 @@ p_zxy_true = zxy({'x': True, 'y': True})
 
 xy = x / y
 xyz = pb.SD(zx, xy)
-

@@ -108,7 +108,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     # Handle explicit cases separately or entertained implied serial or parallel
     serial = None
     parallel = None
-    if not implicit: # If not implicit, add cdeps in reverse order
+    if not implicit: # If not implicit, add cdeps in reverse order of args
       for arg in args[::-1]:
         if isinstance(arg, SD):
           self.add_cdeps(arg.ret_cdeps())
@@ -262,9 +262,9 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return super().set_prob(prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def add_cdep(self, conditioned, conditioning, func, *args, **kwds):
+  def add_cdep(self, out, inp, func, *args, **kwds):
     """ Adds a conditional dependence that conditions conditioning with respect
-    to condiitioning with functional inputs *args and **kwds.
+    to out being conditioned by inc by function func with *args and **kwds.
     """
     if self.__implicit:
       self.remove_edges_from(self.edges)
@@ -273,22 +273,14 @@ class SD (NX_DIRECTED_GRAPH, RF):
       self._cdeps = collections.OrderedDict()
     assert not self._prob, \
         "Cannot assign conditional dependencies alongside specified probability"
-    conditioned = self.subfield(conditioned)
-    conditioning = self.subfield(conditioning)
-    conditioned_rvs = conditioned.ret_rvs(aslist=False)
-    conditioning_rvs = conditioning.ret_rvs(aslist=False)
-    conditioned_keys = list(conditioned_rvs.keys())
-    conditioning_keys = list(conditioning_rvs.keys())
-    assert len(set(conditioned_keys).union(set(conditioning_keys))) == \
-           len(conditioned_keys) + len(conditioning_keys), \
-           "Duplicate RV detected among conditioned and conditioned inputs"
-    cdep_key = '|'.join([','.join(conditioned_keys), ','.join(conditioning_keys)])
-    self._cdeps.update({cdep_key: 
-                        NX_DIRECTED_GRAPH(None, func=Func(func, *args, **kwds))})
-    for conditioned_key in conditioned_keys:
-      for conditioning_key in conditioning_keys:
-        self._cdeps[cdep_key].add_edge(conditioning_key, conditioned_key)
-    self.add_edges_from(self._cdeps[cdep_key])
+    cdep = CF(out, inp, func, *args, **kwds)
+    cdep_key = cdep.ret_name()
+    self._cdeps.update({cdep_key: cdep})
+    out_keys = list(cdep.ret_out().ret_keys(as_list=True))
+    inp_keys = list(cdep.ret_inp().ret_keys(as_list=True))
+    for out_key in out_keys:
+      for inp_key in inp_keys:
+        self.add_edge(inp_key, out_key)
     return collections.OrderedDict({cdep_key: self._cdeps[cdep_key]})
 
 #-------------------------------------------------------------------------------
@@ -473,8 +465,36 @@ class SD (NX_DIRECTED_GRAPH, RF):
     raise NotImplementedError()
 
 #-------------------------------------------------------------------------------
+  def eval_cdeps(self, *args, _skip_parsing=False, **kwds):
+    if self._cdeps is None:
+      return None
+    vals = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
+    for key, val in self._cdeps.items():
+      output = val(vals)
+      evals, dims, prob = None, None, None
+      if isinstance(output, dict):
+        evals = output
+      elif not isinstance(output, tuple):
+        raise TypeError("Unrecognised type {} for output for dependency {}".\
+                        format(type(output), key))
+      else: 
+        evals = output[0] 
+        assert isinstance(evals, dict),\
+          "Unrecognised dependency evaluation output type".format(type(evals))
+        assert len(output) < 3, \
+            "Maximum for 3 outputs from dependency evaluation"
+        for argout in output:
+          if isinstance(argout, dict):
+            assert dims is None, "Output ambiguous for dimensionality"
+            dims = argout
+          elif isinstance(argout, np.ndarray):
+            assert prob is None, "Output ambiguous for probabilities"
+            prob = argout
+    return vals
+
+#-------------------------------------------------------------------------------
   def eval_vals(self, *args, _skip_parsing=False, **kwds):
-    assert self._leafs, "No marginal stochastic random variables defined"
+    assert self._leafs, "No leaf stochastic random variables defined"
     return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -498,7 +518,6 @@ class SD (NX_DIRECTED_GRAPH, RF):
       return prob
 
     # Explicit vergence
-    
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
