@@ -170,7 +170,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       for i, arg in enumerate(args):
         if type(arg) is RF:
           if i == 0:
-            self.__def_leafs = run_leafs[i]
+            self.__def_leafs = arg
           elif i == len(args) - 1:
             self.__def_roots = arg
         if i > 0 and run_leafs[i-1]:

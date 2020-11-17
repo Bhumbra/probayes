@@ -24,9 +24,8 @@ x = pb.RV('x', lims, vtype=float)
 y = pb.RV('y', lims, vtype=float)
 process = pb.SP(x*y)
 process.set_prob(scipy.stats.multivariate_normal, means, covar)
-process.set_tran(scipy.stats.multivariate_normal, means, covar)
+process.set_tran(scipy.stats.multivariate_normal, means, covar, tsteps=1)
 process.set_scores('gibbs')
-process.set_t1vt(True) # Optionally set transitional cond. one var at a time
 sampler = process.sampler({'x': 0., 'y': 1.}, stop=n_steps)
 samples = [sample for sample in sampler]
 summary = process(samples)

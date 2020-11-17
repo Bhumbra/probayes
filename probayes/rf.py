@@ -56,7 +56,7 @@ class RF (NX_UNDIRECTED_GRAPH):
   _delta_type = None # Proxy for delta used for casting
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function 
-  _t1vt = None       # Flag for transitional conditioning one variable at a time
+  _tsteps = None     # Number of steps per transitional modificiation
   _crvs = None       # Conditional random variable sampling specification
   _length = None     # Length of junction
   _lengths = None    # Lengths of RVs
@@ -78,7 +78,6 @@ class RF (NX_UNDIRECTED_GRAPH):
     self.set_prop()
     self.set_delta()
     self.set_tran()
-    self.set_t1vt()
 
 #-------------------------------------------------------------------------------
   def add_node(self, *args, **kwds):
@@ -339,10 +338,16 @@ class RF (NX_UNDIRECTED_GRAPH):
     # Set transition function
     self._tran = tran
     self._sym_tran = False
+    self._tsteps = None
     if self._tran is None:
       return
     assert self._prop is None, \
         "Cannot assign both proposition and transition probabilities"
+    kwds = dict(kwds)
+    if 'tsteps' in kwds:
+      self._tsteps = kwds.pop('tsteps')
+      if self._tsteps:
+        assert type(self._tsteps) is int, "Input tsteps must be int"
 
     # Pass CF objects directly
     if isinstance(tran, CF):
@@ -406,9 +411,33 @@ class RF (NX_UNDIRECTED_GRAPH):
     self._tfun = tfun 
     if self._tfun is None:
       return
-    if scipyobj is None:
-      self._tfun = Func(self._tfun, *args, **kwds)
-      if not self._tfun.ret_callable():
+
+    # Pass CF objects directly
+    if isinstance(tfun, CF):
+      assert not args and not kwds, \
+        "Setting args and kwds not supported if inputting a CF instance"
+      self._tfun = CF(self, 
+                      tfun.ret_inp(), 
+                      tfun.ret_func(), 
+                      *tfun.ret_args(), 
+                      **tfun.ret_kwds())
+      return
+
+    # Handle SciPy objects specifically
+    elif scipyobj is not None:      
+      rvs = self.ret_rvs(aslist=True)
+      lims = np.array([rv.ret_lims() for rv in rvs])
+      mean = scipyobj.mean
+      cov = scipyobj.cov
+      self._cond_cov = CondCov(mean, cov, lims)
+      scipy_cond = sample_cond_cov if self._sym_tran else \
+                   (sample_cond_cov, sample_cond_cov)
+      self._tfun = Func(scipy_cond, cond_cov=self._cond_cov)
+      return
+
+    # Non-callables are treated as LUD matrices
+    elif not callable(self._tfun): 
+        self._tfun = Func(self._tfun, *args, **kwds)
         message = "Non-callable tran objects must be a triangular 2D Numpy array " + \
                   "of size corresponding to number of variables {}".format(self._nrvs)
         assert isinstance(tfun, np.ndarray), message
@@ -418,20 +447,13 @@ class RF (NX_UNDIRECTED_GRAPH):
                np.allclose(tfun, np.triu(tfun)), message
         return
 
-    # Handle SciPy objects specifically
-    rvs = self.ret_rvs(aslist=True)
-    lims = np.array([rv.ret_lims() for rv in rvs])
-    mean = scipyobj.mean
-    cov = scipyobj.cov
-    self._cond_cov = CondCov(mean, cov, lims)
-    scipy_cond = sample_cond_cov if self._sym_tran else \
-                 (sample_cond_cov, sample_cond_cov)
-    self._tfun = Func(scipy_cond, cond_cov=self._cond_cov)
-
-#-------------------------------------------------------------------------------
-  def set_t1vt(self, t1vt=False):
-    """ Sets the flag to for transitional sampling one variable at a time """
-    self._t1vt = t1vt
+    # Otherwise instantiate a formal conditional function
+    inp = None
+    if len(args):
+      if isinstance(args[0], collections.OrderedDict):
+        args = tuple(args)
+        inp, args = args[0], args[1:]
+    self._tfun = CF(self, inp, self._tfun, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def ret_rvs(self, aslist=True):
@@ -841,11 +863,11 @@ class RF (NX_UNDIRECTED_GRAPH):
       keys = list(succ_vals.keys())
 
       # One variable at a time modification
-      if self._t1vt:
+      if self._tsteps:
         if self.__cond_mod is None:
           self.__cond_mod = 0
-        keys = [keys[self.__cond_mod]]
-        self.__cond_mod += 1
+        keys = keys[self.__cond_mod:(self.__cond_mod+self._tsteps)]
+        self.__cond_mod += self._tsteps
         if self.__cond_mod >= len(succ_vals):
           self.__cond_mod = 0
 
