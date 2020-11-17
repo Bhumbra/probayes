@@ -358,36 +358,32 @@ class RF (NX_UNDIRECTED_GRAPH):
                       tran.ret_func(), 
                       *tran.ret_args(), 
                       **tran.ret_kwds())
-      return
-
-    # Handle scalars explicitly
-    elif isscalar(tran):
-      self._tran = Func(tran, *args, **kwds)
       self._sym_tran = not self._tran.ret_ismulti()
       return
 
+    # Set as general function
+    self._tran = Func(tran, *args, **kwds)
+    self._sym_tran = not self._tran.ret_ismulti()
+
     # If a covariance matrix, set the LU decomposition as the tfun
-    elif not callable(tran):
+    if not self._tran.ret_callable() and not self._tran.isscalar():
       message = "Non-callable non-scalar tran objects must be a square 2D " + \
                 "Numpy array of size corresponding to number of variables {}".\
                  format(self._nrvs)
       assert isinstance(tran, np.ndarray), message
       assert tran.ndim == 2, message
       assert np.all(np.array(tran.shape) == self._nrvs), message
-      self._tran = Func(tran, *args, **kwds)
-      self._sym_tran = not self._tran.ret_ismulti()
+      self._tran = tran
       self.set_tfun(np.linalg.cholesky(tran))
       return
 
     # If a scipy object, set the tfun
-    elif is_scipy_stats_mvar(tran):
-      self._tran = Func(tran, *args, **kwds)
-      self._sym_tran = not self._tran.ret_ismulti()
+    elif self._tran.ret_isscipy():
       scipyobj = self._tran.ret_scipyobj()
       self.set_tfun(self._tran, scipyobj=self._tran.ret_scipyobj())
       return
 
-    # Otherwise instantiate a formal conditional function
+    # Otherwise reinstantiate self._tran as an explicit conditional function
     inp = None
     if len(args):
       if isinstance(args[0], collections.OrderedDict):
@@ -1079,7 +1075,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     """ Equality for RFs is defined as comprising the same RVs """
     if type(self) is not RF or type(other) is not RF:
       return super().__eq__(other)
-    return self.ret_keys(aslist=False) == other.ret_keys(aslist==False)
+    return self.ret_keys(aslist=False) == other.ret_keys(aslist=False)
 
 #-------------------------------------------------------------------------------
   def __ne__(self, other):
