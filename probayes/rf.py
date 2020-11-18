@@ -22,6 +22,7 @@ from probayes.cf import CF
 from probayes.cond_cov import CondCov
 
 NX_UNDIRECTED_GRAPH = nx.OrderedGraph
+DEFAULT_CONDITIONAL_PROBABILITY = {False: 1., True: 0.}
 
 #-------------------------------------------------------------------------------
 class RF (NX_UNDIRECTED_GRAPH):
@@ -62,6 +63,9 @@ class RF (NX_UNDIRECTED_GRAPH):
   _lengths = None    # Lengths of RVs
   _sym_tran = None   # Flag for symmetrical transitional conditional functions
   _spherise = None   # Flag to spherise samples
+  _leafs = None      # RF of RVs that do not condition others (for SD)
+  _roots = None      # RF of RVs not dependent on others (for SD)
+  _stems = None      # OrderedDict of latent RVs (for SD)
 
   # Private
   __isscalar = None  # isscalar(_prob)
@@ -73,6 +77,7 @@ class RF (NX_UNDIRECTED_GRAPH):
   def __init__(self, *args): # over-rides NX_GRAPH.__init__()
     """ Initialises a random field with RVs for in args. See set_rvs(). """
     super().__init__()
+    self._leafs, self._stems, self._roots = self, None, None
     self.set_rvs(*args)
     self.set_prob()
     self.set_prop()
@@ -375,6 +380,8 @@ class RF (NX_UNDIRECTED_GRAPH):
       assert np.all(np.array(tran.shape) == self._nrvs), message
       self._tran = tran
       self.set_tfun(np.linalg.cholesky(tran))
+      assert self._tsteps is None, \
+          "Setting tsteps not supported for covariance transitions"
       return
 
     # If a scipy object, set the tfun
@@ -386,7 +393,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     # Otherwise reinstantiate self._tran as an explicit conditional function
     inp = None
     if len(args):
-      if isinstance(args[0], collections.OrderedDict):
+      if isinstance(args[0], (dict, list, tuple)):
         args = tuple(args)
         inp, args = args[0], args[1:]
     self._tran = CF(self, inp, tran, *args, **kwds)
@@ -428,7 +435,7 @@ class RF (NX_UNDIRECTED_GRAPH):
       self._cond_cov = CondCov(mean, cov, lims)
       scipy_cond = sample_cond_cov if self._sym_tran else \
                    (sample_cond_cov, sample_cond_cov)
-      self._tfun = Func(scipy_cond, cond_cov=self._cond_cov)
+      self._tfun = CF(self, None, scipy_cond, cond_cov=self._cond_cov)
       return
 
     # Non-callables are treated as LUD matrices
@@ -446,7 +453,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     # Otherwise instantiate a formal conditional function
     inp = None
     if len(args):
-      if isinstance(args[0], collections.OrderedDict):
+      if isinstance(args[0], (dict, list, tuple)):
         args = tuple(args)
         inp, args = args[0], args[1:]
     self._tfun = CF(self, inp, self._tfun, *args, **kwds)
@@ -472,6 +479,18 @@ class RF (NX_UNDIRECTED_GRAPH):
       assert isinstance(rvs, list), "RVs not a recognised variable type: {}".\
                                     format(type(rvs))
     return rvs
+
+#-------------------------------------------------------------------------------
+  def ret_leafs(self):
+    return self._leafs
+
+#-------------------------------------------------------------------------------
+  def ret_roots(self):
+    return self._roots
+
+#-------------------------------------------------------------------------------
+  def ret_stems(self):
+    return self._stems
 
 #-------------------------------------------------------------------------------
   def eval_length(self):
@@ -831,20 +850,7 @@ class RF (NX_UNDIRECTED_GRAPH):
       succ_vals = self.apply_delta(pred_vals, succ_vals)
     elif isunitsetint(succ_vals):
       if self._tfun is not None and self._tfun.ret_callable():
-        number = list(succ_vals)[0]
-        succ_vals = collections.OrderedDict()
-        succ_lims = collections.OrderedDict()
-        succ_vset = collections.OrderedDict()
-        for key in self._keys:
-          if key in pred_vals:
-            succ_vals.update({key: pred_vals[key]})
-            lims = self[key].ret_lims()
-            assert np.all(np.isfinite(lims)), \
-                "Cannot sample RV {} exhibiting limits {}".\
-                format(key, lims)
-            succ_vals.update({key: pred_vals[key]})
-            succ_lims.update({key: lims})
-            succ_vset.update({key: self[key].ret_vset()})
+        succ_vals = self.eval_tfun(pred_vals)
       elif self._nrvs == 1:
         rv = self.ret_rvs(aslist=True)[0]
         tran = rv.ret_tran()
@@ -856,27 +862,6 @@ class RF (NX_UNDIRECTED_GRAPH):
         raise ValueError("Transitional CDF calling requires callable tfun")
       else:
         raise ValueError("Transitional CDF calling requires callable tfun")
-      keys = list(succ_vals.keys())
-
-      # One variable at a time modification
-      if self._tsteps:
-        if self.__cond_mod is None:
-          self.__cond_mod = 0
-        keys = keys[self.__cond_mod:(self.__cond_mod+self._tsteps)]
-        self.__cond_mod += self._tsteps
-        if self.__cond_mod >= len(succ_vals):
-          self.__cond_mod = 0
-
-      # Iterate through values
-      cond = np.nan
-      if self._tfun.ret_ismulti():
-        for key in keys:
-          succ_vals[key] = {0}
-          succ_vals[key] = self._tfun[int(reverse)](succ_vals)
-      else:
-        for key in keys:
-          succ_vals[key] = {0}
-          succ_vals[key] = self._tfun(succ_vals)
 
     # Initialise outputs with predecessor values
     dims = {}
@@ -898,11 +883,91 @@ class RF (NX_UNDIRECTED_GRAPH):
     return vals, dims, kwargs
 
 #-------------------------------------------------------------------------------
+  def eval_tfun(self, values, *args, reverse=False, **kwds):
+    """ Evaluates tfun from values """
+
+    # Handle non-callables first
+    if self._tfun is None:
+      return None
+    if self._tfun.ret_isscalar():
+      if self._tfun.ret_ismulti():
+        return self._tfun[int(reverse)]() * values()
+      else:
+        return self._tfun() * values
+    if not self._tfun.ret_callable():
+      if self._tfun.ret_ismulti():
+        return self._tfun[int(reverse)]().dot(values)
+      else:
+        return self._tfun().dot(values)
+
+    # If values is not a dictionary then allow a custom call
+    if not isinstance(values, dict):
+      if self._tfun.ret_ismulti():
+        return self._tfun[int(reverse)](values, *args, **kwds).dot(values)
+      else:
+        return self._tfun(values, *args, **kwds)
+
+    # Support variable sampling one-or-more at-a-time
+    succ_vals = collections.OrderedDict(values)
+
+    # For conditional functions, iterate through keys
+    assert isinstance(self._tfun, CF), "Callable conditionals must be CF type"
+
+    # Determine keys distinguishing between default and custom specifications
+    inp = self._tfun.ret_inp()
+    keys = list(succ_vals.keys()) if not inp else list(inp.keys())
+    if self._tsteps:
+      if self.__cond_mod is None:
+        self.__cond_mod = 0
+      keys = keys[self.__cond_mod:(self.__cond_mod+self._tsteps)]
+      self.__cond_mod += self._tsteps
+      if self.__cond_mod >= len(succ_vals):
+        self.__cond_mod = 0
+
+    # Handle unspecified input key handling separately
+    if not inp:
+      if self._tfun.ret_ismulti():
+        for key in keys:
+          succ_vals[key] = self._tfun[int(reverse)](succ_vals, *args, unknown=key, **kwds)
+      else:
+        for key in keys:
+          succ_vals[key] = self._tfun(succ_vals, *args, unknown=key, **kwds)
+      return succ_vals
+
+    # Explicit conditionals require more sophisticated handling
+    assert not reverse, \
+        "Reverse-direction sampling not supported for explicit conditionals"
+    assert self._tfun.ret_ismulti(), \
+        "Transitional sampling function not specified as a multiple sampler"
+    for key in keys:
+      values = self._tfun[key](succ_vals, *args, **kwds)
+      rv_names = [key] if ',' not in keys else key.split(',')
+      if len(rv_names) > 1:
+        assert isinstance(values, dict), \
+            "Ambiguous output from CF {} for RV {}".format(self._tfun, key)
+        for rv_key, rv_val in values.items():
+          assert rv_key in succ_vals.keys(), \
+              "Key {} not found in {}".format(rv_key, succ_vals.keys())
+          succ_vals[key] = rv_val
+      else:
+        rv_name = rv_names[0]
+        if isinstance(values, dict):
+          assert rv_name in values.keys(), \
+              "Value key {} not found from output {}".format(rv_name, values.keys())
+          succ_vals[rv_name] = values[rv_name]
+        else:
+          succ_vals[rv_name] = values
+    return succ_vals
+
+#-------------------------------------------------------------------------------
   def eval_tran(self, values, **kwargs):
     if 'cond' in kwargs:
       return kwargs['cond']
+    cond = DEFAULT_CONDITIONAL_PROBABILITY[iscomplex(self._pscale)]
     reverse = False if 'reverse' not in kwargs else kwargs['reverse']
     if self._tran is None:
+      if self._tfun is not None: # tfun without tran means no cond. prob.
+        return cond
       rvs = self.ret_rvs(aslist=True)
       if len(rvs) == 1 and rvs[0]._tran is not None:
         return rvs[0].eval_tran(values, **kwargs)
@@ -917,10 +982,8 @@ class RF (NX_UNDIRECTED_GRAPH):
           else:
             pred_vals.update({key: val})
       cond, _ = rv_prod_rule(pred_vals, succ_vals, rvs=rvs, pscale=self._pscale)
-    elif self._tran.ret_isscalar():
-      cond = self._tran()
-    elif not self._tran.ret_callable():
-      cond = 0. if iscomplex(self._pscale) else 1.
+    elif not self._tran.ret_callable() or self._tran.ret_isscipy():
+      return cond
     else:
       cond = self._tran(values) if self._sym_tran else \
              self._tran[int(reverse)](values)

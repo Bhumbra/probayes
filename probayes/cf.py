@@ -10,11 +10,11 @@ from probayes.func import Func
 def _to_rf(obj=None):
   """ Converts obj (which may be an RV/RF) or list/tuple of such to an RF """
   from probayes.rf import RF
-  from probayes.sd import SD
   if obj is None:
     return obj
   if isinstance(obj, RF):
-    assert not isinstance(obj, SD), "SDs not supoorted for CFs"
+    assert not obj.ret_stems() and not obj.ret_roots(), \
+        "RFs must be rootless and stemless"
     return obj
   elif isinstance(obj, RV):
     return RF(obj)
@@ -24,7 +24,8 @@ def _to_rf(obj=None):
       if isinstance(subobj, RV):
         rvs += [subobj]
       elif isinstance(subobj, RF):
-        assert not isinstance(subobj, SD), "SDs not supoorted for CFs"
+        assert not obj.ret_stems() and not obj.ret_roots(), \
+            "RFs must be rootless and stemless"
         rvs += subobj.ret_rvs(aslist=True)
       else:
         raise TypeError("Unexpected type: {}".format(type(subobj)))
@@ -73,10 +74,13 @@ class CF (Func):
   def set_inp(self, inp=None):
     """ Sets the output and input random fields out and inp, each of which may 
     be an RF an RV or tuple or RFs and RVs but not an SD. Optionally inp may
-    be an OrderedDict with RV names in the form:
+    be an OrderedDict with RV names in the form (only keys are checked):
     {'x_0,x_1': 'x_2,x_3,x_4', 'x_2': 'x_0', 'x_3,x_4': 'x_0,x_1,x_2'}. 
     """
-    self.__inpdict = isinstance(inp, dict)
+    self.__inpdict = isinstance(inp, (tuple, list, dict))
+    if self.__inpdict:
+      if isinstance(inp, (tuple, list)):
+        inp = {key: '' for key in inp}
     self.__unknown = None
 
     # Handle inp is a random field first

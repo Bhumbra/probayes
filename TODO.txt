@@ -1,5 +1,4 @@
-Improve RV handling for leaf and root RFs.
-Support naive Bayes.
-Support single, multiple, and block conditional sampling from cdep
-Introduce DAG-based Gibbs sampling support
+Support explicit Gibbs
+Support single, multiple, and block conditional sampling from CF
+Support explicit Naive Bayes.
 Introduce mean-field variational inference support

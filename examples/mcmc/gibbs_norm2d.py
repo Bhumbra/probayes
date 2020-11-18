@@ -14,12 +14,6 @@ n_steps = 2000
 means = [0.5, -0.5]
 covar = [[1.5, -1.0], [-1.0, 2.]]
 
-def q(**kwds):
-  x, xprime = kwds['x'], kwds["x'"]
-  y, yprime = kwds['y'], kwds["y'"]
-  return scipy.stats.norm.pdf(yprime, loc=y, scale=prop_stdv) * \
-         scipy.stats.norm.pdf(xprime, loc=x, scale=prop_stdv)
-
 x = pb.RV('x', lims, vtype=float)
 y = pb.RV('y', lims, vtype=float)
 process = pb.SP(x*y)

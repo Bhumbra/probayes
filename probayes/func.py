@@ -241,6 +241,12 @@ class Func:
     (see __call__ and __getitem__).
     """
 
+    """
+    # For debugging:
+    argsin = args
+    kwdsin = kwds
+    """
+
     # Handle scipy objects separately
     if self.__isscipy:
       return self._call_scipy(*args, **kwds)
@@ -264,6 +270,14 @@ class Func:
     if self._kwds:
       kwds = {**kwds, **self._kwds}
     if not self.__order and not self.__delta:
+
+      """
+      # For debugging:
+      argsout = args
+      kwdsout = kwds
+      import pdb; pdb.set_trace()
+      """
+
       return func(*args, **kwds)
 
     # Append None to args according to mapping index specification

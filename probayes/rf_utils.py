@@ -48,19 +48,23 @@ def call_scipy_prob(func, pscale, *args, **kwds):
   return func[index](*args, **kwds)
 
 #-------------------------------------------------------------------------------
-def sample_cond_cov(*args, cond_cov=None, **kwds):
+def sample_cond_cov(*args, cond_cov=None, unknown=None, **kwds):
+    arg = args[0]
     kwds = dict(kwds)
     cond_pdf = False if 'cond_pdf' not in kwds else kwds.pop('cond_pdf')
     assert cond_cov, "coveig object mandatory"
     if len(args) == 1 and isinstance(args[0], dict):
-      vals = args[0]
-      idx = {key: i for i, key in enumerate(vals.keys())}
-      args = [np.array(val) for val in vals.values()]
+      vals = dict(args[0])
+      if unknown is not None:
+        vals[unknown] = None
+      args = [np.array(val) if val is not None else {0} \
+              for val in vals.values()]
     elif not len(args) and len(kwds):
       vals = dict(kwds)
-      idx = {key: i for i, key in enumerate(vals.keys())}
+      if unknown is not None:
+        kwds[unknown] = {0}
       args = list(kwds.values())
-    return cond_cov.interp(*args, cond_pdf=cond_pdf)
+    return cond_cov.interp(*tuple(args), cond_pdf=cond_pdf)
 
 #-------------------------------------------------------------------------------
 def slice_by_keyvals(spec, vals, prob, vals_dims=None, spec_dims=None):
