@@ -14,19 +14,12 @@ n_steps = 2000
 means = [0.5, -0.5]
 covar = [[1.5, -1.0], [-1.0, 2.]]
 
-def q(**kwds):
-  x, xprime = kwds['x'], kwds["x'"]
-  y, yprime = kwds['y'], kwds["y'"]
-  return scipy.stats.norm.pdf(yprime, loc=y, scale=prop_stdv) * \
-         scipy.stats.norm.pdf(xprime, loc=x, scale=prop_stdv)
-
 x = pb.RV('x', lims, vtype=float)
 y = pb.RV('y', lims, vtype=float)
 process = pb.SP(x*y)
 process.set_prob(scipy.stats.multivariate_normal, means, covar)
-process.set_tran(scipy.stats.multivariate_normal, means, covar)
+process.set_tran(scipy.stats.multivariate_normal, means, covar, tsteps=1)
 process.set_scores('gibbs')
-process.set_t1vt(True) # Optionally set transitional cond. one var at a time
 sampler = process.sampler({'x': 0., 'y': 1.}, stop=n_steps)
 samples = [sample for sample in sampler]
 summary = process(samples)

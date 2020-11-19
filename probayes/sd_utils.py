@@ -1,6 +1,7 @@
 # Utility module for SD objects
 
 import collections
+from probayes.pscales import iscomplex, prod_rule, prod_pscale
 
 #-------------------------------------------------------------------------------
 def desuffix(values, suffix="'"):
@@ -29,4 +30,3 @@ def get_suffixed(values, unsuffix=True, suffix="'"):
   return vals
 
 #-------------------------------------------------------------------------------
-
