@@ -107,11 +107,11 @@ class CF (Func):
             assert val_key not in inp_keys, \
                 "Circular key reference {}:{}".format(key, val)
           assert val_key in rv_keys, \
-              "Key {} not recognised in RF {}".format(val_key, RF)
+              "Key {} not recognised in RF {}".format(val_key, self._out)
         all_inp_keys += inp_keys
       assert set(rv_keys) == set(all_inp_keys), \
           "Conditional function {} specification incommensurate with RF {}".\
-          format(inp, out)
+          format(inp, self._out)
       self._inp = inp
     prime_keys = ["{}'".format(rv_key) for rv_key in rv_keys]
     self._name = '|'.join([','.join(prime_keys), ','.join(rv_keys)])

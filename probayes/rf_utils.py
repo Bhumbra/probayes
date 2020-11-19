@@ -89,7 +89,7 @@ def slice_by_keyvals(spec, vals, prob, vals_dims=None, spec_dims=None):
   def dims_from_vals(vals_dict):
     if not isinstance(vals_dict, dict):
       raise TypeError("Dictionary type expected")
-    dims = collection.OrderedDict()
+    dims = collections.OrderedDict()
     run_dim = 0
     for key, val in vals_dict.items():
       if isscalar(val):
