@@ -1,4 +1,3 @@
-Support explicit Gibbs
 Support single, multiple, and block conditional sampling from CF
 Support explicit Naive Bayes.
 Introduce mean-field variational inference support

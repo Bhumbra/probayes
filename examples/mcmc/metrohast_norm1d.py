@@ -19,7 +19,7 @@ mu_lims = (40, 60)
 sigma_lims = (5, 20.)
 
 # SIMULATE DATA
-data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
+x_obs = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 
 # SET UP MODEL AND SAMPLER
 mu = pb.RV('mu', mu_lims, vtype=float, pscale='log')
@@ -39,25 +39,24 @@ process.set_delta(paras)
 process.set_scores('hastings')
 process.set_update('metropolis')
 init_state = {'mu': np.mean(mu_lims), 'sigma': np.mean(sigma_lims)}
-sampler = process.sampler(init_state, {'x': data}, stop=n_steps, iid=True, joint=True)
+sampler = process.sampler(init_state, {'x': x_obs}, stop=n_steps, iid=True, joint=True)
 #samples = [sample for sample in sampler] # <- use list comprehension or process.walk
 samples = process.walk(sampler)
 summary = process(samples)
 inference = summary.v.rescaled()
 n_accept = summary.u.count(True)
-mu, sigma, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
-hat_mu = np.median(mu)
-hat_sigma = np.median(sigma)
+mus, sigmas, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
+hat_mu = np.median(mus)
+hat_sigma = np.median(sigmas)
 hat_mu_str = '{:.2f}'.format(hat_mu)
 hat_sigma_str = '{:.2f}'.format(hat_sigma)
-
 
 # PLOT DATA
 figure()
 c_norm = Normalize(vmin=np.min(post), vmax=np.max(post))
 c_map = cm.jet(c_norm(post))
-plot(mu, sigma, '-', color=(0.7, 0.7, 0.7, 0.3))
-scatter(mu, sigma, color=c_map, marker='.', alpha=1.)
+plot(mus, sigmas, '-', color=(0.7, 0.7, 0.7, 0.3))
+scatter(mus, sigmas, color=c_map, marker='.', alpha=1.)
 xlabel(r'$\mu$')
 ylabel(r'$\sigma$')
 title(r'$\hat{\mu}=' + hat_mu_str + r',\hat{\sigma}=' + hat_sigma_str + r'$')

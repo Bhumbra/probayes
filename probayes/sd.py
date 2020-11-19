@@ -373,7 +373,9 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def set_tfun(self, tfun=None, *args, **kwds):
     _tfun = self.ret_leafs_roots(tfun)
     if not _tfun:
+      self._tran_obj = self
       return super().set_tfun(tfun, *args, **kwds)
+    self._tran_obj = _tfun
     self.set_prop_obj(_tfun)
     self._tfun = _tfun._tfun
     return self._tfun
@@ -519,7 +521,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
       return dist
     vals = dist.ret_cond_vals()
     cond_dist = self._roots(vals)
-    return product(cond_dist, dist)
+    joint_dist = product(cond_dist, dist)
+    return joint_dist
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
@@ -585,7 +588,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     if not args:
       args = {0},
     assert len(args) < 3, "Maximum of two positional arguments"
-    if self._tran is None and not self._unit_tran:
+    if self._tran is None and self._tfun is None and not self._unit_tran:
       if self._prop is None:
         assert not isinstance(args[0], self.opqr),\
             "Cannot input opqr object with neither set_prob() nor set_tran() set"

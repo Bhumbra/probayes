@@ -263,8 +263,8 @@ class Func:
       return func
 
     # Callables order-free
-    if not kwds and len(args) == 1 and isinstance(args[0], dict):
-      args, kwds = (), dict(args[0])
+    if len(args) == 1 and isinstance(args[0], dict):
+      args, kwds = (), {**kwds, **dict(args[0])}
     if self._args:
       args = tuple(list(self._args) + list(args))
     if self._kwds:

@@ -414,6 +414,8 @@ class RF (NX_UNDIRECTED_GRAPH):
     self._tfun = tfun 
     if self._tfun is None:
       return
+    if 'tsteps' in kwds:
+      self._tsteps = kwds.pop('tsteps')
 
     # Pass CF objects directly
     if isinstance(tfun, CF):
@@ -1001,7 +1003,8 @@ class RF (NX_UNDIRECTED_GRAPH):
     name = margcond_str(marg, cond)
     vals = dist.vals
     dims = dist.dims
-    prob = dist.prob if self._sym_tran else self._tran[1](dist.vals)
+    prob = dist.prob if self._sym_tran or self._tran is None \
+           else self._tran[1](dist.vals)
     pscale = dist.ret_pscale()
     return Dist(name, vals, dims, prob, pscale)
 

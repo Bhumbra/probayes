@@ -113,15 +113,13 @@ class SP (SD):
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
-    if not len(args) or len(kwds) or \
-        not isinstance(args[0], (list, tuple, collections.deque)):
-      return super().__call__(*args, **kwds)
-    samples = args[0]
-    if not len(samples):
-      return super().__call__(*args, **kwds)
+    conditionalise = None if 'conditionalise' not in kwds else \
+                     kwds.pop('conditionalise')
 
     # Summating distributions is straightforward
-    if isinstance(samples[0], Dist):
+    samples = None if not len(args) else args[0]
+    if samples and isinstance(samples, (list, tuple, collections.deque)) \
+        and len(samples) and isinstance(samples[0], Dist):
       samples = list(samples)
       for sample in samples[1:]:
         assert isinstance(sample, Dist),\
@@ -129,8 +127,19 @@ class SP (SD):
             format(type(sample))
       if isinstance(samples, (list, collections.deque)):
         samples = tuple(samples)
-      return summate(*samples)
+      dist = summate(*samples)
+      if not conditionalise:
+        return dist
+      return dist.conditionalise(self._leafs.ret_keys())
 
+    # If empty call or dictionary arguments, pass to SD
+    if not samples or len(kwds) or \
+        not isinstance(samples, (list, tuple, collections.deque)):
+      return super().__call__(*args, **kwds)
+    if not len(samples):
+      return super().__call__(*args, **kwds)
+
+    # Otherwise this call is SP-specific
     opqrstuv = collections.OrderedDict({key: None for key in \
         ['o', 'p', 'q', 'r', 's', 't', 'u', 'v']})
 
@@ -168,6 +177,8 @@ class SP (SD):
     for key in ['o', 'p', 'q', 'r', 'v']:
       if opqrstuv[key] is not None:
         opqrstuv[key] = summate(*tuple(opqrstuv[key]))
+        if conditionalise and key in ['o', 'p', 'v']:
+          opqrstuv[key] = opqrstuv[key].conditionalise(self._leafs.ret_keys())
     return self.opqrstuv(**opqrstuv)
 
 #-------------------------------------------------------------------------------
@@ -197,17 +208,19 @@ class SP (SD):
     sampler = self.ret_sampler(sampler_id)
     self.__counter[sampler] += 1
     last = self.__last[sampler]
+    no_proposal = self._tran is None and self._tfun is None and \
+                  not self._unit_tran and self._prop is None
 
     # Treat sampling without proposals as a distribution call
-    if last is None or \
-        (self._tran is None and not self._unit_tran and self._prop is None):
+    if last is None or no_proposal:
       opqr = self.sample(*args, **kwds)
-      if self._tran is None and not self._unit_tran and self._prop is None:
+      if no_proposal:
         return opqr
 
     # Otherwise refeed last proposals into sample function
     else:
-      if self._tran is None and not self._unit_tran and self._delta is None:
+      if self._tran is None and self._tfun is None and not self._unit_tran and \
+          self._delta is None:
         last = {0}
       if len(args) < 2:
         opqr = self.sample(last, **kwds)
