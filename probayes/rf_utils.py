@@ -49,7 +49,6 @@ def call_scipy_prob(func, pscale, *args, **kwds):
 
 #-------------------------------------------------------------------------------
 def sample_cond_cov(*args, cond_cov=None, unknown=None, **kwds):
-    arg = args[0]
     kwds = dict(kwds)
     cond_pdf = False if 'cond_pdf' not in kwds else kwds.pop('cond_pdf')
     assert cond_cov, "coveig object mandatory"
