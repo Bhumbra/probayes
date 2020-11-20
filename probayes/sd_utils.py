@@ -30,3 +30,23 @@ def get_suffixed(values, unsuffix=True, suffix="'"):
   return vals
 
 #-------------------------------------------------------------------------------
+def arch_prob(arch, dims, **kwds):
+  """ Returns the combined probability of for arch given values """
+ 
+  values = dict(kwds)
+  dimkeys = list(dims.keys())
+  assert isinstance(arch, (tuple, list)), "Archictecture must be tuple or list"
+  serial = isinstance(arch, list)
+  probs = [None] * len(arch)
+  for i, subarch in enumerate(arch):
+    keyset = subarch.ret_keys()
+    vals = {key: values[key] for key in dimkeys if key in keyset}
+    subdims = {key: dims[key] for key in dimkeys if key in keyset}
+    probs[i] = subarch.eval_prob(vals, subdims)
+  if serial:
+    return probs[-1]
+  pscales = [subarch.ret_pscale() for subarch in arch]
+  prob, pscale = prod_rule(*tuple(probs), pscales=pscales)
+  return prob
+
+#-------------------------------------------------------------------------------

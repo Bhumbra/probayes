@@ -34,6 +34,3 @@ zxy = pb.SD(zx, zy)
 p_zxy = zxy()
 p_zxy_false = zxy({'x': False, 'y': False})
 p_zxy_true = zxy({'x': True, 'y': True})
-
-xy = x / y
-xyz = pb.SD(zx, xy)

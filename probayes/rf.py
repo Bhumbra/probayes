@@ -68,6 +68,7 @@ class RF (NX_UNDIRECTED_GRAPH):
   _stems = None      # OrderedDict of latent RVs (for SD)
 
   # Private
+  __passdims = None  # Flag to pass dimensions to probability function
   __isscalar = None  # isscalar(_prob)
   __callable = None  # callable(_prob)
   __cond_mod = None  # conditional RV index modulus
@@ -472,6 +473,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     rvs_data = collections.OrderedDict(self.nodes.data())
     for key, val in rvs_data.items():
       if 'rv' not in val: # quick debug check
+        print("Debugging: rv not found in RV vertex {}:{}".format(key, val))
         import pdb; pdb.set_trace()
     rvs = collections.OrderedDict({key:val['rv'] 
                                        for key,val in rvs_data.items()})
@@ -612,7 +614,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     Keep args and kwds since could be called externally. This ignores self._prob.
     """
     values = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
-    dims = {}
+    dims = collections.OrderedDict()
     
     # Don't reshape if all scalars (and therefore by definition no shared keys)
     if all([np.isscalar(value) for value in values.values()]): # use np.scalar
@@ -1152,6 +1154,11 @@ class RF (NX_UNDIRECTED_GRAPH):
   def ret_prob(self):
     """ Returns object set by set_prob() """
     return self._prob
+
+#-------------------------------------------------------------------------------
+  def ret_passdims(self):
+    """ Returns passdims flag set by set_prob() """
+    return self.__passdims
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, key):

@@ -83,11 +83,17 @@ def bool_perm_freq(bool_2d, col_labels=None):
     vals.update({lbl: np.array([False, True]).reshape(reshape)})
   rel_freq = counts / rows
 
-  def _func_bool_perm_freq(spec, **kwds):
+  def _func_bool_perm_freq(spec=None, **kwds):
     assert 'dims' in kwds, \
         "Output dimensionality not given - " + \
         "use SD.set_prob(function, passdims=True)"
-    spec_dims = kwds['dims']
+    kwds = dict(kwds)
+    spec_dims = kwds.pop('dims')
+    if spec is None:
+      spec = kwds
+    else:
+      assert not kwds, \
+          "Unknown keywords: {}".format(kwds)
     return slice_by_keyvals(spec, vals, rel_freq, dims, spec_dims)
   
   return _func_bool_perm_freq, rel_freq
