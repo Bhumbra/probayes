@@ -43,13 +43,15 @@ def bin_to_int(arr, _multiple=None):
   return arr.dot(_multiple)
 
 #-------------------------------------------------------------------------------
-def bool_perm_freq(bool_2d, col_labels=None):
+def bool_perm_freq(bool_2d, col_labels=None, base_freq=0):
   """ Returns a multidimensional array of counts of boolean permutations 
   contained in rows of bool_2d.
 
   :param bool_2d: a rXc 2D NumPy bool array with r examples of boolean
                   permutations of length c.
   :param col_labels: an optional list/tuple of keys for the labels.
+  :param base_freq: baseline frequency to add to counts
+                    (set to one for unit Laplacian smoothing).
 
   :return: counts or a tuple of (function, relative counts) if labels are given:
 
@@ -81,6 +83,8 @@ def bool_perm_freq(bool_2d, col_labels=None):
     reshape[dim] = 2
     dims.update({lbl: dim})
     vals.update({lbl: np.array([False, True]).reshape(reshape)})
+  if base_freq:
+    base_freq += counts
   rel_freq = counts / rows
 
   def _func_bool_perm_freq(spec=None, **kwds):
