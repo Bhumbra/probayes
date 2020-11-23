@@ -437,7 +437,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def eval_deps(self, *args, _skip_parsing=False, **kwds):
     if self._deps is None:
       return None
-    vals = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
+    run_vals = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
     for key, val in self._deps.items():
       output = val(vals)
       evals, dims, prob = None, None, None

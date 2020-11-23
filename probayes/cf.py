@@ -36,7 +36,6 @@ def _to_rf(obj=None):
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
-
 class CF (Func):
   '''A conditional function is a functional wrapper that describes the 
   dependence of an about output RF with respect to an input RF or the
