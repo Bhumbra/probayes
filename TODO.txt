@@ -1,2 +1,3 @@
+Support SAS
 Support explicit Naive Bayes.
 Introduce mean-field variational inference support
