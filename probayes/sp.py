@@ -37,8 +37,8 @@ class SP (SD):
     self.reset()
 
 #-------------------------------------------------------------------------------
-  def _refresh(self):
-    super()._refresh()
+  def _refresh(self, *args, **kwds):
+    super()._refresh(*args, **kwds)
     if not self._nrvs:
       return
     self.stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
