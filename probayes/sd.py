@@ -103,7 +103,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
           NX_DIRECTED_GRAPH.add_edge(self, roots_key, leafs_key)
       if len(rfs) == 2:
         return self._refresh(rfs[0], rfs[1])
-      return self._refresh(RF(leaf_rvs), rfs[-1])
+      return self._refresh(RF(*tuple(leafs_rvs)), rfs[-1])
 
     assert all(arg_issd), "Cannot mix SD with other input types"
 
