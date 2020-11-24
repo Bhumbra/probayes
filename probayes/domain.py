@@ -1,12 +1,13 @@
 """
-A domain defines a variable set over which a function can be defined. It thus
-comprises a name and variable set. The function itself is not supported although
-invertible variable transformations are.
+A domain defines a variable with a defined set over which a function is valid. 
+It thus comprises a name, variable type, and variable set. The function 
+itself is not supported although invertible variable transformations are.
 """
 
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
+from probayes.variable import Variable, DEFAULT_VNAME
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES
 from probayes.func import Func
@@ -15,13 +16,14 @@ from probayes.func import Func
 DEFAULT_VSET = {False, True}
 
 #-------------------------------------------------------------------------------
-class Domain:
+class Domain (Variable):
   """ Base class for probayes.RV although this class can be called itself.
-  A domain defines a variable set over which a function can be defined. It
-  therefore needs a name and corresponding variable. While this class
-  does not support respective probability density functions (use RV for that), 
-  it does include an optional to specify an invertible monotic variable 
-  transformation function:
+  A domain defines a variable with a defined set over which a function can be 
+  defined. It therefore needs a name, variable type, and variable set. 
+  
+  While this class xdoes not support respective probability density functions 
+  (use RV for that), it does include an optional to specify an invertible 
+  monotonic variable transformation function:
 
   :example:
   >>> import numpy as np
@@ -36,9 +38,7 @@ class Domain:
   delta = None       # A named tuple generator
                     
   # Protected       
-  _name = "var"      # Name of the variable
   _vset = None       # Variable set (array or 2-length tuple range)
-  _vtype = None      # Variable type
   _mfun = None       # 2-length tuple of monotonic mutually inverting functions
   _lims = None       # Numpy array of bounds of vset
   _limits = None     # Transformed self._lims
@@ -49,10 +49,17 @@ class Domain:
   _delta_kwds = None # Optional delta keywords 
 
 #-------------------------------------------------------------------------------
+  def __new__(cls, name=None,
+                   vset=None, 
+                   vtype=None,
+                   *args,
+                   **kwds):
+    return super(Domain, cls).__new__(cls, name, vtype, *args, **kwds)
+
+#-------------------------------------------------------------------------------
   def __init__(self, name=None,
                      vset=None, 
                      vtype=None,
-                     mfun=None,
                      *args,
                      **kwds):
     """ Initialiser sets name, vset, and mfun:
@@ -60,9 +67,8 @@ class Domain:
     :param name: Name of the domain - string as valid identifier.
     :param vset: variable set over which domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
-    :param mfun: two-length tuple of monotonic functions (see set_mfun).
-    :param *args: args to pass to mfun functions.
-    :param **kwds: kwds to pass to mfun functions.
+    :param *args: optional arguments to pass onto symbol representation.
+    :param *kwds: optional keywords to pass onto symbol representation.
 
     Every Domain instance offers a factory function for delta specifications:
 
@@ -74,26 +80,22 @@ class Domain:
     >>> print(x.apply_delta(1.5, dx))
     2.0
     """
-    self.set_name(name)
+    Variable.__init__(self, name, vtype, *args, **kwds)
     self.set_vset(vset, vtype)
-    self.set_mfun(mfun, *args, **kwds)
     self.set_delta()
 
 #-------------------------------------------------------------------------------
-  def set_name(self, name):
-    """ Sets name of variable over which domain is defined:
+  @property
+  def name(self):
+    return self._name
 
-    :param name: Name of the domain - string as valid identifier.
-    """
-    # Identifier name required
+  @name.setter
+  def name(self, name=DEFAULT_VNAME):
     self._name = name
-    assert isinstance(self._name, str), \
-        "Mandatory variable name must be a string: {}".format(self._name)
-    assert self._name.isidentifier(), \
-        "Variable name must ba a valid identifier: {}".format(self._name)
     self.delta = collections.namedtuple('ð', [self._name])
 
 #-------------------------------------------------------------------------------
+  # We don't set the next as a property because vset and vtype are set together
   def set_vset(self, vset=None, vtype=None):
     """ Sets the variable set and variable type over which the domain is defined.
 

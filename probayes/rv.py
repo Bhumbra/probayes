@@ -5,7 +5,7 @@ import collections
 import warnings
 import numpy as np
 import scipy.stats
-from probayes.domain import Domain
+from probayes.domain import Domain, DEFAULT_VNAME
 from probayes.prob import Prob, is_scipy_stats_cont
 from probayes.dist import Dist
 from probayes.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
@@ -53,8 +53,6 @@ class RV (Domain, Prob):
   def __init__(self, name, 
                      vset=None, 
                      vtype=None,
-                     prob=None,
-                     pscale=None,
                      *args,
                      **kwds):
     """ Initialises a random variable combining Domain and Prob initialisation
@@ -63,25 +61,22 @@ class RV (Domain, Prob):
     :param name: Name of the domain - string as valid identifier.
     :param vset: variable set over which domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
-    :param prob: may be a scalar, array, or callable function.
-    :param pscale: represents the scale used to represent probabilities.
-    :param *args: optional arguments to pass if prob is callable.
-    :param **kwds: optional keywords to pass if prob is callable.
+    :param *args: optional arguments to pass onto symbol representation.
+    :param *kwds: optional keywords to pass onto symbol representation.
     """
 
-    self.set_name(name)
-    self.set_vset(vset, vtype)
-    self.set_prob(prob, pscale, *args, **kwds)
-    self.set_mfun()
-    self.set_delta()
+    Domain.__init__(self, name, vset, vtype, *args, **kwds)
+    self.set_prob()
 
 #-------------------------------------------------------------------------------
-  def set_name(self, name):
-    """ Sets name of variable over which domain is defined:
+  @property
+  def name(self):
+    return self._name
 
-    :param name: Name of the domain - string as valid identifier.
-    """
-    super().set_name(name)
+  @name.setter
+  def name(self, name=DEFAULT_VNAME):
+    self._name = name
+    self.delta = collections.namedtuple('ð', [self._name])
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
@@ -488,7 +483,7 @@ class RV (Domain, Prob):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     """ Print representation of RV name """
-    return super().__repr__() + ": '" + self._name + "'"
+    return object.__repr__(self) + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
   def __mul__(self, other):

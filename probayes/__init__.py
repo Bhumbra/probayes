@@ -1,4 +1,5 @@
 __version__ = '0.0.3.X'
+from probayes.variable import Variable
 from probayes.domain import Domain
 from probayes.prob import Prob
 from probayes.rv import RV
