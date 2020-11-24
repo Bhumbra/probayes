@@ -13,13 +13,13 @@ class Expression (SYMPY_EXPR):
 
   :example:
   >>> from probayes.expr import Expr
-  >>> hw = Expr("Hello world!")
+  >>> hw = Expression("Hello world!")
   >>> print(hw())
   Hello World!
-  >>> inc = Expr(lambda x: x+1)
+  >>> inc = Expression(lambda x: x+1)
   >>> print(inc(2.)
   3.0
-  >>> inc_dec = Expr( (lambda x:x+1, lambda x:x-1) )
+  >>> inc_dec = Expression( (lambda x:x+1, lambda x:x-1) )
   >>> print(inc_dec[0](3.))
   4.0
   >>> print(inc_dec[1](3.))
@@ -203,7 +203,7 @@ class Expression (SYMPY_EXPR):
     # Non-callables
     if not self.__callable:
       assert not args and not kwds, "No optional args with uncallable function"
-      return func
+      return expr 
 
     # Callables order-free
     if len(args) == 1 and isinstance(args[0], dict):
