@@ -9,7 +9,7 @@ x = pb.RV('x', set_lims, vtype=float)
 y = pb.RV('y', set_lims, vtype=float)
 z = pb.RV('z', set_lims, vtype=float)
 
-xyz = x * y * z
+xyz = x & y & z
 cov_mat = np.array([1., .5, 0.,
                     .5, 1., .5,
                     0., .5, 1.]).reshape([3,3])

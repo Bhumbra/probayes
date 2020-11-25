@@ -2,7 +2,7 @@
 import probayes as pb
 h0 = pb.RV('c0', prob=0.7)
 h1 = pb.RV('c1', prob=0.4)
-hh = h0 * h1
+hh = h0 & h1
 HH = hh()
 m0 = HH({'c0':True})
 m1 = HH({'c1':True})

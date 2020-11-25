@@ -12,7 +12,7 @@ covar = [[1.5, -1.0], [-1.0, 2.]]
 
 x = pb.RV('x', set_lims, vtype=float)
 y = pb.RV('y', set_lims, vtype=float)
-xy = x * y
+xy = x & y
 xy.set_prob(scipy.stats.multivariate_normal, means, covar)
 xy.set_tran(scipy.stats.multivariate_normal, means, covar)
 x_t = np.empty(nsteps, dtype=float)

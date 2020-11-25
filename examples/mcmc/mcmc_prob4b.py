@@ -44,7 +44,7 @@ def q(**kwds):
 
 x = pb.RV('x', (-np.inf, np.inf), vtype=float)
 y = pb.RV('y', (-np.inf, np.inf), vtype=float)
-process = pb.SP(x*y)
+process = pb.SP(x & y)
 process.set_prob(p)
 process.set_tran(q)
 lambda_delta = lambda : process.delta(x=scipy.stats.norm.rvs(loc=0., scale=prop_stdv),

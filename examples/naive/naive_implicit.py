@@ -26,8 +26,8 @@ zy_lhood, zy_rfreq = pb.bool_perm_freq(zy_obs, ['z', 'y'])
 x = pb.RV('x', vtype=bool)
 y = pb.RV('y', vtype=bool)
 z = pb.RV('z', vtype=bool)
-zx = z / x
-zy = z / y
+zx = z | x
+zy = z | y
 zx.set_prob(zx_lhood, passdims=True)
 zy.set_prob(zy_lhood, passdims=True)
 zxy = pb.SD(zx, zy)

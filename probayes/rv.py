@@ -5,7 +5,7 @@ import collections
 import warnings
 import numpy as np
 import scipy.stats
-from probayes.domain import Domain
+from probayes.variable import Variable, DEFAULT_VNAME
 from probayes.prob import Prob, is_scipy_stats_cont
 from probayes.dist import Dist
 from probayes.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
@@ -23,9 +23,9 @@ associated probability distribution function (prob).
 """
 
 #-------------------------------------------------------------------------------
-class RV (Domain, Prob):
-  """ A random variable is a domain with a defined probability function.
-  It therefore inherits from classes Domain and and Prob. Each instance therefore 
+class RV (Variable, Prob):
+  """ A random variable is a variable with a defined probability function.
+  It therefore inherits from classes Variable and and Prob. Each instance therefore 
   requires a name, a variable set, and probability function. Additionally RV
   supports transitional probabilities the cdf/icdf equivalents specified using
   RV.set_tran() and RV.set_tfun() equivalents, and accessed using RV.step().
@@ -53,35 +53,30 @@ class RV (Domain, Prob):
   def __init__(self, name, 
                      vset=None, 
                      vtype=None,
-                     prob=None,
-                     pscale=None,
                      *args,
                      **kwds):
-    """ Initialises a random variable combining Domain and Prob initialisation
+    """ Initialises a random variable combining Variable and Prob initialisation
     except invertible monotonic must be specified separately using set_mfun().
 
     :param name: Name of the domain - string as valid identifier.
     :param vset: variable set over which domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
-    :param prob: may be a scalar, array, or callable function.
-    :param pscale: represents the scale used to represent probabilities.
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
     """
 
-    self.set_name(name)
-    self.set_vset(vset, vtype)
-    self.set_prob(prob, pscale, *args, **kwds)
-    self.set_mfun()
-    self.set_delta()
+    Variable.__init__(self, name, vset, vtype)
+    self.set_prob(*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def set_name(self, name):
-    """ Sets name of variable over which domain is defined:
+  @property
+  def name(self):
+    return self._name
 
-    :param name: Name of the domain - string as valid identifier.
-    """
-    super().set_name(name)
+  @name.setter
+  def name(self, name=DEFAULT_VNAME):
+    self._name = name
+    self.delta = collections.namedtuple('ð', [self._name])
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
@@ -246,7 +241,7 @@ class RV (Domain, Prob):
     :param values: None, set of a single integer, array, or scalar.
     :param use_pfun: boolean flag to make use of pfun if previously set.
 
-    :return: a NumPy array of the values (see Domain.eval_vals()):
+    :return: a NumPy array of the values (see Variable.eval_vals()):
     """
     use_pfun = use_pfun and self._pfun is not None and isunitsetint(values)
     if not use_pfun:
@@ -488,11 +483,11 @@ class RV (Domain, Prob):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     """ Print representation of RV name """
-    return super().__repr__() + ": '" + self._name + "'"
+    return object.__repr__(self) + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
-  def __mul__(self, other):
-    """ Logical 'AND' operator between RV and another RV, RF, or SD. """
+  def __and__(self, other):
+    """ Combination operator between RV and another RV, RF, or SD. """
     from probayes.rf import RF
     from probayes.sd import SD
     if isinstance(other, SD):
@@ -516,7 +511,7 @@ class RV (Domain, Prob):
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
-  def __truediv__(self, other):
+  def __or__(self, other):
     """ Conditional operator between RV and another RV, RF, or SD. """
     from probayes.sd import SD
     return SD(self, other)

@@ -9,7 +9,7 @@ x = pb.RV('x', set_lims, vtype=float)
 y = pb.RV('y', set_lims, vtype=float)
 z = pb.RV('z', set_lims, vtype=float)
 
-xyz = x * y * z
+xyz = x & y & z
 xyz.set_delta(delta, scale=False)
 deltas = [xyz.eval_delta() for _ in range(num_deltas)]
 dxdydz = np.array([np.array(list(_delta)) for _delta in deltas])
