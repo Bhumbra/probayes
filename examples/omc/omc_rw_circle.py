@@ -18,8 +18,8 @@ xy_range = (-radius, radius)
 x = pb.RV("x", xy_range)
 y = pb.RV("y", xy_range)
 
-# DEFINE STOCHASTIC JUNCTION
-xy = x * y
+# DEFINE RANDOM FIELD
+xy = x & y
 xy.set_delta((0.15*radius,), bound=True)
 xy.set_prop(inside, order={'x': None, 'y': None, "x'": 0, "y'": 1})
 steps = [None] * n_steps

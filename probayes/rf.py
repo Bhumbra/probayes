@@ -165,7 +165,9 @@ class RF (NX_UNDIRECTED_GRAPH):
     if self._id:
       self.delta = collections.namedtuple('ð', self._keys)
       self._delta_type = self.delta
-    self.set_pscale()
+    rvs = self.ret_rvs()
+    pscale = prod_pscale([rv.ret_pscale() for rv in rvs])
+    self.set_pscale(pscale)
     self.eval_length()
 
 #-------------------------------------------------------------------------------
@@ -1176,7 +1178,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     return super().__repr__() + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
-  def __mul__(self, other):
+  def __and__(self, other):
     from probayes.rv import RV
     from probayes.sd import SD
     if isinstance(other, SD):
@@ -1201,7 +1203,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
-  def __truediv__(self, other):
+  def __or__(self, other):
     """ Conditional operator between RF and another RV, RF, or SD. """
     from probayes.sd import SD
     return SD(self, other)

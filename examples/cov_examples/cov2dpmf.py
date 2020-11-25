@@ -12,7 +12,7 @@ means = [0.5, -0.5]
 covar = [[1.5, -1.0], [-1.0, 2.]]
 x = pb.RV("x", set_lims, pscale='log')
 y = pb.RV("y", set_lims, pscale='log')
-xy = x * y
+xy = x & y
 xy.set_prob(scipy.stats.multivariate_normal, means, covar)
 pxy = xy({'x': set_size_0, 'y': set_size_1})
 p_xy = pxy.rescaled()

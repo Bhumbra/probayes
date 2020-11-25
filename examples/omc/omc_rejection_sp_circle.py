@@ -24,7 +24,7 @@ x = pb.RV("x", xy_range)
 y = pb.RV("y", xy_range)
 
 # DEFINE STOCHASTIC PROCESS
-xy = x * y
+xy = x & y
 process = pb.SP(xy)
 process.set_prob(inside)
 

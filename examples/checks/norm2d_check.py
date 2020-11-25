@@ -14,7 +14,7 @@ rv_1 = pb.RV("norm_1", set_lims, prob=scipy.stats.norm,
                pscale='log', loc=0, scale=1)
 l_0 = rv_0(set_size_0)
 l_1 = rv_1(set_size_1)
-l_01 = l_0 * l_1
+l_01 = l_0 & l_1
 p_01 = l_01.rescaled()
 pmf = p_01.prob[:-1, :-1]
 figure()

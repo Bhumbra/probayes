@@ -25,8 +25,8 @@ sym_given_dis.set_prob(np.array([1-sym_if_undis, 1-sym_if_dis, \
 # APPLY BAYES' RULE
 p_dis = dis()
 p_sym_given_dis = sym_given_dis()
-p_dis_and_sym = p_dis * p_sym_given_dis
+p_dis_and_sym = p_dis & p_sym_given_dis
 p_sym = p_dis_and_sym.marginal('sym')
-p_dis_given_sym = p_dis_and_sym / p_sym
+p_dis_given_sym = p_dis_and_sym | p_sym
 inference = p_dis_given_sym({'dis': True, 'sym': True})
 print(inference)

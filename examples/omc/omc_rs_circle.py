@@ -19,8 +19,8 @@ y = pb.RV("y", xy_range)
 o = pb.RV("o")
 
 # DEFINE STOCHASTIC CONDITION
-xy = x * y
-oxy = o / xy
+xy = x & y
+oxy = o | xy
 oxy.set_prob(inside)
 
 # CALL PROBABILITIES AND EVALUATE EXPECTATION AND AREA

@@ -620,7 +620,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return self.opqr(orig, prob, prop, revp)
 
 #-------------------------------------------------------------------------------
-  def __mul__(self, other):
+  def __and__(self, other):
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
     if isinstance(other, SD):
@@ -639,7 +639,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
-  def __truediv__(self, other):
+  def __or__(self, other):
     marg = self.ret_marg().ret_rvs()
     cond = self.ret_cond().ret_rvs()
     if isinstance(other, SD):

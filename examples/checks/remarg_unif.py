@@ -12,7 +12,7 @@ num_resamples = 50
 
 x = pb.RV('x', [0, 1], vtype=float)
 y = pb.RV('y', [0, 1], vtype=float)
-xy = x * y
+xy = x & y
 p_xy = xy({num_samples})
 
 xpy = np.linspace(-0.001, 2.001, num_resamples)

@@ -54,7 +54,7 @@ def r(**kwds):
 
 x = pb.RV('x', (-np.inf, np.inf), vtype=float)
 y = pb.RV('y', (-np.inf, np.inf), vtype=float)
-process = pb.SP(x*y)
+process = pb.SP(x & y)
 process.set_prob(scipy.stats.multivariate_normal, [0., 0.],
                  [[2.0, 1.2], [1.2, 2.0]])
 process.set_tran((q, r))

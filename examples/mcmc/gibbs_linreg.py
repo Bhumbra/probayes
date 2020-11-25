@@ -66,8 +66,8 @@ def cond_reg(x, y, beta_0, beta_1, y_sigma, unknown,
   raise ValueError("Unknown unknown: {}".format(unknown))
 
 # Setup up RFs and SP
-stats = x * y
-paras = beta_0 * beta_1 * y_sigma
+stats = x & y
+paras = beta_0 & beta_1 & y_sigma
 paras.set_tfun(cond_reg, tsteps=1, x=x_obs, y=y_obs)
 process = pb.SP(stats, paras)
 process.set_tfun(paras)

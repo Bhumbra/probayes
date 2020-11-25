@@ -24,7 +24,7 @@ x = pb.RV("x", xy_range)
 y = pb.RV("y", xy_range)
 
 # DEFINE STOCHASTIC CONDITION
-xy = x * y
+xy = x & y
 xy.set_prob(inside)
 
 # DEFINE PROPOSAL DENSITY AND COEFFICIENT VARIABLE

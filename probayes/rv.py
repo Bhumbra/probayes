@@ -61,12 +61,12 @@ class RV (Variable, Prob):
     :param name: Name of the domain - string as valid identifier.
     :param vset: variable set over which domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
-    :param *args: optional arguments to pass onto symbol representation.
-    :param *kwds: optional keywords to pass onto symbol representation.
+    :param *args: optional arguments to pass if prob is callable.
+    :param **kwds: optional keywords to pass if prob is callable.
     """
 
-    Variable.__init__(self, name, vset, vtype, *args, **kwds)
-    self.set_prob()
+    Variable.__init__(self, name, vset, vtype)
+    self.set_prob(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   @property
@@ -486,8 +486,8 @@ class RV (Variable, Prob):
     return object.__repr__(self) + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
-  def __mul__(self, other):
-    """ Logical 'AND' operator between RV and another RV, RF, or SD. """
+  def __and__(self, other):
+    """ Combination operator between RV and another RV, RF, or SD. """
     from probayes.rf import RF
     from probayes.sd import SD
     if isinstance(other, SD):
@@ -511,7 +511,7 @@ class RV (Variable, Prob):
     raise TypeError("Unrecognised post-operand type {}".format(type(other)))
 
 #-------------------------------------------------------------------------------
-  def __truediv__(self, other):
+  def __or__(self, other):
     """ Conditional operator between RV and another RV, RF, or SD. """
     from probayes.sd import SD
     return SD(self, other)
