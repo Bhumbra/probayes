@@ -1,3 +1,6 @@
-Support SAS
+Support Variable monotonic functions using Expression.
+Support Domains of Variables sharing Expressions collected as Functionals.
+Support Dependences between Domains with respect to Functionals.
 Support explicit Naive Bayes.
 Introduce mean-field variational inference support
+Support SAS derivate structures.
