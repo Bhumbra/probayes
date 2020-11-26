@@ -3,7 +3,7 @@
 #-------------------------------------------------------------------------------
 import numpy as np
 import scipy.stats
-import probayes as pb
+from probayes import Expression
 import pytest
 
 #-------------------------------------------------------------------------------
@@ -16,7 +16,7 @@ SCIPY_TESTS = [
 @pytest.mark.parametrize("dist, values, kwds", SCIPY_TESTS)
 def test_scipy(dist, values, kwds):
   print("Testing distribution {}".format(dist))
-  expr = pb.Expression(dist, **kwds)
+  expr = Expression(dist, **kwds)
   prob = expr['prob'](values)
   logp = expr['logp'](values)
   assert np.allclose(prob, np.exp(logp)), \
