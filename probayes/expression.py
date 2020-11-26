@@ -1,6 +1,6 @@
 '''
 A wrapper for expression functions that makes optional use of 'order' and 'delta' 
-specifications.
+specifications. Multiple outputs are supported for non-symbolic outputs
 '''
 import collections
 import functools
@@ -32,6 +32,9 @@ class Expression (SYMPY_EXPR):
   9.0
   >>> print(sqr_sqrt['sqrt'](4.))
   2.0
+
+  Since multiple expressions are supported, the symbolic value of Expression
+  is not related to the input.
   """
 
   # Protected
@@ -87,18 +90,21 @@ class Expression (SYMPY_EXPR):
     # Sanity check func
     if self._expr is None:
       assert not args and not kwds, "No optional args without a function"
+    self.__issympy = issymbol(self._expr)
     self.__ismulti = isinstance(self._expr, (dict, tuple))
     if is_scipy_stats_dist(self._expr):
       self.__scipyobj = self._expr
       self.__ismulti = True
       self.__callable = True
       self.__issympy  = False
+    elif self.__issympy:
+      assert not args and not kwds, \
+          "No optional arguments with symbolic expressions"
     elif not self.__ismulti:
       self.__callable = callable(self._expr)
-      self.__issympy = isinstance(self._expr, SYMPY_EXPR)
-      if not self.__callable or not self.__issympy:
+      if not self.__callable:
         assert not args and not kwds, \
-            "No optional arguments with uncallable or symbolic expressions"
+            "No optional arguments with uncallable expressions"
         self.__isscalar = isscalar(self._expr)
     else:
       exprs = self._expr if isinstance(self._expr, tuple) else \
@@ -113,8 +119,8 @@ class Expression (SYMPY_EXPR):
           "Cannot mix callable and uncallable expressions"
       assert len(set(each_isscalar)) < 2, \
           "Cannot mix scalars and nonscalars"
-      assert len(set(each_issymbol)) < 2, \
-          "Cannot mix symbolic and non-symbolic expressions"
+      assert not any(each_issymbol), \
+          "Symbolic expressions not supported for multiples"
       if len(self._expr):
         self.__callable = each_callable[0]
         self.__isscalar = each_isscalar[0]
@@ -137,6 +143,7 @@ class Expression (SYMPY_EXPR):
     if self.__order is None:
       return
     assert self.__delta is None, "Cannot set both order and delta"
+    assert not self.__symbol, "Cannot set order when using symbols"
     self._check_mapping(self.__order)
 
 #-------------------------------------------------------------------------------
@@ -148,6 +155,7 @@ class Expression (SYMPY_EXPR):
     if self.__delta is None:
       return
     assert self.__order is None, "Cannot set both order and delta"
+    assert not self.__symbol, "Cannot set delta when using symbols"
     self._check_mapping(self.__delta)
 
 #-------------------------------------------------------------------------------
@@ -276,8 +284,9 @@ class Expression (SYMPY_EXPR):
     #argsin = args; kwdsin = kwds; import pdb; pdb.set_trace() # debugging
 
     # Non-callables
-    if not self.__callable:
-      assert not args and not kwds, "No optional args with uncallable function"
+    if not self.__callable and not self.__issymbol:
+      assert not args and not kwds, \
+          "No optional args with uncallable or symbolic expressions"
       return expr 
 
     # Allow first argument to denote kwds
@@ -285,8 +294,20 @@ class Expression (SYMPY_EXPR):
       args, kwds = (), {**kwds, **dict(args[0])}
 
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # for debugging
-    if not self.__order and not self.__delta:
+    if not self.__issymbol or (not self.__order and not self.__delta):
       return expr(*args, **kwds)
+
+    # Symbols are evaluated by substitution
+    if self.__issymbol:
+      subs = []
+      for atom in expr.atoms:
+        if hasattr(atom, name):
+          key = atom.name
+          assert key in kwds, \
+              "Symbol name {} required as keyword input among".format(
+                  key, kwds.keys())
+          subs.append((atom, kwds[key],))
+      return expr.subs(expr)
 
     # Append None to args according to mapping index specification
     n_args = len(args)
@@ -359,6 +380,15 @@ class Expression (SYMPY_EXPR):
     if not self.__ismulti:
       return None
     return len(self._partials)
+
+#-------------------------------------------------------------------------------
+  def __repr__(self):
+    """ Print representation """
+    if self.__issymbol or not self.__callable:
+      return object.__repr__(self)+ ": '{}'".format(self._expr)
+    if self._keys is None:
+      return object.__repr__(self) 
+    return object.__repr__(self)+ ": '" + self._keys + "'"
 
 #-------------------------------------------------------------------------------
 

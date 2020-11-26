@@ -422,6 +422,11 @@ class Variable (SYMPY_SYMBOL):
     """
     return self.eval_vals(values)
 
+#-------------------------------------------------------------------------------
+  def __repr__(self):
+    """ Print representation of variable name """
+    return object.__repr__(self) + ": '" + self._name + "'"
+
 #------------------------------------------------------------------------------- 
   def eval_delta(self, delta=None):
     """ Evaluates the value(s) of a delta operation without applying them.
