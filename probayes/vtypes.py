@@ -4,6 +4,8 @@ A module that handles variable data types.
 
 #-------------------------------------------------------------------------------
 import numpy as np
+import scipy
+import sympy as sy
 import functools
 import operator
 
@@ -129,6 +131,11 @@ def isdimensionless(var):
         return True
       return False
   return np.isscalar(var)
+
+#-------------------------------------------------------------------------------
+def issymbol(var):
+  """ Returns whether object is a symbolic object """
+  return isinstance(var, sy.Basic)
 
 #-------------------------------------------------------------------------------
 def revtype(var, vtype=None):

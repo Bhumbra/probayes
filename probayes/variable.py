@@ -6,6 +6,7 @@ itself is not supported although invertible variable transformations are.
 
 #-------------------------------------------------------------------------------
 import numpy as np
+import scipy.stats
 import sympy as sy
 import collections
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
@@ -13,12 +14,12 @@ from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
 from probayes.func import Func
 DEFAULT_VNAME = 'var'
 DEFAULT_VSET = {False, True}
-SY_SYMBOL = sy.Symbol
+SYMPY_SYMBOL = sy.Symbol
 
 #-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
-class Variable (SY_SYMBOL):
+class Variable (SYMPY_SYMBOL):
   """ Base class for probayes.RV although this class can be called itself.
   A domain defines a variable with a defined set over which a function can be 
   defined. It therefore needs a name, variable type, and variable set. 
@@ -56,7 +57,7 @@ class Variable (SY_SYMBOL):
                    vtype=None,
                    *args,
                    **kwds):
-    return super(Variable, cls).__new__(cls, name, *args, **kwds)
+    return super(Variable, cls).__new__(cls, name)
 
 #-------------------------------------------------------------------------------
   def __init__(self, name=None,
@@ -66,8 +67,8 @@ class Variable (SY_SYMBOL):
                      **kwds):
     """ Initialiser sets name, vset, and mfun:
 
-    :param name: Name of the domain - string as valid identifier.
-    :param vset: variable set over which domain defined (see set_vset).
+    :param name: Name of the variable - string as valid identifier.
+    :param vset: variable set over which variable domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
     :param *args: optional arguments to pass onto symbol representation.
     :param *kwds: optional keywords to pass onto symbol representation.
@@ -82,7 +83,7 @@ class Variable (SY_SYMBOL):
     >>> print(x.apply_delta(1.5, dx))
     2.0
     """
-    SY_SYMBOL.__init__(self)
+    SYMPY_SYMBOL.__init__(self)
     self._name = name
     self.set_vset(vset, vtype)
     self.set_delta()
