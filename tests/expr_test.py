@@ -3,7 +3,7 @@
 #-------------------------------------------------------------------------------
 import numpy as np
 import scipy.stats
-import probayes as pb
+from tests.context import probayes as pb
 import pytest
 
 #-------------------------------------------------------------------------------
