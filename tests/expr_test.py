@@ -20,8 +20,7 @@ def test_scipy(dist, values, kwds):
   prob = expr['prob'](values)
   logp = expr['logp'](values)
   assert np.allclose(prob, np.exp(logp)), \
-      "{} probabilities not exponentials of associated logpdf".format(
-          scipy_dist)
+      "{} probabilities not exponentials of associated logpdf".format(dist)
 
 #-------------------------------------------------------------------------------
 if __name__ == "__main__":
