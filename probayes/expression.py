@@ -200,24 +200,21 @@ class Expression (SYMPY_EXPR):
 
     # Non-multiples are keyed by: None
     elif not self.__ismulti:
-      call = self._expr if not self.__callable else \
-             functools.partial(Expression._partial_call, self, self._expr, 
+      call = functools.partial(Expression._partial_call, self, self._expr, 
                                *self._args, **self._kwds)
       self._partials.update({None: call})
 
     # Tuples are keyed by index
     elif isinstance(self._expr, tuple):
       for i, expr in enumerate(self._expr):
-        call = expr if not self._callable else \
-               functools.partial(Expression._partial_call, self, expr, 
+        call = functools.partial(Expression._partial_call, self, expr, 
                                  *self._args, **self._kwds)
         self._partials.update({i: call})
 
     # Dictionaries keys are mapped directly
     elif isinstance(self._expr, dict):
       for key, val in self._expr.items():
-        call = val if not self._callable else \
-               functools.partial(Expression._partial_call, self, val, 
+        call = functools.partial(Expression._partial_call, self, val, 
                                  *self._args, **self._kwds)
         self._partials.update({key: call})
 
@@ -344,10 +341,6 @@ class Expression (SYMPY_EXPR):
    args and kwds. """
    assert not self.__ismulti, \
        "Cannot call with multiple expr, use Expr[]()"
-   if not self.__callable:
-     assert not args and not kwds, \
-        "Uncallable expression dispatched args and/or kwds"
-     return self._partials[None]
    return self._partials[None](*args, **kwds)
 
 #-------------------------------------------------------------------------------
