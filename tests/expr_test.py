@@ -1,9 +1,13 @@
 # Module to test Expressions
 
 #-------------------------------------------------------------------------------
+import os, sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+#-------------------------------------------------------------------------------
 import numpy as np
 import scipy.stats
-from tests.context import probayes as pb
+import probayes as pb
 import pytest
 
 #-------------------------------------------------------------------------------
