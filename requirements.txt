@@ -5,4 +5,3 @@ networkx
 matplotlib
 flake8
 pytest
-doctest
