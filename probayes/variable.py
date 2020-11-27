@@ -9,17 +9,16 @@ import numpy as np
 import scipy.stats
 import sympy as sy
 import collections
+import sympy as sy
+from probayes.term import Term
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES
 from probayes.func import Func
 DEFAULT_VNAME = 'var'
 DEFAULT_VSET = {False, True}
-SYMPY_SYMBOL = sy.Symbol
 
 #-------------------------------------------------------------------------------
-
-#-------------------------------------------------------------------------------
-class Variable (SYMPY_SYMBOL):
+class Variable (Term):
   """ Base class for probayes.RV although this class can be called itself.
   A domain defines a variable with a defined set over which a function can be 
   defined. It therefore needs a name, variable type, and variable set. 
@@ -38,6 +37,7 @@ class Variable (SYMPY_SYMBOL):
   """
 
   # Public
+  symbol = None      # The symbol object
   delta = None       # A named tuple generator
                     
   # Protected       
@@ -52,14 +52,7 @@ class Variable (SYMPY_SYMBOL):
   _delta_kwds = None # Optional delta keywords 
 
 #-------------------------------------------------------------------------------
-  def __new__(cls, name=None,
-                   vset=None, 
-                   vtype=None,
-                   *args,
-                   **kwds):
-    return super(Variable, cls).__new__(cls, name)
 
-#-------------------------------------------------------------------------------
   def __init__(self, name=None,
                      vset=None, 
                      vtype=None,
@@ -83,10 +76,10 @@ class Variable (SYMPY_SYMBOL):
     >>> print(x.apply_delta(1.5, dx))
     2.0
     """
-    SYMPY_SYMBOL.__init__(self)
-    self._name = name
+    self.name = name
     self.set_vset(vset, vtype)
     self.set_delta()
+    self.set_symbol()
 
 #-------------------------------------------------------------------------------
   @property
@@ -252,6 +245,12 @@ class Variable (SYMPY_SYMBOL):
     assert callable(self._mfun[1]), message
     self._mfun = Func(self._mfun, *args, **kwds)
     self._eval_lims()
+
+#-------------------------------------------------------------------------------
+  def set_symbol(self, symbol=None, *args, **kwds):
+    """ Sets the variable symbol and carries members over to this Variable """
+    symbol = symbol or self._name
+    return Term.set_symbol(self, symbol, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
@@ -424,8 +423,8 @@ class Variable (SYMPY_SYMBOL):
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
-    """ Print representation of variable name """
-    return object.__repr__(self) + ": '" + self._name + "'"
+    """ Printable representation of variable including name """
+    return self._name
 
 #------------------------------------------------------------------------------- 
   def eval_delta(self, delta=None):

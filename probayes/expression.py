@@ -5,6 +5,7 @@ specifications. Multiple outputs are supported for non-symbolic outputs
 import collections
 import functools
 import sympy as sy
+import mpmath.libmp as mlib
 from probayes.vtypes import isscalar, issymbol
 from probayes.prob import is_scipy_stats_dist, SCIPY_DIST_METHODS
 SYMPY_EXPR = sy.Expr
@@ -54,8 +55,11 @@ class Expression (SYMPY_EXPR):
   __delta = None
 
 #-------------------------------------------------------------------------------
-  def __new__(cls, expr=None, *args, **kwds):
-    return super(Expression, cls).__new__(cls, expr)
+  def __new__(cls, expr=None):
+    output = super(Expression, cls).__new__(cls, expr)
+    if issymbol(expr):
+      output = output.evalf(mlib.libmpf.prec_to_dps(True))
+    return output
 
 #-------------------------------------------------------------------------------
   def __init__(self, expr=None, *args, **kwds):
@@ -63,6 +67,8 @@ class Expression (SYMPY_EXPR):
     uncallable object, a callable function, or a tuple of callable functions. 
     See set_expr()
     """
+    if issymbol(expr):
+      super().__init__()
     self.set_expr(expr, *args, **kwds)
     
 #-------------------------------------------------------------------------------
@@ -100,6 +106,7 @@ class Expression (SYMPY_EXPR):
     elif self.__issympy:
       assert not args and not kwds, \
           "No optional arguments with symbolic expressions"
+      self._expr.__eq__(self)
     elif not self.__ismulti:
       self.__callable = callable(self._expr)
       if not self.__callable:
