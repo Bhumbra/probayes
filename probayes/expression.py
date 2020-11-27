@@ -308,7 +308,7 @@ class Expression (SYMPY_EXPR):
     if self.__issymbol:
       subs = []
       for atom in expr.atoms:
-        if hasattr(atom, name):
+        if hasattr(atom, 'name'):
           key = atom.name
           assert key in kwds, \
               "Symbol name {} required as keyword input among".format(
