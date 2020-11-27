@@ -26,7 +26,7 @@ class Term:
     else:
       raise TypeError("Symbol name must be string; {} entered".format(symbol))
 
-    # Try to make Variable play nicely with Sympy by copying attributes
+    # Try to make Term play nicely with Sympy by copying attributes
     members = dir(self.symbol)
     for member in members:
       if not hasattr(self, member):
