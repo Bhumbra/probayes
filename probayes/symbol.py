@@ -1,14 +1,28 @@
-""" Symbolic representation with only a name """
+""" Symbolic representation wrapping SymPy's Symbol. """
 
 #-------------------------------------------------------------------------------
 import sympy as sy
 
 #-------------------------------------------------------------------------------
-class Term:
-  """ This class wraps sy.Symbol. Sympy's dependence on hash tables and __new__
-  members doesn't play nicely with inheriting them so we wrap them in a class
-  instead and copy over the attributes.
+class Symbol:
+  """ This class wraps sy.Symbol. Sympy's dependence on __new__ to return
+  modified class objects at instantiation doesn't play nicely with multiple
+  inheritance wrap them in here as a class instead and copy over the attributes.
+
+  The resulting instance can be treated in _almost_ the same way as SymPy's, but
+  for identical behaviour, use probayes.Symbol[:] method:
+
+  :example
+  >>> import probayes as pb
+  >>> sym = pb.Symbol('sym')
+  >>> sym2 = sym * 2
+  >>> sym2 = 2 * sym
+  Traceback (most recent call last):
+    File "<stdin>", line 1, in <module>
+  TypeError: unsupported operand type(s) for *: 'int' and 'Symbol'
+  >>> sym2 = 2 * sym[:]
   """
+
   symbol = None
 
 #-------------------------------------------------------------------------------
@@ -17,6 +31,11 @@ class Term:
 
 #-------------------------------------------------------------------------------
   def set_symbol(self, symbol, *args, **kwds):
+    """ Sets the symbol object for this instance with optional args and kwds.
+    Either pass a sy.Symbol object directly or in accordance with the calling
+    conventions for sy.Symbol.__new__
+    """
+
     # Pass symbol or create symbol named according to string
     self.symbol = symbol
     if isinstance(self.symbol, sy.Symbol):
@@ -26,7 +45,7 @@ class Term:
     else:
       raise TypeError("Symbol name must be string; {} entered".format(symbol))
 
-    # Try to make Term play nicely with Sympy by copying attributes
+    # Make instance play nicely with Sympy by copying attributes and hash content
     members = dir(self.symbol)
     for member in members:
       if not hasattr(self, member):
@@ -37,12 +56,22 @@ class Term:
           pass
 
 #-------------------------------------------------------------------------------
+  def __hash__(self):
+    if self.symbol is None:
+      return super().__hash__()
+    return self.symbol.__hash__()
+
+#-------------------------------------------------------------------------------
   def __and__(self):
     return NotImplemented("And operators not supported: use sy.And()")
 
 #-------------------------------------------------------------------------------
   def __or__(self):
     return NotImplemented("Or operators not supported: use sy.Or()")
+
+#-------------------------------------------------------------------------------
+  def __xor__(self):
+    return NotImplemented("Xor operators not supported: use sy.Xor()")
 
 #-------------------------------------------------------------------------------
   def __pos__(self):
