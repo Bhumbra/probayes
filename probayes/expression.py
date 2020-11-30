@@ -4,14 +4,12 @@ specifications. Multiple outputs are supported for non-symbolic outputs
 '''
 import collections
 import functools
-import sympy as sy
-import mpmath.libmp as mlib
 from probayes.vtypes import isscalar, issymbol
+from probayes.expr import Expr
 from probayes.prob import is_scipy_stats_dist, SCIPY_DIST_METHODS
-SYMPY_EXPR = sy.Expr
 
 #-------------------------------------------------------------------------------
-class Expression (SYMPY_EXPR):
+class Expression (Expr):
   """ A expression wrapper to enable object representations as an uncallable
   array, a callable function, or a tuple/dict of callable functions
 
@@ -39,7 +37,6 @@ class Expression (SYMPY_EXPR):
   """
 
   # Protected
-  _expr = None
   _args = None
   _kwds = None
   _keys = None
@@ -55,20 +52,11 @@ class Expression (SYMPY_EXPR):
   __delta = None
 
 #-------------------------------------------------------------------------------
-  def __new__(cls, expr=None):
-    output = super(Expression, cls).__new__(cls, expr)
-    if issymbol(expr):
-      output = output.evalf(mlib.libmpf.prec_to_dps(True))
-    return output
-
-#-------------------------------------------------------------------------------
   def __init__(self, expr=None, *args, **kwds):
     """ Initialises instances according to object in expr, which may be an 
     uncallable object, a callable function, or a tuple of callable functions. 
     See set_expr()
     """
-    if issymbol(expr):
-      super().__init__()
     self.set_expr(expr, *args, **kwds)
     
 #-------------------------------------------------------------------------------
@@ -85,7 +73,7 @@ class Expression (SYMPY_EXPR):
     'delta': which instead denotes a mapping of differences.
     """
 
-    self._expr = expr
+    self.expr = expr
     self._args = tuple(args)
     self._kwds = dict(kwds)
     self.__order = None
@@ -94,28 +82,28 @@ class Expression (SYMPY_EXPR):
     self.__callable = None
 
     # Sanity check func
-    if self._expr is None:
+    if self.expr is None:
       assert not args and not kwds, "No optional args without a function"
-    self.__issympy = issymbol(self._expr)
-    self.__ismulti = isinstance(self._expr, (dict, tuple))
-    if is_scipy_stats_dist(self._expr):
-      self.__scipyobj = self._expr
+    self.__issympy = issymbol(self.expr)
+    self.__ismulti = isinstance(self.expr, (dict, tuple))
+    if is_scipy_stats_dist(self.expr):
+      self.__scipyobj = self.expr
       self.__ismulti = True
       self.__callable = True
       self.__issympy  = False
     elif self.__issympy:
       assert not args and not kwds, \
           "No optional arguments with symbolic expressions"
-      self._expr.__eq__(self)
+      self.expr.__eq__(self)
     elif not self.__ismulti:
-      self.__callable = callable(self._expr)
+      self.__callable = callable(self.expr)
       if not self.__callable:
         assert not args and not kwds, \
             "No optional arguments with uncallable expressions"
-        self.__isscalar = isscalar(self._expr)
+        self.__isscalar = isscalar(self.expr)
     else:
-      exprs = self._expr if isinstance(self._expr, tuple) else \
-              self._expr.values()
+      exprs = self.expr if isinstance(self.expr, tuple) else \
+              self.expr.values()
       self._callable = False
       self._isscalar = False
       self._issymbol = False
@@ -128,7 +116,7 @@ class Expression (SYMPY_EXPR):
           "Cannot mix scalars and nonscalars"
       assert not any(each_issymbol), \
           "Symbolic expressions not supported for multiples"
-      if len(self._expr):
+      if len(self.expr):
         self.__callable = each_callable[0]
         self.__isscalar = each_isscalar[0]
         self.__issymbol = each_issymbol[0]
@@ -215,20 +203,20 @@ class Expression (SYMPY_EXPR):
 
     # Non-multiples are keyed by: None
     elif not self.__ismulti:
-      call = functools.partial(Expression._partial_call, self, self._expr, 
+      call = functools.partial(Expression._partial_call, self, self.expr, 
                                *self._args, **self._kwds)
       self._partials.update({None: call})
 
     # Tuples are keyed by index
-    elif isinstance(self._expr, tuple):
-      for i, expr in enumerate(self._expr):
+    elif isinstance(self.expr, tuple):
+      for i, expr in enumerate(self.expr):
         call = functools.partial(Expression._partial_call, self, expr, 
                                  *self._args, **self._kwds)
         self._partials.update({i: call})
 
     # Dictionaries keys are mapped directly
-    elif isinstance(self._expr, dict):
-      for key, val in self._expr.items():
+    elif isinstance(self.expr, dict):
+      for key, val in self.expr.items():
         call = functools.partial(Expression._partial_call, self, val, 
                                  *self._args, **self._kwds)
         self._partials.update({key: call})
@@ -236,7 +224,7 @@ class Expression (SYMPY_EXPR):
 #-------------------------------------------------------------------------------
   def ret_expr(self):
     """ Returns expression argument set by set_expr() """
-    return self._expr
+    return self.expr
 
 #-------------------------------------------------------------------------------
   def ret_args(self):
@@ -392,7 +380,7 @@ class Expression (SYMPY_EXPR):
   def __repr__(self):
     """ Print representation """
     if self.__issymbol or not self.__callable:
-      return object.__repr__(self)+ ": '{}'".format(self._expr)
+      return object.__repr__(self)+ ": '{}'".format(self.expr)
     if self._keys is None:
       return object.__repr__(self) 
     return object.__repr__(self)+ ": '" + self._keys + "'"
