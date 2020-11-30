@@ -6,19 +6,19 @@ itself is not supported although invertible variable transformations are.
 
 #-------------------------------------------------------------------------------
 import numpy as np
+import scipy.stats
 import sympy as sy
 import collections
+import sympy as sy
+from probayes.symbol import Symbol
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES
 from probayes.func import Func
 DEFAULT_VNAME = 'var'
 DEFAULT_VSET = {False, True}
-SY_SYMBOL = sy.Symbol
 
 #-------------------------------------------------------------------------------
-
-#-------------------------------------------------------------------------------
-class Variable (SY_SYMBOL):
+class Variable (Symbol):
   """ Base class for probayes.RV although this class can be called itself.
   A domain defines a variable with a defined set over which a function can be 
   defined. It therefore needs a name, variable type, and variable set. 
@@ -51,14 +51,7 @@ class Variable (SY_SYMBOL):
   _delta_kwds = None # Optional delta keywords 
 
 #-------------------------------------------------------------------------------
-  def __new__(cls, name=None,
-                   vset=None, 
-                   vtype=None,
-                   *args,
-                   **kwds):
-    return super(Variable, cls).__new__(cls, name, *args, **kwds)
 
-#-------------------------------------------------------------------------------
   def __init__(self, name=None,
                      vset=None, 
                      vtype=None,
@@ -66,11 +59,11 @@ class Variable (SY_SYMBOL):
                      **kwds):
     """ Initialiser sets name, vset, and mfun:
 
-    :param name: Name of the domain - string as valid identifier.
-    :param vset: variable set over which domain defined (see set_vset).
+    :param name: Name of the variable - string as valid identifier.
+    :param vset: variable set over which variable domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
     :param *args: optional arguments to pass onto symbol representation.
-    :param *kwds: optional keywords to pass onto symbol representation.
+    :param **kwds: optional keywords to pass onto symbol representation.
 
     Every Domain instance offers a factory function for delta specifications:
 
@@ -82,10 +75,10 @@ class Variable (SY_SYMBOL):
     >>> print(x.apply_delta(1.5, dx))
     2.0
     """
-    SY_SYMBOL.__init__(self)
-    self._name = name
+    self.name = name
     self.set_vset(vset, vtype)
     self.set_delta()
+    self.set_symbol(self.name, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   @property
@@ -224,33 +217,8 @@ class Variable (SY_SYMBOL):
     else:
       self._inside = lambda x: np.logical_and(x > self._lims[0],
                                               x < self._lims[1])
+
     return self._length
-
-#-------------------------------------------------------------------------------
-  def set_mfun(self, mfun=None, *args, **kwds):
-    """ Sets a monotonic invertible tranformation for the domain as a tuple of
-    two functions in the form (transforming_function, inverse_function) 
-    operating on the first argument with optional further args and kwds.
-
-    :param mfun: two-length tuple of monotonic functions.
-    :param *args: args to pass to mfun functions.
-    :param **kwds: kwds to pass to mfun functions.
-
-    Support for this transformation is only valid for float-type vtypes.
-    """
-    self._mfun = mfun
-    if self._mfun is None:
-      return
-
-    assert self._vtype in VTYPES[float], \
-        "Values transformation function only supported for floating point"
-    message = "Input mfun be a two-sized tuple of callable functions"
-    assert isinstance(self._mfun, tuple), message
-    assert len(self._mfun) == 2, message
-    assert callable(self._mfun[0]), message
-    assert callable(self._mfun[1]), message
-    self._mfun = Func(self._mfun, *args, **kwds)
-    self._eval_lims()
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
@@ -287,6 +255,69 @@ class Variable (SY_SYMBOL):
       self._delta_kwds.update({'scale': False})
     if 'bound' not in self._delta_kwds:
       self._delta_kwds.update({'bound': False})
+
+#-------------------------------------------------------------------------------
+  def set_symbol(self, symbol=None, *args, **kwds):
+    """ Sets the variable symbol and carries members over to this Variable """
+    symbol = symbol or self._name
+
+    # If no arguments passed, default assumptions based on vtype and limits
+    if not args and not kwds:
+      kwds = dict(**kwds)
+      if self._vtype in VTYPES[float]:
+        kwds.update({'integer': False})
+        kwds.update({'finite': np.all(np.isfinite(self._lims))})
+        if np.max(self._lims) > 0. and np.min(self._lims) < 0.:
+          pass
+        elif np.min(self._lims) >= 0.:
+          kwds.update({'positive': True})
+        elif np.max(self._lims) <= 0:
+          kwds.update({'negative': True})
+        elif np.max(self._lims) > 0.: 
+          if isinstance(self._vset[0], tuple):
+            kwds.update({'positive': True})
+          else:
+            kwds.update({'nonnegative': True})
+        elif np.min(self._lims) < 0. :
+          if isinstance(self._vset[1], tuple):
+            kwds.update({'negative': True})
+          else:
+            kwds.update({'nonpositive': True})
+      elif self._vtype in VTYPES[int]:
+        kwds.update({'integer': True})
+        if np.max(self._lims) > 0 and np.min(self._lims) < 0:
+          pass
+        elif np.max(self._lims) >= 0:
+          kwds.update({'positive': True})
+        elif np.min(self._lims) <= 0:
+          kwds.update({'negative': True})
+    return Symbol.set_symbol(self, symbol, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  def set_mfun(self, mfun=None, *args, **kwds):
+    """ Sets a monotonic invertible tranformation for the domain as a tuple of
+    two functions in the form (transforming_function, inverse_function) 
+    operating on the first argument with optional further args and kwds.
+
+    :param mfun: two-length tuple of monotonic functions.
+    :param *args: args to pass to mfun functions.
+    :param **kwds: kwds to pass to mfun functions.
+
+    Support for this transformation is only valid for float-type vtypes.
+    """
+    self._mfun = mfun
+    if self._mfun is None:
+      return
+
+    assert self._vtype in VTYPES[float], \
+        "Values transformation function only supported for floating point"
+    message = "Input mfun be a two-sized tuple of callable functions"
+    assert isinstance(self._mfun, tuple), message
+    assert len(self._mfun) == 2, message
+    assert callable(self._mfun[0]), message
+    assert callable(self._mfun[1]), message
+    self._mfun = Func(self._mfun, *args, **kwds)
+    self._eval_lims()
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
@@ -420,6 +451,11 @@ class Variable (SY_SYMBOL):
     [1. 2. 4. 8.]
     """
     return self.eval_vals(values)
+
+#-------------------------------------------------------------------------------
+  def __repr__(self):
+    """ Printable representation of variable including name """
+    return self._name
 
 #------------------------------------------------------------------------------- 
   def eval_delta(self, delta=None):

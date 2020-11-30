@@ -14,7 +14,12 @@ from probayes.func import Func
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
 SCIPY_STATS_DISC = {scipy.stats.rv_discrete}
-SCIPY_STATS_DIST = SCIPY_STATS_CONT.union(SCIPY_STATS_DISC)
+SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
+SCIPY_STATS_DIST = SCIPY_STATS_MVAR.union(
+                       SCIPY_STATS_CONT.union(SCIPY_STATS_DISC))
+SCIPY_DIST_METHODS = ['pdf', 'logpdf', 'pmf', 'logpmf', 'cdf', 'logcdf', 'ppf', 
+                      'rvs', 'sf', 'logsf', 'isf', 'moment', 'stats', 'expect', 
+                      'entropy', 'fit', 'median', 'mean', 'var', 'std', 'interval']
 
 #-------------------------------------------------------------------------------
 def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):

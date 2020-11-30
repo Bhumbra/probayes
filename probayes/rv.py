@@ -479,11 +479,6 @@ class RV (Variable, Prob):
       dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
     return Dist(dist_name, vals, dims, cond, self._pscale)
-    
-#-------------------------------------------------------------------------------
-  def __repr__(self):
-    """ Print representation of RV name """
-    return object.__repr__(self) + ": '" + self._name + "'"
 
 #-------------------------------------------------------------------------------
   def __and__(self, other):
