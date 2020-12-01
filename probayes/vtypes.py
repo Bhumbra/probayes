@@ -17,6 +17,10 @@ VTYPES = {
           float: (float, np.dtype('float'),  np.dtype('float32'), np.dtype('float64')),
          }
 
+
+OO = sy.oo
+OO_TO_NP = {OO: np.inf, -OO: -np.inf}
+
 #-------------------------------------------------------------------------------
 def eval_vtype(vtype):
   """ Evaluates a variable type from input vtype.
@@ -118,6 +122,19 @@ def isunitary(var):
     if var.size == 1:
       return True
   return False
+
+#-------------------------------------------------------------------------------
+def isfinite(var):
+  if isinstance(var, np.ndarray) or np.isscalar(var):
+    return np.isfinite(var)
+  if isinstance(var, (tuple, list)):
+    isfin = [isfinite(subvar) for subvar in var]
+    if isinstance(var, list):
+      return isfin
+    return tuple(isfin)
+  if var == OO or var == -OO:
+    return False
+  return True
 
 #-------------------------------------------------------------------------------
 def isdimensionless(var):

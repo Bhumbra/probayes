@@ -12,10 +12,17 @@ import collections
 import sympy as sy
 from probayes.symbol import Symbol
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
-                        revtype, uniform, VTYPES
+                        revtype, uniform, VTYPES, OO, OO_TO_NP
 from probayes.func import Func
+
+# Defaults
 DEFAULT_VNAME = 'var'
-DEFAULT_VSET = {False, True}
+DEFAULT_VTYPE = bool
+
+# Defult vsets by vtype
+DEFAULT_VSETS = {bool: [False, True],
+                  int: [0, 1], 
+                float: [(-OO,), (OO,)]}
 
 #-------------------------------------------------------------------------------
 class Variable (Symbol):
@@ -31,8 +38,8 @@ class Variable (Symbol):
   >>> import numpy as np
   >>> import probayes as pb
   >>> scalar = pb.Variable('scalar', [-np.inf, np.inf], vtype=float)
-  >>> scalar.set_mfun((np.exp, np.log))
-  >>> print(scalar.ret_limits())
+  >>> scalar.set_ufun((np.exp, np.log))
+  >>> print(scalar.ret_ulims())
   [ 0. inf]
   """
 
@@ -40,44 +47,48 @@ class Variable (Symbol):
   delta = None       # A named tuple generator
                     
   # Protected       
+  _vtype = None      # Variable type (bool, int, or float)
   _vset = None       # Variable set (array or 2-length tuple range)
-  _mfun = None       # 2-length tuple of monotonic mutually inverting functions
-  _lims = None       # Numpy array of bounds of vset
-  _limits = None     # Transformed self._lims
-  _length = None     # Difference in self._limits
+  _vlims = None      # Numpy array of bounds of vset
+  _ufun = None       # Univariate function for variable transformation
+  _ulims = None      # Transformed self._vlims
+  _length = None     # Difference in self._ulims
   _inside = None     # Lambda function for defining inside vset
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
   _delta_kwds = None # Optional delta keywords 
 
 #-------------------------------------------------------------------------------
-
   def __init__(self, name=None,
-                     vset=None, 
                      vtype=None,
+                     vset=None, 
                      *args,
                      **kwds):
-    """ Initialiser sets name, vset, and mfun:
+    """ Initialiser sets name, vset, and ufun:
 
     :param name: Name of the variable - string as valid identifier.
-    :param vset: variable set over which variable domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
+    :param vset: variable set over which variable domain defined.
     :param *args: optional arguments to pass onto symbol representation.
     :param **kwds: optional keywords to pass onto symbol representation.
 
-    Every Domain instance offers a factory function for delta specifications:
+    Every Variable instance offers a factory function for delta specifications:
 
     :example:
     >>> import numpy as np
     >>> import probayes as pb
-    >>> x = pb.Domain('x', [-np.inf, np.inf], vtype=float)
+    >>> x = pb.Variable('x', [-np.inf, np.inf], vtype=float)
     >>> dx = x.delta(0.5)
     >>> print(x.apply_delta(1.5, dx))
     2.0
     """
     self.name = name
-    self.set_vset(vset, vtype)
+    self.vtype = vtype
+    if vset:
+      self.vset = vset
     self.set_delta()
+
+    # Setting the symbol comes last in order to pass vtype/vset assumptions
     self.set_symbol(self.name, *args, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -91,12 +102,34 @@ class Variable (Symbol):
     self.delta = collections.namedtuple('ð', [self._name])
 
 #-------------------------------------------------------------------------------
-  # We don't set the next as a property because vset and vtype are set together
-  def set_vset(self, vset=None, vtype=None):
-    """ Sets the variable set and variable type over which the domain is defined.
+  @property
+  def vtype(self):
+    return self._vtype
 
-    :param vset: variable set over which domain defined (default [False, True])
-    :param vtype: variable type (bool, int, or float; default bool).
+  @vtype.setter
+  def vtype(self, vtype=None):
+    """ Sets the variable type (default bool). If the variable set if not set,
+    then it is defaulted according to the variable type. """
+
+    if vtype:
+      self._vtype = eval_vtype(vtype)
+      if self._vset is None:
+        self.vset = DEFAULT_VSETS[self._vtype]
+    elif self._vset is not None:
+      self._vtype = eval_vtype(self._vset)
+
+#-------------------------------------------------------------------------------
+  @property
+  def vset(self):
+    return self._vset
+
+  @vset.setter
+  def vset(self, vset=None):
+    """ Sets the variable set over which the valid values are defined.
+    :param vset: variable set over which domain defined (defaulted by vtype:
+                 if bool:  vset = {False, True})
+                 if int:   vset = {0, 1})
+                 if float: vset = (-OO, OO)
 
     For non-float vtypes, vset may be a list, set, range, or NumPy array.
 
@@ -111,15 +144,14 @@ class Variable (Symbol):
 
     :example:
     >>> import probayes as pb
-    >>> scalar = pb.Domain('scalar')
-    >>> scalar.set_vset((1, 2), vtype=float)
+    >>> scalar = pb.Variable('scalar', vtype=float, vset=(1,2))
     >>> print(scalar.ret_vset())
     [(1.0,), (2.0,)]
     """
 
     # Default vset to nominal
-    if vset is None: 
-      vset = list(DEFAULT_VSET)
+    if vset is None and self._vtype: 
+      vset = DEFAULT_VSETS[self._vtypes]
     elif isinstance(vset, (set, range)):
       vset = sorted(vset)
     elif np.isscalar(self._vset):
@@ -136,87 +168,104 @@ class Variable (Symbol):
           "Unrecognised vset specification: {}".format(vset)
 
     # At this point, vset can only be a list, but may contain tuples
-    aretuples = ([isinstance(_vset, tuple) for _vset in vset])
-    if not any(aretuples):
-      if vtype is None:
-        vset = np.array(vset)
-        vtype = eval_vtype(vset)
+    vtype = self._vtype
+    for i, value in enumerate(vset):
+      if isinstance(value, tuple):
+        if vtype is None:
+          vtype = float
+        val =  list(value)[0]
+        if val != OO and val != -OO:
+          vset[i] = ((vtype)(val),) 
+      elif value == OO or value == -OO:
+        if vtype is None:
+          vtype = float
       else:
-        vset = np.array(vset, dtype=vtype)
-    else:
-      if vtype is not None:
-        assert vtype in VTYPES[float], \
-            "Bounded variables supported only for float vtypes, not {}".\
-            format(vtype)
-      vtype = float
-      assert len(vset) == 2, \
-          "Unrecognised set specification: {}".vset
-      for i in range(len(vset)):
-        if isinstance(vset[i], tuple):
-          assert len(vset[i]) == 1, \
-              "Unrecognised set specification: {}".vset[i]
-          vset[i] = vtype(vset[i][0])
+        if vtype:
+          vtype = eval_vtype(value)
+        elif vtype != eval_vtype(value):
+          raise TypeError("Ambiguous value type {} vs {}".format(
+            vtype, eval_vtype(value)))
+        vset[i] = (vtype)(value)
+
+    # Now vset contents should all be of the same vtype
     self._vset = vset
-    for i, istuple in enumerate(aretuples):
-      if istuple:
-        self._vset[i] = self._vset[i],
-    self._vtype = eval_vtype(vtype)
-    self._eval_lims()
+    vtype = eval_vtype(vtype)
+    if self._vtype:
+      assert self._vtype == vtype, \
+          "Variable type {} incomptable with type for vset {}".format(
+              self._vtype, vtype)
+    else:
+      self._vtype = vtype
+    self._eval_vlims()
 
 #-------------------------------------------------------------------------------
-  def _eval_lims(self):
-    """ Evaluates untransformed (self._lims) and transformed (self._limits) 
+  def _eval_vlims(self):
+    """ Evaluates untransformed (self._vlims) and transformed (self._ulims) 
 
-    :returns: the length of the domain.
+    :returns: the length of the variable.
     """
-    self._lims = None
-    self._limits = None
-    self._length = None
-    self._inside = None
-    
+    self._vlims = None
     if self._vset is None:
-      return self._length
+      return self._eval_ulims()
 
+    # Non-float limits are simple
     if self._vtype not in VTYPES[float]:
-      self._lims = np.array([min(self._vset), max(self._vset)])
-      self._limits = self._lims
-      self._length = True if self._vtype in VTYPES[bool] else len(self._vset)
-      self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
-      return self._length
+      self._vlims = np.array([min(self._vset), max(self._vset)])
 
-    """ Evaluates the limits from vset assuming vtype is set """
-    # Set up limits and inside function if float
-    if any([isinstance(_vset, tuple) for _vset in self._vset]):
-      lims = np.concatenate([np.array(_vset).reshape([1]) 
-                             for _vset in self._vset])
-    else:
-      lims = np.array(self._vset)
-    assert len(lims) == 2, \
+    # Evaluates the limits from vset float
+    assert len(self._vset) == 2, \
         "Floating point vset must be two elements, not {}".format(self._vset)
+    lims = [None] * 2
+    for i, limit in enumerate(self._vset):
+        lim = limit if not isinstance(limit, tuple) else list(limit)[0]
+        lims[i] = OO_TO_NP.get(lim, lim)
+
     if lims[1] < lims[0]:
       vset = self._vset[::-1]
       self._vset = vset
-    self._lims = np.sort(lims)
-    self._limits = self._lims if self._mfun is None \
-                   else self.ret_mfun(0)(self._lims)
-    self._length = max(self._limits) - min(self._limits)
+    self._vlims = np.sort(lims)
+    return self._eval_ulims()
+
+#-------------------------------------------------------------------------------
+  def _eval_ulims(self):
+    """ Evaluates transformed limits (self._ulims) and inside functions
+    
+    :returns: the length of the variable.
+    """
+    self._ulims = None
+    self._length = None
+    self._inside = None
+    if self._vlims is None:
+      return self._length
+
+    # Non-floats do not support transformation
+    if self._vtype not in VTYPES[float]:
+      self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
+      self._ulims = self._vlims
+      self._length = True if self._vtype in VTYPES[bool] else len(self._vset)
+      return self._length
+
+    # Floating point limits are susceptible to transormation
+    self._ulims = self._vlims if self._ufun is None \
+                   else self.ret_ufun(0)(self._vlims)
+    self._length = max(self._ulims) - min(self._ulims)
 
     # Now set inside function
     if not isinstance(self._vset[0], tuple) and \
         not isinstance(self._vset[1], tuple):
-      self._inside = lambda x: np.logical_and(x >= self._lims[0],
-                                              x <= self._lims[1])
+      self._inside = lambda x: np.logical_and(x >= self._vlims[0],
+                                              x <= self._vlims[1])
     elif not isinstance(self._vset[0], tuple) and \
         isinstance(self._vset[1], tuple):
-      self._inside = lambda x: np.logical_and(x >= self._lims[0],
-                                              x < self._lims[1])
+      self._inside = lambda x: np.logical_and(x >= self._vlims[0],
+                                              x < self._vlims[1])
     elif isinstance(self._vset[0], tuple) and \
         not isinstance(self._vset[1], tuple):
-      self._inside = lambda x: np.logical_and(x > self._lims[0],
-                                              x <= self._lims[1])
+      self._inside = lambda x: np.logical_and(x > self._vlims[0],
+                                              x <= self._vlims[1])
     else:
-      self._inside = lambda x: np.logical_and(x > self._lims[0],
-                                              x < self._lims[1])
+      self._inside = lambda x: np.logical_and(x > self._vlims[0],
+                                              x < self._vlims[1])
 
     return self._length
 
@@ -231,15 +280,15 @@ class Variable (Symbol):
     The first argument delta may be:
 
     1. A callable function (operating on the first term).
-    2. A Domain.delta instance (this defaults all Domain deltas).
+    2. A Variable.delta instance (this defaults all Variable deltas).
     3. A scalar that may or may not be contained in a container:
       a) No container - the scalar is treated as a fixed delta.
       b) List - delta is uniformly sampled from [-scalar to +scalar].
       c) Tuple - operation is +/-delta within the polarity randomised
 
     Two reserved keywords can be passed for specifying (default False):
-      'scale': Flag to denote scaling deltas to Domain lengths
-      'bound': Flag to constrain delta effects to Domain bounds
+      'scale': Flag to denote scaling deltas to Variable lengths
+      'bound': Flag to constrain delta effects to Variable bounds
     """
     self._delta = delta
     self._delta_args = args
@@ -266,58 +315,58 @@ class Variable (Symbol):
       kwds = dict(**kwds)
       if self._vtype in VTYPES[float]:
         kwds.update({'integer': False})
-        kwds.update({'finite': np.all(np.isfinite(self._lims))})
-        if np.max(self._lims) > 0. and np.min(self._lims) < 0.:
+        kwds.update({'finite': np.all(np.isfinite(self._vlims))})
+        if np.max(self._vlims) > 0. and np.min(self._vlims) < 0.:
           pass
-        elif np.min(self._lims) >= 0.:
+        elif np.min(self._vlims) >= 0.:
           kwds.update({'positive': True})
-        elif np.max(self._lims) <= 0:
+        elif np.max(self._vlims) <= 0:
           kwds.update({'negative': True})
-        elif np.max(self._lims) > 0.: 
+        elif np.max(self._vlims) > 0.: 
           if isinstance(self._vset[0], tuple):
             kwds.update({'positive': True})
           else:
             kwds.update({'nonnegative': True})
-        elif np.min(self._lims) < 0. :
+        elif np.min(self._vlims) < 0. :
           if isinstance(self._vset[1], tuple):
             kwds.update({'negative': True})
           else:
             kwds.update({'nonpositive': True})
       elif self._vtype in VTYPES[int]:
         kwds.update({'integer': True})
-        if np.max(self._lims) > 0 and np.min(self._lims) < 0:
+        if np.max(self._vlims) > 0 and np.min(self._vlims) < 0:
           pass
-        elif np.max(self._lims) >= 0:
+        elif np.max(self._vlims) >= 0:
           kwds.update({'positive': True})
-        elif np.min(self._lims) <= 0:
+        elif np.min(self._vlims) <= 0:
           kwds.update({'negative': True})
     return Symbol.set_symbol(self, symbol, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def set_mfun(self, mfun=None, *args, **kwds):
+  def set_ufun(self, ufun=None, *args, **kwds):
     """ Sets a monotonic invertible tranformation for the domain as a tuple of
     two functions in the form (transforming_function, inverse_function) 
     operating on the first argument with optional further args and kwds.
 
-    :param mfun: two-length tuple of monotonic functions.
-    :param *args: args to pass to mfun functions.
-    :param **kwds: kwds to pass to mfun functions.
+    :param ufun: two-length tuple of monotonic functions.
+    :param *args: args to pass to ufun functions.
+    :param **kwds: kwds to pass to ufun functions.
 
     Support for this transformation is only valid for float-type vtypes.
     """
-    self._mfun = mfun
-    if self._mfun is None:
+    self._ufun = ufun
+    if self._ufun is None:
       return
 
     assert self._vtype in VTYPES[float], \
         "Values transformation function only supported for floating point"
-    message = "Input mfun be a two-sized tuple of callable functions"
-    assert isinstance(self._mfun, tuple), message
-    assert len(self._mfun) == 2, message
-    assert callable(self._mfun[0]), message
-    assert callable(self._mfun[1]), message
-    self._mfun = Func(self._mfun, *args, **kwds)
-    self._eval_lims()
+    message = "Input ufun be a two-sized tuple of callable functions"
+    assert isinstance(self._ufun, tuple), message
+    assert len(self._ufun) == 2, message
+    assert callable(self._ufun[0]), message
+    assert callable(self._ufun[1]), message
+    self._ufun = Func(self._ufun, *args, **kwds)
+    self._eval_ulims()
 
 #-------------------------------------------------------------------------------
   def ret_name(self):
@@ -335,7 +384,7 @@ class Variable (Symbol):
     return self._vtype
 
 #-------------------------------------------------------------------------------
-  def ret_mfun(self, index=None):
+  def ret_ufun(self, index=None):
     r""" Returns the monotonic invertible function(s). If not specified, then
     an identity lambda is passed.
     
@@ -344,23 +393,23 @@ class Variable (Symbol):
     :return: monotonic inverible function(s).
 
     .. warnings:: the flexibility of this interface comes at the cost of requiring
-                  a maximum of ret_mfun() being called per line of code.
+                  a maximum of ret_ufun() being called per line of code.
     """
-    if self._mfun is None:
+    if self._ufun is None:
       return lambda x:x
     if index is None:
-      return self._mfun
-    return self._mfun[index]
+      return self._ufun
+    return self._ufun[index]
 
 #-------------------------------------------------------------------------------
-  def ret_lims(self):
+  def ret_vlims(self):
     """ Returns the untransformed limits """
-    return self._lims
+    return self._vlims
 
 #-------------------------------------------------------------------------------
-  def ret_limits(self):
+  def ret_ulims(self):
     """ Returns the transformed limits """
-    return self._limits
+    return self._ulims
 
 #-------------------------------------------------------------------------------
   def ret_length(self):
@@ -395,7 +444,7 @@ class Variable (Symbol):
 
     For non-float types, the values are evaluated from by ordered (if $n>0) or 
     random permutations of vset. For float types, then uniformly sampled is
-    performed in accordance for any transformations set by Domain.set_mfun().
+    performed in accordance for any transformations set by Variable.set_ufun().
     """
 
     # Default to arrays of complete sets
@@ -424,29 +473,29 @@ class Variable (Symbol):
        
       # Continuous
       else:
-        assert np.all(np.isfinite(self._limits)), \
+        assert np.all(np.isfinite(self._ulims)), \
             "Cannot evaluate {} values for bounds: {}".format(
-                values, self._limits)
-        values = uniform(self._limits[0], self._limits[1], number, 
+                values, self._ulims)
+        values = uniform(self._ulims[0], self._ulims[1], number, 
                            isinstance(self._vset[0], tuple), 
                            isinstance(self._vset[1], tuple)
                         )
 
-      # Only use mfun when isunitsetint(values)
-      if self._mfun:
-        return self.ret_mfun(1)(values)
+      # Only use ufun when isunitsetint(values)
+      if self._ufun:
+        return self.ret_ufun(1)(values)
     return values
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
-    """ See Domain.eval_vals() 
+    """ See Variable.eval_vals() 
 
     :example:
 
     >>> import numpy as np
     >>> import probayes as pb
-    >>> freq = pb.Domain('freq', [1,8], vtype=float)
-    >>> freq.set_mfun((np.log, np.exp))
+    >>> freq = pb.Variable('freq', [1,8], vtype=float)
+    >>> freq.set_ufun((np.log, np.exp))
     >>> print(freq({4})
     [1. 2. 4. 8.]
     """
@@ -461,11 +510,11 @@ class Variable (Symbol):
   def eval_delta(self, delta=None):
     """ Evaluates the value(s) of a delta operation without applying them.
 
-    :param delta: delta value(s) to offset (see Domain.apply_delta).
+    :param delta: delta value(s) to offset (see Variable.apply_delta).
     :return: the evaluated delta offset values.
-    :rtype Domain.delta()
+    :rtype Variable.delta()
 
-    If delta is not entered, then the default set by Domain.set_delta() is used.
+    If delta is not entered, then the default set by Variable.set_delta() is used.
     """
     delta = delta or self._delta
     if delta is None:
@@ -508,10 +557,10 @@ class Variable (Symbol):
 
     :return: Returns the values following the delta operation.
 
-    If delta is not entered, then the default set by Domain.set_delta() is used.
+    If delta is not entered, then the default set by Variable.set_delta() is used.
     Delta may be a scalar or a single scalar value contained in a tuple or list.
 
-    1. A scalar value: is summated to values (transformed if mfun is specified).
+    1. A scalar value: is summated to values (transformed if ufun is specified).
     2. A tuple: the polarity of the scalar value is randomised for the delta.
     3. A list: the delta is uniformly sampled in the range [0, scalar].
     """
@@ -547,11 +596,11 @@ class Variable (Symbol):
       else:
         vals = np.array(values, dtype=int) + np.array(delta, dtype=int)
         vals = np.array(np.mod(vals, 2), dtype=bool)
-    elif self._mfun is None:
+    elif self._ufun is None:
       vals = values + delta
     else:
-      transformed_vals = self.ret_mfun(0)(values) + delta
-      vals = self.ret_mfun(1)(transformed_vals)
+      transformed_vals = self.ret_ufun(0)(values) + delta
+      vals = self.ret_ufun(1)(transformed_vals)
     vals = revtype(vals, self._vtype)
 
     # Apply bounds
@@ -564,7 +613,7 @@ class Variable (Symbol):
                    [isinstance(self._vset[0], tuple), 
                     isinstance(self._vset[1], tuple)]
     if not any(maybe_bounce):
-      return np.maximum(self._lims[0], np.minimum(self._lims[1], vals))
+      return np.maximum(self._vlims[0], np.minimum(self._vlims[1], vals))
 
     # Bouncing scalars and arrays without and with boolean indexing respectively
     if isscalar(vals):
@@ -572,27 +621,34 @@ class Variable (Symbol):
         if not self._inside(vals):
           vals = values
       elif maybe_bounce[0]:
-        if vals < self._lims[0]:
+        if vals < self._vlims[0]:
           vals = values
         else:
-          vals = np.minimum(self._lims[1], vals)
+          vals = np.minimum(self._vlims[1], vals)
       else:
-        if vals > self._lims[1]:
+        if vals > self._vlims[1]:
           vals = values
         else:
-          vals = np.maximum(self._lims[0], vals)
+          vals = np.maximum(self._vlims[0], vals)
     else:
       if all(maybe_bounce):
         outside = np.logical_not(self._inside(vals))
         vals[outside] = values[outside]
       elif maybe_bounce[0]:
-        outside = vals <= self._lims[0]
+        outside = vals <= self._vlims[0]
         vals[outside] = values[outside]
-        vals = np.minimum(self._lims[1], vals)
+        vals = np.minimum(self._vlims[1], vals)
       else:
-        outside = vals >= self._lims[1]
+        outside = vals >= self._vlims[1]
         vals[outside] = values[outside]
-        vals = np.maximum(self._lims[0], vals)
+        vals = np.maximum(self._vlims[0], vals)
     return vals
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+if __name__ == "__main__":
+  import doctest
+  doctest.testmod()
 
 #-------------------------------------------------------------------------------
