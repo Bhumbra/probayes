@@ -24,7 +24,6 @@ SCIPY_TESTS = [
 @pytest.mark.parametrize("inp,out", LOG_TESTS)
 def test_log(inp, out):
   x = pb.Variable('x', vtype=float)
-  import pdb; pdb.set_trace()
   expr = pb.Expr(sy.log(x[:]))
   f_x = expr({'x': inp})
   close = np.isclose(f_x, out)
@@ -34,7 +33,6 @@ def test_log(inp, out):
     assert close, "Output value {} not as expected {}".format(
         f_x, out)
 
-"""
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", INC_TESTS)
 def test_inc(inp, out):
@@ -88,4 +86,3 @@ def test_scipy(dist, values, kwds):
       "{} probabilities not exponentials of associated logpdf".format(dist)
 
 #-------------------------------------------------------------------------------
-"""

@@ -22,7 +22,7 @@ class Expr:
   >>> import sympy as sy
   >>> from probayes.expr import Expr
   >>> x = sy.Symbol('x')
-  >>> x_inc = Expr(x[:] + 1)
+  >>> x_inc = Expr(x + 1)
   >>> print(x_inc.subs({x:1}))
   2
   >>>
@@ -71,6 +71,8 @@ class Expr:
           setattr(self, member, attribute)
         except AttributeError:
           pass
+
+    # In addition to substitution, add default evaluation functions
     for efun in DEFAULT_EFUNS:
       self.add_efun(efun[0], *tuple(efun[1]), **dict(efun[2]))
 
@@ -100,7 +102,6 @@ class Expr:
     (see sympy.Symbol.subs() input specificion using dictionaries. """
     values = parse_as_str_dict(*args, **kwds)
 
-
     # While determining type, collect evalues in required order
     etype = None
     evalues = [None] * len(self._symbols)
@@ -123,77 +124,10 @@ class Expr:
       return vals
     return np.array(vals)
 
-#-------------------------------------------------------------------------------
-  def __and__(self):
-    return NotImplemented("And operators not supported: use sy.And()")
-
-#-------------------------------------------------------------------------------
-  def __or__(self):
-    return NotImplemented("Or operators not supported: use sy.Or()")
-
-#-------------------------------------------------------------------------------
-  def __xor__(self):
-    return NotImplemented("Xor operators not supported: use sy.Xor()")
-
-#-------------------------------------------------------------------------------
-  def __pos__(self):
-    return self.expr.__pos__()
-
-#-------------------------------------------------------------------------------
-  def __neg__(self):
-    return self.expr.__neg__()
-
-#-------------------------------------------------------------------------------
-  def __lt__(self, other):
-    return self.expr.__lt__(other)
-
-#-------------------------------------------------------------------------------
-  def __le__(self, other):
-    return self.expr.__le__(other)
-
-#-------------------------------------------------------------------------------
-  def __eq__(self, other):
-    return self.expr.__eq__(other)
-
-#-------------------------------------------------------------------------------
-  def __ne__(self, other):
-    return self.expr.__ne__(other)
-
-#-------------------------------------------------------------------------------
-  def __ge__(self, other):
-    return self.expr.__ge__(other)
-
-#-------------------------------------------------------------------------------
-  def __gt__(self, other):
-    return self.expr.__gt__(other)
-
-#-------------------------------------------------------------------------------
-  def __add__(self, other):
-    return self.expr.__add__(other)
-
-#-------------------------------------------------------------------------------
-  def __sub__(self, other):
-    return self.expr.__sub__(other)
-
-#-------------------------------------------------------------------------------
-  def __mul__(self, other):
-    return self.expr.__mul__(other)
-
-#-------------------------------------------------------------------------------
-  def __matmul__(self, other):
-    return self.expr.__matmul__(other)
-
-#-------------------------------------------------------------------------------
-  def __div__(self, other):
-    return self.expr.__div__(other)
-
-#-------------------------------------------------------------------------------
-  def __truediv__(self, other):
-    return self.expr.__truediv__(other)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, *args):
-    return self.expr
+    return self.symbol
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

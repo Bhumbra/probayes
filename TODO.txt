@@ -1,5 +1,3 @@
-Fix bern_bayes
-Support pb.Expr evaluations within pb.Expression for symbolics. 
 Support Variable univariate functions using Expression.
 Inherit OrderedDict for variable calls and manifolds (-> Distributions)
 Support Fields of Variables sharing Expressions collected as Functionals.
