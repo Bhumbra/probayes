@@ -1,4 +1,5 @@
 __version__ = '0.0.3.X'
+from probayes.vtypes import OO
 from probayes.symbol import Symbol
 from probayes.expr import Expr
 from probayes.variable import Variable

@@ -118,12 +118,15 @@ class Variable (Symbol):
     """ Sets the variable type (default bool). If the variable set if not set,
     then it is defaulted according to the variable type. """
 
-    if vtype:
+    if not vtype:
+      if self._vset is not None:
+        self._vtype = eval_vtype(self._vset)
+      else:
+        self._vtype = DEFAULT_VTYPE
+    else:
       self._vtype = eval_vtype(vtype)
-      if self._vset is None:
-        self.vset = DEFAULT_VSETS[self._vtype]
-    elif self._vset is not None:
-      self._vtype = eval_vtype(self._vset)
+    if self._vset is None:
+      self.vset = DEFAULT_VSETS[self._vtype]
 
 #-------------------------------------------------------------------------------
   @property
@@ -158,7 +161,7 @@ class Variable (Symbol):
 
     # Default vset to nominal
     if vset is None and self._vtype: 
-      vset = DEFAULT_VSETS[self._vtypes]
+      vset = DEFAULT_VSETS[self._vtype]
     elif isinstance(vset, (set, range)):
       vset = sorted(vset)
     elif np.isscalar(self._vset):
@@ -318,7 +321,9 @@ class Variable (Symbol):
     """ Sets the variable symbol and carries members over to this Variable """
     symbol = symbol or self._name
 
+    """
     # If no arguments passed, default assumptions based on vtype and limits
+    - unfortunately this messes up with subs(...)
     if not args and not kwds:
       kwds = dict(**kwds)
       if self._vtype in VTYPES[float]:
@@ -348,6 +353,7 @@ class Variable (Symbol):
           kwds.update({'positive': True})
         elif np.min(self._vlims) <= 0:
           kwds.update({'negative': True})
+    """
     return Symbol.set_symbol(self, symbol, *args, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -415,10 +421,10 @@ class Variable (Symbol):
     return self._delta
 
 #-------------------------------------------------------------------------------
-  def _eval_vals(self, values=None):
+  def eval_vals(self, values=None):
     """ Evaluates the values ordered dictionary for __call__ """
 
-    values = values[self.name]
+    values = values[self.name] if isinstance(values, dict) else None
 
     # Default to arrays of complete sets
     if values is None:
@@ -496,7 +502,7 @@ class Variable (Symbol):
     [1. 2. 4. 8.]
     """
     values = parse_as_str_dict(values)
-    return self._eval_vals(values)
+    return self.eval_vals(values)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

@@ -665,7 +665,7 @@ class RF (NX_UNDIRECTED_GRAPH):
         vals.update({key: values[key]})
         reshape = not np.isscalar(vals[key])
         if vals[key] is None or isinstance(vals[key], set):
-          vals[key] = rv.eval_vals(vals[key])
+          vals.update(rv.eval_vals(vals[key]))
       else:
         val_ref = values_ref[key]
         vals_val = values[val_ref[0]][val_ref[1]]

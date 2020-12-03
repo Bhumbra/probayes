@@ -22,14 +22,14 @@ class Expr:
   >>> import sympy as sy
   >>> from probayes.expr import Expr
   >>> x = sy.Symbol('x')
-  >>> x_inc = Expr(x + 1)
+  >>> x_inc = Expr(x[:] + 1)
   >>> print(x_inc.subs({x:1}))
   2
   >>>
   """
 
   # Public
-  expr = None     # Expression object
+  _expr = None     # Expression object
 
   # Protected
   _symbols = None # Ordered dictionary of symbols keyed by name
@@ -37,31 +37,37 @@ class Expr:
 
 #-------------------------------------------------------------------------------
   def __init__(self, expr, *args, **kwds):
-    self.set_expr(expr, *args, **kwds)
+    self.expr = expr
 
 #-------------------------------------------------------------------------------
-  def set_expr(self, expr, *args, **kwds):
-    """ Sets the expr object for this instance with optional args and kwds.
-    Either pass a sy.Expr object directly or in accordance with the calling
-    conventions for sy.Expr.__new__
-    """
+  @property
+  def expr(self):
+    return self._expr
 
-    # Pass expr or create expr named according to string
-    self.expr = expr
+  @expr.setter
+  def expr(self, expr=None):
+    """ Sets the expr object for this instance. Either pass a sy.Expr object 
+    directly or in accordance with the calling conventions for sy.Expr.__new__
+    """
+    self._expr = expr
     self._symbols = collections.OrderedDict()
-    if isinstance(self.expr, sy.Expr):
-      for atom in self.expr.atoms():
-        if hasattr(atom, 'name'):
-          self._symbols.update({atom.name: atom})
+    if isinstance(self._expr, sy.Expr):
+      for putative_symbol in self._expr.free_symbols:
+        symbol = putative_symbol
+        while hasattr(symbol, 'symbol') and \
+            hasattr(symbol, 'name'):
+          symbol = symbol.symbol
+        if hasattr(symbol, 'name'):
+          self._symbols.update({symbol.name: symbol})
     else:
       raise TypeError("Input type not Expr type but: {}".format(expr))
 
     # Make instance play nicely with Sympy by copying attributes and hash content
-    members = dir(self.expr)
+    members = dir(self._expr)
     for member in members:
       if not hasattr(self, member):
         try:
-          attribute = getattr(self.expr, member)
+          attribute = getattr(self._expr, member)
           setattr(self, member, attribute)
         except AttributeError:
           pass
@@ -78,14 +84,14 @@ class Expr:
     :returns: updated efun dictionary.
     """
     if self._efun is None:
-      self._efun = {None: (self.expr.subs)}
+      self._efun = {None: (self._expr.subs)}
     if efun is None or not self._symbols:
       return
     symbols = tuple(self._symbols.values())
     assert isinstance(efun, dict), \
         "Input efun must be dictionary type, not {}".format(type(efun))
     for key, val in efun.items():
-      self._efun.update({key: val(symbols, self.expr, *args, **kwds)})
+      self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
     return self._efun
 
 #-------------------------------------------------------------------------------
@@ -93,6 +99,9 @@ class Expr:
     """ Performs evaluation of expression inputting symbols as a dictionary 
     (see sympy.Symbol.subs() input specificion using dictionaries. """
     values = parse_as_str_dict(*args, **kwds)
+
+
+    # While determining type, collect evalues in required order
     etype = None
     evalues = [None] * len(self._symbols)
     for i, key in enumerate(self._symbols.keys()):
