@@ -24,7 +24,7 @@ sigma = pb.RV('sigma', sigma_lims, vtype=float)
 x = pb.RV('x', {-np.inf, np.inf}, vtype=float)
 
 # Set reciprocal prior for  sigma
-sigma.set_mfun((np.log, np.exp))
+sigma.set_ufun((np.log, np.exp))
 
 # Set up params and models
 paras = pb.RF(mu, sigma)

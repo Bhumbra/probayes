@@ -56,7 +56,7 @@ class RV (Variable, Prob):
                      *args,
                      **kwds):
     """ Initialises a random variable combining Variable and Prob initialisation
-    except invertible monotonic must be specified separately using set_mfun().
+    except invertible monotonic must be specified separately using set_ufun().
 
     :param name: Name of the domain - string as valid identifier.
     :param vset: variable set over which domain defined (see set_vset).
@@ -65,7 +65,7 @@ class RV (Variable, Prob):
     :param **kwds: optional keywords to pass if prob is callable.
     """
 
-    Variable.__init__(self, name, vset, vtype)
+    Variable.__init__(self, name, vtype, vset)
     self.set_prob(*args, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -135,28 +135,28 @@ class RV (Variable, Prob):
     :param **kwds: keywords to pass to pfun functions
     """
     super().set_pfun(pfun, *args, **kwds)
-    if self._mfun is None or self._pfun is None:
+    if self._ufun is None or self._pfun is None:
       return
     if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
         self.ret_pfun(1) != scipy.stats.uniform.ppf:
-      assert self._mfun is None, \
+      assert self._ufun is None, \
         "Cannot assign non-uniform distribution alongside " + \
         "values transformation functions"
 
 #-------------------------------------------------------------------------------
-  def set_mfun(self, mfun=None, *args, **kwds):
+  def set_ufun(self, ufun=None, *args, **kwds):
     """ Sets a monotonic invertible tranformation for the domain as a tuple of
     two functions in the form (transforming_function, inverse_function) 
     operating on the first argument with optional further args and kwds.
 
-    :param mfun: two-length tuple of monotonic functions.
-    :param *args: args to pass to mfun functions.
-    :param **kwds: kwds to pass to mfun functions.
+    :param ufun: two-length tuple of monotonic functions.
+    :param *args: args to pass to ufun functions.
+    :param **kwds: kwds to pass to ufun functions.
 
     Support for this transformation is only valid for float-type vtypes.
     """
-    super().set_mfun(mfun, *args, **kwds)
-    if self._mfun is None:
+    super().set_ufun(ufun, *args, **kwds)
+    if self._ufun is None:
       return
 
     # Recalibrate scalar probabilities for floating point vtypes
@@ -347,8 +347,8 @@ class RV (Variable, Prob):
         cdf_val = list(succ_vals)[0]
         lo, hi = min(self._limits), max(self._limits)
         succ_val = lo*(1.-cdf_val) + hi*cdf_val
-        if self._mfun is not None:
-          succ_val = self.ret_mfun(1)(succ_val)
+        if self._ufun is not None:
+          succ_val = self.ret_ufun(1)(succ_val)
 
       prob = self._tran()
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)

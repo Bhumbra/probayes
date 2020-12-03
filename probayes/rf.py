@@ -146,7 +146,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     else:
       assert isinstance(rv, RV), \
           "Input not a RV instance but of type: {}".format(type(rv))
-      key = rv.ret_name()
+      key = rv.name
       if self._nrvs:
         assert key not in list(self.nodes), \
             "Existing RV name {} already present in collection".format(key)
@@ -605,7 +605,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     else:
       vals.update({key: values for key in self._keys})
     rvs = self.ret_rvs()
-    rv_dist_names = [rv.eval_dist_name(vals[rv.ret_name()], suffix) \
+    rv_dist_names = [rv.eval_dist_name(vals[rv.name], suffix) \
                      for rv in rvs]
     dist_name = ','.join(rv_dist_names)
     return dist_name
@@ -659,7 +659,7 @@ class RF (NX_UNDIRECTED_GRAPH):
     vals = collections.OrderedDict()
     rvs = self.ret_rvs(aslist=True)
     for i, rv in enumerate(rvs):
-      key = rv.ret_name()
+      key = rv.name
       reshape = True
       if key in values.keys():
         vals.update({key: values[key]})
@@ -863,7 +863,7 @@ class RF (NX_UNDIRECTED_GRAPH):
         tfun = rv.ret_tfun()
         if (tran is not None and not tran.ret_callable()) or \
             (tfun is not None and tfun.ret_callable()):
-          vals, dims, kwargs = rv.eval_step(pred_vals[rv.ret_name()], succ_vals, reverse=reverse)
+          vals, dims, kwargs = rv.eval_step(pred_vals[rv.name], succ_vals, reverse=reverse)
           return vals, dims, kwargs
         raise ValueError("Transitional CDF calling requires callable tfun")
       else:
