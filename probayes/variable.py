@@ -13,6 +13,7 @@ import sympy as sy
 from probayes.symbol import Symbol
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP
+from probayes.variable_utils import parse_as_str_dict
 from probayes.func import Func
 
 # Defaults
@@ -30,16 +31,20 @@ class Variable (Symbol):
   A domain defines a variable with a defined set over which a function can be 
   defined. It therefore needs a name, variable type, and variable set. 
   
-  While this class xdoes not support respective probability density functions 
-  (use RV for that), it does include an optional to specify an invertible 
-  monotonic variable transformation function:
+  While this class xdoes not support defining probability density functions 
+  (use RV for that), it does include an optional to specify a univariate
+  function that can be used to specify a monotonic variable transformation:
 
   :example:
   >>> import numpy as np
   >>> import probayes as pb
-  >>> scalar = pb.Variable('scalar', [-np.inf, np.inf], vtype=float)
-  >>> scalar.set_ufun((np.exp, np.log))
-  >>> print(scalar.ret_ulims())
+  >>> x = pb.Variable('x', vtype=float)
+  >>> x.set_ufun((np.exp, np.log))
+  >>> print(x.vset)
+  [(-oo,), (oo,)]
+  >>> print(x.ret_vlims())
+  [-inf  inf]
+  >>> print(x.ret_ulims())
   [ 0. inf]
   """
 
@@ -86,10 +91,12 @@ class Variable (Symbol):
     self.vtype = vtype
     if vset:
       self.vset = vset
-    self.set_delta()
 
-    # Setting the symbol comes last in order to pass vtype/vset assumptions
+    # Setting symbol comes afterwards in order to pass vtype/vset assumptions
     self.set_symbol(self.name, *args, **kwds)
+
+    # Default delta to nothing
+    self.set_delta()
 
 #-------------------------------------------------------------------------------
   @property
@@ -144,8 +151,8 @@ class Variable (Symbol):
 
     :example:
     >>> import probayes as pb
-    >>> scalar = pb.Variable('scalar', vtype=float, vset=(1,2))
-    >>> print(scalar.ret_vset())
+    >>> x = pb.Variable('x', vtype=float, vset=(1,2))
+    >>> print(x.vset)
     [(1.0,), (2.0,)]
     """
 
@@ -220,6 +227,7 @@ class Variable (Symbol):
         lim = limit if not isinstance(limit, tuple) else list(limit)[0]
         lims[i] = OO_TO_NP.get(lim, lim)
 
+    # Re-order vset if limits are not sorted
     if lims[1] < lims[0]:
       vset = self._vset[::-1]
       self._vset = vset
@@ -369,21 +377,6 @@ class Variable (Symbol):
     self._eval_ulims()
 
 #-------------------------------------------------------------------------------
-  def ret_name(self):
-    """ Returns the domain name """
-    return self._name
-
-#-------------------------------------------------------------------------------
-  def ret_vset(self):
-    """ Returns the variable set """
-    return self._vset
-
-#-------------------------------------------------------------------------------
-  def ret_vtype(self):
-    """ Returns the variable type """
-    return self._vtype
-
-#-------------------------------------------------------------------------------
   def ret_ufun(self, index=None):
     r""" Returns the monotonic invertible function(s). If not specified, then
     an identity lambda is passed.
@@ -422,12 +415,59 @@ class Variable (Symbol):
     return self._delta
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, values=None):
-    r""" Evaluates value(s) belonging to the domain.
+  def _eval_vals(self, values=None):
+    """ Evaluates the values ordered dictionary for __call__ """
+
+    values = values[self.name]
+
+    # Default to arrays of complete sets
+    if values is None:
+      if self._vtype in VTYPES[float]:
+        values = {0}
+      else:
+        return collections.OrderedDict({self.name: 
+                   np.array(list(self._vset), dtype=self._vtype)})
+
+    # Sets may be used to sample from support sets
+    if isunitsetint(values):
+      number = list(values)[0]
+
+      # Non-continuous
+      if self._vtype not in VTYPES[float]:
+        values = np.array(list(self._vset), dtype=self._vtype)
+        if not number:
+          values = values[np.random.randint(0, len(values))]
+        else:
+          if number > 0:
+            indices = np.arange(number, dtype=int) % self._length
+          else:
+            indices = np.random.permutation(-number, dtype=int) % self._length
+          values = values[indices]
+        return collections.OrderedDict({self.name: values})
+       
+      # Continuous
+      else:
+        assert np.all(np.isfinite(self._ulims)), \
+            "Cannot evaluate {} values for bounds: {}".format(
+                values, self._ulims)
+        values = uniform(self._ulims[0], self._ulims[1], number, 
+                           isinstance(self._vset[0], tuple), 
+                           isinstance(self._vset[1], tuple)
+                        )
+
+      # Only use ufun when isunitsetint(values)
+      if self._ufun:
+        return collections.OrderedDict({self.name: self.ret_ufun(1)(values)})
+    return collections.OrderedDict({self.name: values})
+
+#-------------------------------------------------------------------------------
+  def __call__(self, values=None):
+    r""" Evaluates value(s) belonging to the variable.
 
     :param values: None, set of a single integer, array, or scalar.
 
-    :return: a NumPy array of the values in accordance to the following:
+    :return: an ordered dictionary {key: val} in which key is the variable name
+             and val is a NumPy array of values in accordance to the following:
 
     If values is a NumPy array, it is returned unchanged.
 
@@ -445,50 +485,6 @@ class Variable (Symbol):
     For non-float types, the values are evaluated from by ordered (if $n>0) or 
     random permutations of vset. For float types, then uniformly sampled is
     performed in accordance for any transformations set by Variable.set_ufun().
-    """
-
-    # Default to arrays of complete sets
-    if values is None:
-      if self._vtype in VTYPES[float]:
-        values = {0}
-      else:
-        return np.array(list(self._vset), dtype=self._vtype)
-
-    # Sets may be used to sample from support sets
-    if isunitsetint(values):
-      number = list(values)[0]
-
-      # Non-continuous
-      if self._vtype not in VTYPES[float]:
-        values = np.array(list(self._vset), dtype=self._vtype)
-        if not number:
-          values = values[np.random.randint(0, len(values))]
-        else:
-          if number > 0:
-            indices = np.arange(number, dtype=int) % self._length
-          else:
-            indices = np.random.permutation(-number, dtype=int) % self._length
-          values = values[indices]
-        return values
-       
-      # Continuous
-      else:
-        assert np.all(np.isfinite(self._ulims)), \
-            "Cannot evaluate {} values for bounds: {}".format(
-                values, self._ulims)
-        values = uniform(self._ulims[0], self._ulims[1], number, 
-                           isinstance(self._vset[0], tuple), 
-                           isinstance(self._vset[1], tuple)
-                        )
-
-      # Only use ufun when isunitsetint(values)
-      if self._ufun:
-        return self.ret_ufun(1)(values)
-    return values
-
-#-------------------------------------------------------------------------------
-  def __call__(self, values=None):
-    """ See Variable.eval_vals() 
 
     :example:
 
@@ -499,7 +495,8 @@ class Variable (Symbol):
     >>> print(freq({4})
     [1. 2. 4. 8.]
     """
-    return self.eval_vals(values)
+    values = parse_as_str_dict(values)
+    return self._eval_vals(values)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

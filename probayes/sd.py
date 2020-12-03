@@ -85,7 +85,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       if len(rfs) == 1:
         rvs = rfs[0].ret_rvs(aslist=True)
         for rv in rvs:
-          NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
+          NX_DIRECTED_GRAPH.add_node(self, rv.name, **{'rv': rv})
         return self._refresh(rfs[0])
       leafs_rvs = rfs[0].ret_rvs(aslist=True)
       roots_rvs = rfs[-1].ret_rvs(aslist=True)
@@ -93,11 +93,11 @@ class SD (NX_DIRECTED_GRAPH, RF):
         for rf in rfs[1:-1]:
           leafs_rvs += rf.ret_rvs(aslist=True)
       for rv in roots_rvs:
-        NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
+        NX_DIRECTED_GRAPH.add_node(self, rv.name, **{'rv': rv})
       for rv in leafs_rvs:
-        NX_DIRECTED_GRAPH.add_node(self, rv.ret_name(), **{'rv': rv})
-      roots_keys = [rv.ret_name() for rv in roots_rvs]
-      leafs_keys = [rv.ret_name() for rv in leafs_rvs]
+        NX_DIRECTED_GRAPH.add_node(self, rv.name, **{'rv': rv})
+      roots_keys = [rv.name for rv in roots_rvs]
+      leafs_keys = [rv.name for rv in leafs_rvs]
       for roots_key in roots_keys:
         for leafs_key in leafs_keys:
           NX_DIRECTED_GRAPH.add_edge(self, roots_key, leafs_key)

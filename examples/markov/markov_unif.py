@@ -9,7 +9,7 @@ set_lims = [np.e, np.e**3] # returns a scalar probability of 0.5
 set_sizes = [{0}, {-5}]
 
 x = pb.RV('x', set_lims)
-x.set_mfun((np.log, np.exp))
+x.set_ufun((np.log, np.exp))
 x_x = x.step(set_sizes[0], set_sizes[1])
 xx_ = x_x.rekey({"x'": 'x', 'x': "x'"})
 vals = xx_.ret_vals()
