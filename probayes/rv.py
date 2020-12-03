@@ -269,6 +269,7 @@ class RV (Variable, Prob):
 
     :return: evaluated probabilities
     """
+    values = values[self.name] if isinstance(values, dict) else values
     if not self.ret_isscalar():
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
@@ -446,8 +447,7 @@ class RV (Variable, Prob):
     dist_name = self.eval_dist_name(values)
     vals = self.eval_vals(values)
     prob = self.eval_prob(vals)
-    dims = {self._name: None} if isscalar(vals) else {self._name: 0}
-    vals = collections.OrderedDict({self._name: vals})
+    dims = {self._name: None} if isscalar(vals[self.name]) else {self._name: 0}
     return Dist(dist_name, vals, dims, prob, self._pscale)
 
 #-------------------------------------------------------------------------------

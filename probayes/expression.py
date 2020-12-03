@@ -72,8 +72,7 @@ class Expression (Expr):
     'order': which instead denotes a dictionary of remappings.
     'delta': which instead denotes a mapping of differences.
     """
-
-    self.expr = expr
+    self._expr = expr
     self._args = tuple(args)
     self._kwds = dict(kwds)
     self.__order = None
@@ -82,25 +81,32 @@ class Expression (Expr):
     self.__callable = None
 
     # Sanity check func
-    if self.expr is None:
+    if self._expr is None:
       assert not args and not kwds, "No optional args without a function"
-    self.__issympy = issymbol(self.expr)
-    self.__ismulti = isinstance(self.expr, (dict, tuple))
-    if is_scipy_stats_dist(self.expr):
+    self.__issymbol = issymbol(self._expr)
+    self.__ismulti = isinstance(self._expr, (dict, tuple))
+
+    # Symbol
+    if self.__issymbol:
+      self.__ismulti = False
+      self.__callable = True
+      self.expr = expr # this invokes the inherited setter
+
+    # Scipy
+    elif is_scipy_stats_dist(self.expr):
       self.__scipyobj = self.expr
       self.__ismulti = True
       self.__callable = True
-      self.__issympy  = False
-    elif self.__issympy:
-      assert not args and not kwds, \
-          "No optional arguments with symbolic expressions"
-      self.expr.__eq__(self)
+
+    # Unitary
     elif not self.__ismulti:
       self.__callable = callable(self.expr)
       if not self.__callable:
         assert not args and not kwds, \
             "No optional arguments with uncallable expressions"
         self.__isscalar = isscalar(self.expr)
+
+    # Multi
     else:
       exprs = self.expr if isinstance(self.expr, tuple) else \
               self.expr.values()
@@ -184,8 +190,13 @@ class Expression (Expr):
     self._partials = collections.OrderedDict()
 
 
+    # Evaluate symbolic call if symbol expression
+    if self.__issymbol:
+      call = functools.partial(Expr.__call__, self)
+      self._partials.update({None: call})
+
     # Extract SciPy object member functions
-    if self.__scipyobj:
+    elif self.__scipyobj:
       for method in SCIPY_DIST_METHODS:
         if hasattr(self.__scipyobj, method):
           call = functools.partial(Expression._partial_call, self, 
@@ -220,11 +231,6 @@ class Expression (Expr):
         call = functools.partial(Expression._partial_call, self, val, 
                                  *self._args, **self._kwds)
         self._partials.update({key: call})
-
-#-------------------------------------------------------------------------------
-  def ret_expr(self):
-    """ Returns expression argument set by set_expr() """
-    return self.expr
 
 #-------------------------------------------------------------------------------
   def ret_args(self):

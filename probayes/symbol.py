@@ -10,20 +10,16 @@ class Symbol:
   modified class objects at instantiation doesn't play nicely with multiple
   inheritance wrap them in here as a class instead and copy over the attributes.
 
-  The resulting instance can be treated in _almost_ the same way as SymPy's, but
-  for identical behaviour, use probayes.Symbol[:] method:
+  The resulting instance can be treated as a SymPy object using the __getitem__
+  method (probayes.Symbol[:]):
 
   :example
   >>> import probayes as pb
-  >>> sym = pb.Symbol('sym')
-  >>> sym2 = sym * 2
-  >>> sym2 = 2 * sym
-  Traceback (most recent call last):
-    File "<stdin>", line 1, in <module>
-  TypeError: unsupported operand type(s) for *: 'int' and 'Symbol'
-  >>> sym2 = 2 * sym[:]
+  >>> x = pb.Symbol('x')
+  >>> x2 = 2 * x[:]
+  >>> print(x2.subs({x: 4.}))
+  >>>
   """
-
   symbol = None
 
 #-------------------------------------------------------------------------------
@@ -46,7 +42,7 @@ class Symbol:
     else:
       raise TypeError("Symbol name must be string; {} entered".format(symbol))
 
-    # Make instance play nicely with Sympy by copying attributes and hash content
+    # Copy attributes and hash content
     members = dir(self.symbol)
     for member in members:
       if not hasattr(self, member):
@@ -63,75 +59,14 @@ class Symbol:
     return self.symbol.__hash__()
 
 #-------------------------------------------------------------------------------
-  def __and__(self):
-    return NotImplemented("And operators not supported: use sy.And()")
-
-#-------------------------------------------------------------------------------
-  def __or__(self):
-    return NotImplemented("Or operators not supported: use sy.Or()")
-
-#-------------------------------------------------------------------------------
-  def __xor__(self):
-    return NotImplemented("Xor operators not supported: use sy.Xor()")
-
-#-------------------------------------------------------------------------------
-  def __pos__(self):
-    return self.symbol.__pos__()
-
-#-------------------------------------------------------------------------------
-  def __neg__(self):
-    return self.symbol.__neg__()
-
-#-------------------------------------------------------------------------------
-  def __lt__(self, other):
-    return self.symbol.__lt__(other)
-
-#-------------------------------------------------------------------------------
-  def __le__(self, other):
-    return self.symbol.__le__(other)
-
-#-------------------------------------------------------------------------------
-  def __eq__(self, other):
-    return self.symbol.__eq__(other)
-
-#-------------------------------------------------------------------------------
-  def __ne__(self, other):
-    return self.symbol.__ne__(other)
-
-#-------------------------------------------------------------------------------
-  def __ge__(self, other):
-    return self.symbol.__ge__(other)
-
-#-------------------------------------------------------------------------------
-  def __gt__(self, other):
-    return self.symbol.__gt__(other)
-
-#-------------------------------------------------------------------------------
-  def __add__(self, other):
-    return self.symbol.__add__(other)
-
-#-------------------------------------------------------------------------------
-  def __sub__(self, other):
-    return self.symbol.__sub__(other)
-
-#-------------------------------------------------------------------------------
-  def __mul__(self, other):
-    return self.symbol.__mul__(other)
-
-#-------------------------------------------------------------------------------
-  def __matmul__(self, other):
-    return self.symbol.__matmul__(other)
-
-#-------------------------------------------------------------------------------
-  def __div__(self, other):
-    return self.symbol.__div__(other)
-
-#-------------------------------------------------------------------------------
-  def __truediv__(self, other):
-    return self.symbol.__truediv__(other)
-
-#-------------------------------------------------------------------------------
   def __getitem__(self, *args):
     return self.symbol
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+if __name__ == "__main__":
+  import doctest
+  doctest.testmod()
 
 #-------------------------------------------------------------------------------

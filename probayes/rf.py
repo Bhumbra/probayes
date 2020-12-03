@@ -477,8 +477,17 @@ class RF (NX_UNDIRECTED_GRAPH):
       if 'rv' not in val: # quick debug check
         print("Debugging: rv not found in RV vertex {}:{}".format(key, val))
         import pdb; pdb.set_trace()
-    rvs = collections.OrderedDict({key:val['rv'] 
-                                       for key,val in rvs_data.items()})
+
+    # If there are roots, add leaf RVs first
+    if not self._roots:
+      rvs = collections.OrderedDict({key:val['rv'] 
+                                         for key,val in rvs_data.items()})
+    else:
+      rvs = self._leafs.ret_rvs(aslist=False)
+      for key, val in rvs_data.items():
+        if key not in rvs:
+          rvs.update({key:val['rv']})
+
     if aslist:
       if isinstance(rvs, dict):
         rvs = list(rvs.values())
@@ -665,7 +674,7 @@ class RF (NX_UNDIRECTED_GRAPH):
         vals.update({key: values[key]})
         reshape = not np.isscalar(vals[key])
         if vals[key] is None or isinstance(vals[key], set):
-          vals[key] = rv.eval_vals(vals[key])
+          vals.update(rv.eval_vals(vals[key]))
       else:
         val_ref = values_ref[key]
         vals_val = values[val_ref[0]][val_ref[1]]

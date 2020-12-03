@@ -111,11 +111,11 @@ class SD (NX_DIRECTED_GRAPH, RF):
     for arg in args:
       leafs_data = collections.OrderedDict(arg.ret_leafs().nodes.data())
       for key, val in leafs_data.items():
-        NX_DIRECTED_GRAPH.add_node(self, val['rv'].ret_name(), **{'rv': val['rv']})
+        NX_DIRECTED_GRAPH.add_node(self, val['rv'].name(), **{'rv': val['rv']})
     for arg in args:
       rvs_data = collections.OrderedDict(arg.nodes.data())
       for key, val in rvs_data.items():
-        NX_DIRECTED_GRAPH.add_node(self, val['rv'].ret_name(), **{'rv': val['rv']})
+        NX_DIRECTED_GRAPH.add_node(self, val['rv'].name(), **{'rv': val['rv']})
 
     # Adding all edges in reverse order
     for arg in args[::-1]:
@@ -218,6 +218,11 @@ class SD (NX_DIRECTED_GRAPH, RF):
         self._roots = RF(*tuple(roots))
 
     # Default IID keys and evaluate name and id from leafs and roots only
+    self._keys = list(self._leafs.nodes)
+    for key in list(self.nodes):
+      if key not in self._keys:
+        self._keys.append(key)
+    self._keyset = set(self._keys)
     self._defiid = self._leafs.ret_keys(False)
     self._name = self._leafs.ret_name()
     self._id = self._leafs.ret_id()

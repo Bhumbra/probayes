@@ -29,7 +29,7 @@ class Expr:
   """
 
   # Public
-  expr = None     # Expression object
+  _expr = None     # Expression object
 
   # Protected
   _symbols = None # Ordered dictionary of symbols keyed by name
@@ -37,34 +37,42 @@ class Expr:
 
 #-------------------------------------------------------------------------------
   def __init__(self, expr, *args, **kwds):
-    self.set_expr(expr, *args, **kwds)
+    self.expr = expr
 
 #-------------------------------------------------------------------------------
-  def set_expr(self, expr, *args, **kwds):
-    """ Sets the expr object for this instance with optional args and kwds.
-    Either pass a sy.Expr object directly or in accordance with the calling
-    conventions for sy.Expr.__new__
-    """
+  @property
+  def expr(self):
+    return self._expr
 
-    # Pass expr or create expr named according to string
-    self.expr = expr
+  @expr.setter
+  def expr(self, expr=None):
+    """ Sets the expr object for this instance. Either pass a sy.Expr object 
+    directly or in accordance with the calling conventions for sy.Expr.__new__
+    """
+    self._expr = expr
     self._symbols = collections.OrderedDict()
-    if isinstance(self.expr, sy.Expr):
-      for atom in self.expr.atoms():
-        if hasattr(atom, 'name'):
-          self._symbols.update({atom.name: atom})
+    if isinstance(self._expr, sy.Expr):
+      for putative_symbol in self._expr.free_symbols:
+        symbol = putative_symbol
+        while hasattr(symbol, 'symbol') and \
+            hasattr(symbol, 'name'):
+          symbol = symbol.symbol
+        if hasattr(symbol, 'name'):
+          self._symbols.update({symbol.name: symbol})
     else:
       raise TypeError("Input type not Expr type but: {}".format(expr))
 
     # Make instance play nicely with Sympy by copying attributes and hash content
-    members = dir(self.expr)
+    members = dir(self._expr)
     for member in members:
       if not hasattr(self, member):
         try:
-          attribute = getattr(self.expr, member)
+          attribute = getattr(self._expr, member)
           setattr(self, member, attribute)
         except AttributeError:
           pass
+
+    # In addition to substitution, add default evaluation functions
     for efun in DEFAULT_EFUNS:
       self.add_efun(efun[0], *tuple(efun[1]), **dict(efun[2]))
 
@@ -78,14 +86,14 @@ class Expr:
     :returns: updated efun dictionary.
     """
     if self._efun is None:
-      self._efun = {None: (self.expr.subs)}
+      self._efun = {None: (self._expr.subs)}
     if efun is None or not self._symbols:
       return
     symbols = tuple(self._symbols.values())
     assert isinstance(efun, dict), \
         "Input efun must be dictionary type, not {}".format(type(efun))
     for key, val in efun.items():
-      self._efun.update({key: val(symbols, self.expr, *args, **kwds)})
+      self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
     return self._efun
 
 #-------------------------------------------------------------------------------
@@ -93,6 +101,8 @@ class Expr:
     """ Performs evaluation of expression inputting symbols as a dictionary 
     (see sympy.Symbol.subs() input specificion using dictionaries. """
     values = parse_as_str_dict(*args, **kwds)
+
+    # While determining type, collect evalues in required order
     etype = None
     evalues = [None] * len(self._symbols)
     for i, key in enumerate(self._symbols.keys()):
@@ -114,77 +124,10 @@ class Expr:
       return vals
     return np.array(vals)
 
-#-------------------------------------------------------------------------------
-  def __and__(self):
-    return NotImplemented("And operators not supported: use sy.And()")
-
-#-------------------------------------------------------------------------------
-  def __or__(self):
-    return NotImplemented("Or operators not supported: use sy.Or()")
-
-#-------------------------------------------------------------------------------
-  def __xor__(self):
-    return NotImplemented("Xor operators not supported: use sy.Xor()")
-
-#-------------------------------------------------------------------------------
-  def __pos__(self):
-    return self.expr.__pos__()
-
-#-------------------------------------------------------------------------------
-  def __neg__(self):
-    return self.expr.__neg__()
-
-#-------------------------------------------------------------------------------
-  def __lt__(self, other):
-    return self.expr.__lt__(other)
-
-#-------------------------------------------------------------------------------
-  def __le__(self, other):
-    return self.expr.__le__(other)
-
-#-------------------------------------------------------------------------------
-  def __eq__(self, other):
-    return self.expr.__eq__(other)
-
-#-------------------------------------------------------------------------------
-  def __ne__(self, other):
-    return self.expr.__ne__(other)
-
-#-------------------------------------------------------------------------------
-  def __ge__(self, other):
-    return self.expr.__ge__(other)
-
-#-------------------------------------------------------------------------------
-  def __gt__(self, other):
-    return self.expr.__gt__(other)
-
-#-------------------------------------------------------------------------------
-  def __add__(self, other):
-    return self.expr.__add__(other)
-
-#-------------------------------------------------------------------------------
-  def __sub__(self, other):
-    return self.expr.__sub__(other)
-
-#-------------------------------------------------------------------------------
-  def __mul__(self, other):
-    return self.expr.__mul__(other)
-
-#-------------------------------------------------------------------------------
-  def __matmul__(self, other):
-    return self.expr.__matmul__(other)
-
-#-------------------------------------------------------------------------------
-  def __div__(self, other):
-    return self.expr.__div__(other)
-
-#-------------------------------------------------------------------------------
-  def __truediv__(self, other):
-    return self.expr.__truediv__(other)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, *args):
-    return self.expr
+    return self.symbol
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
