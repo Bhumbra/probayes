@@ -1,4 +1,4 @@
-# Module to test Expr
+# Module to test Icon
 
 #-------------------------------------------------------------------------------
 import pytest
@@ -14,7 +14,7 @@ INC_TESTS = [(3,4)]
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", LOG_TESTS)
 def test_log(inp, out):
-  x = pb.Variable('x', vtype=float, vset=(0, pb.OO))
+  x = pb.Icon('x')
   expr = sy.log(x[:])
   output = float(expr.subs({'x': inp}))
   close = np.isclose(output, out)
@@ -26,7 +26,7 @@ def test_log(inp, out):
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", INC_TESTS)
 def test_inc(inp, out):
-  x = pb.Symbol('x')
+  x = pb.Icon('x')
   expr = x[:]+1
   output = int(expr.subs({'x': inp}))
   close = np.isclose(output, out)

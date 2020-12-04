@@ -10,11 +10,11 @@ import scipy.stats
 import sympy as sy
 import collections
 import sympy as sy
-from probayes.symbol import Symbol
+from probayes.icon import Icon, isiconic
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP
 from probayes.variable_utils import parse_as_str_dict
-from probayes.func import Func
+from probayes.expression import Expression
 
 # Defaults
 DEFAULT_VNAME = 'var'
@@ -26,7 +26,7 @@ DEFAULT_VSETS = {bool: [False, True],
                 float: [(-OO,), (OO,)]}
 
 #-------------------------------------------------------------------------------
-class Variable (Symbol):
+class Variable (Icon):
   """ Base class for probayes.RV although this class can be called itself.
   A domain defines a variable with a defined set over which a function can be 
   defined. It therefore needs a name, variable type, and variable set. 
@@ -88,12 +88,15 @@ class Variable (Symbol):
     2.0
     """
     self.name = name
-    self.vtype = vtype
-    if vset:
+    if vtype:
+      self.vtype = vtype
+    elif vset:
       self.vset = vset
+    else:
+      self.vtype = vtype
 
     # Setting symbol comes afterwards in order to pass vtype/vset assumptions
-    self.set_symbol(self.name, *args, **kwds)
+    self.set_icon(self.name, *args, **kwds)
 
     # Default delta to nothing
     self.set_delta()
@@ -190,7 +193,7 @@ class Variable (Symbol):
         if vtype is None:
           vtype = float
       else:
-        if vtype:
+        if not vtype:
           vtype = eval_vtype(value)
         elif vtype != eval_vtype(value):
           raise TypeError("Ambiguous value type {} vs {}".format(
@@ -258,7 +261,7 @@ class Variable (Symbol):
 
     # Floating point limits are susceptible to transormation
     self._ulims = self._vlims if self._ufun is None \
-                   else self.ret_ufun(0)(self._vlims)
+                   else self.ufun[0](self._vlims)
     self._length = max(self._ulims) - min(self._ulims)
 
     # Now set inside function
@@ -307,7 +310,7 @@ class Variable (Symbol):
     if self._delta is None:
       return
     elif callable(self._delta):
-      self._delta = Func(self._delta, *args, **kwds)
+      self._delta = Expression(self._delta, *args, **kwds)
       return
 
     # Default scale and bound
@@ -317,14 +320,14 @@ class Variable (Symbol):
       self._delta_kwds.update({'bound': False})
 
 #-------------------------------------------------------------------------------
-  def set_symbol(self, symbol=None, *args, **kwds):
+  def set_icon(self, icon=None, *args, **kwds):
     """ Sets the variable symbol and carries members over to this Variable """
-    symbol = symbol or self._name
-
+    if icon is None:
+      icon = self._name
     """
     # If no arguments passed, default assumptions based on vtype and limits
     - unfortunately this messes up with subs(...)
-    if not args and not kwds:
+    if isinstance(icon, str) and not args and not kwds:
       kwds = dict(**kwds)
       if self._vtype in VTYPES[float]:
         kwds.update({'integer': False})
@@ -354,9 +357,13 @@ class Variable (Symbol):
         elif np.min(self._vlims) <= 0:
           kwds.update({'negative': True})
     """
-    return Symbol.set_symbol(self, symbol, *args, **kwds)
+    return Icon.set_icon(self, icon, *args, **kwds)
 
 #-------------------------------------------------------------------------------
+  @property
+  def ufun(self):
+    return self._ufun
+
   def set_ufun(self, ufun=None, *args, **kwds):
     """ Sets a monotonic invertible tranformation for the domain as a tuple of
     two functions in the form (transforming_function, inverse_function) 
@@ -372,33 +379,19 @@ class Variable (Symbol):
     if self._ufun is None:
       return
 
-    assert self._vtype in VTYPES[float], \
-        "Values transformation function only supported for floating point"
-    message = "Input ufun be a two-sized tuple of callable functions"
-    assert isinstance(self._ufun, tuple), message
-    assert len(self._ufun) == 2, message
-    assert callable(self._ufun[0]), message
-    assert callable(self._ufun[1]), message
-    self._ufun = Func(self._ufun, *args, **kwds)
+    # Non-iconic ufun inputs must a two-length-tuple
+    if not isiconic(self._ufun):
+      assert self._vtype in VTYPES[float], \
+          "Values transformation function only supported for floating point"
+      message = "Input ufun be a two-sized tuple of callable functions"
+      assert isinstance(self._ufun, tuple), message
+      assert len(self._ufun) == 2, message
+      assert callable(self._ufun[0]), message
+      assert callable(self._ufun[1]), message
+    elif 'invertible' not in kwds:
+      kwds.update({'invertible': True})
+    self._ufun = Expression(self._ufun, *args, **kwds)
     self._eval_ulims()
-
-#-------------------------------------------------------------------------------
-  def ret_ufun(self, index=None):
-    r""" Returns the monotonic invertible function(s). If not specified, then
-    an identity lambda is passed.
-    
-    :param index: optional index $i$ if to isolate the $i$th function.
-
-    :return: monotonic inverible function(s).
-
-    .. warnings:: the flexibility of this interface comes at the cost of requiring
-                  a maximum of ret_ufun() being called per line of code.
-    """
-    if self._ufun is None:
-      return lambda x:x
-    if index is None:
-      return self._ufun
-    return self._ufun[index]
 
 #-------------------------------------------------------------------------------
   def ret_vlims(self):
@@ -463,7 +456,7 @@ class Variable (Symbol):
 
       # Only use ufun when isunitsetint(values)
       if self._ufun:
-        return collections.OrderedDict({self.name: self.ret_ufun(1)(values)})
+        return collections.OrderedDict({self.name: self.ufun[-1](values)})
     return collections.OrderedDict({self.name: values})
 
 #-------------------------------------------------------------------------------
@@ -522,7 +515,7 @@ class Variable (Symbol):
     delta = delta or self._delta
     if delta is None:
       return None
-    if isinstance(delta, Func):
+    if isinstance(delta, Expression):
       if delta.ret_callable():
         return delta
       delta = delta()
@@ -570,7 +563,7 @@ class Variable (Symbol):
 
     # Call eval_delta() if values is a list and return values if delta is None
     delta = delta or self._delta
-    if isinstance(delta, Func):
+    if isinstance(delta, Expression):
       if delta.ret_callable():
         return delta(values)
       delta = delta()
@@ -602,8 +595,8 @@ class Variable (Symbol):
     elif self._ufun is None:
       vals = values + delta
     else:
-      transformed_vals = self.ret_ufun(0)(values) + delta
-      vals = self.ret_ufun(1)(transformed_vals)
+      transformed_vals = self.ufun[0](values) + delta
+      vals = self.ufun[1](transformed_vals)
     vals = revtype(vals, self._vtype)
 
     # Apply bounds

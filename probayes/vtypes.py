@@ -150,11 +150,6 @@ def isdimensionless(var):
   return np.isscalar(var)
 
 #-------------------------------------------------------------------------------
-def issymbol(var):
-  """ Returns whether object is a symbolic object """
-  return isinstance(var, sy.Basic)
-
-#-------------------------------------------------------------------------------
 def revtype(var, vtype=None):
   """ Converts var into Numpy array of variable type vtype """
   if vtype is None:

@@ -349,7 +349,7 @@ class RV (Variable, Prob):
         lo, hi = min(self._limits), max(self._limits)
         succ_val = lo*(1.-cdf_val) + hi*cdf_val
         if self._ufun is not None:
-          succ_val = self.ret_ufun(1)(succ_val)
+          succ_val = self.ufun[-1](succ_val)
 
       prob = self._tran()
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
