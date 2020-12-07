@@ -78,9 +78,8 @@ class Prob (Expression):
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
 
-    'pscale' is a reserved keyword.
-
-    See set_pscale() for explanation of how pscale is used.
+    'pscale' is a reserved keyword. See set_pscale() for explanation of how 
+    pscale is used.
     """
     pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
     self.__isscipy = is_scipy_stats_dist(prob)

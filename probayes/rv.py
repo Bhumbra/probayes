@@ -51,16 +51,18 @@ class RV (Variable, Prob):
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
-                     vset=None, 
                      vtype=None,
+                     vset=None, 
+                     prob=None,
                      *args,
                      **kwds):
     """ Initialises a random variable combining Variable and Prob initialisation
     except invertible monotonic must be specified separately using set_ufun().
 
     :param name: Name of the domain - string as valid identifier.
-    :param vset: variable set over which domain defined (see set_vset).
     :param vtype: variable type (bool, int, or float).
+    :param vset: variable set over which domain defined (see Variable.vset).
+    :param prob : uncallable or callable probability expression (see set_prob).
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
     """
@@ -80,19 +82,19 @@ class RV (Variable, Prob):
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, pscale=None, *args, **kwds):
+  def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 
     :param prob: may be a scalar, array, or callable function.
-    :param pscale: represents the scale used to represent probabilities.
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
 
-    See set_pscale() for explanation of how pscale is used.
+    'pscale' is a reserved keyword. See set_pscale() for explanation of how 
+    pscale is used.
     """
     self._tran, self._tfun = None, None
     if prob is not None:
-      super().set_prob(prob, pscale, *args, **kwds)
+      super().set_prob(prob, *args, **kwds)
     else:
       self._default_prob(pscale)
 

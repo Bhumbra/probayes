@@ -45,7 +45,7 @@ class Variable (Icon):
   >>> print(x.ufun[0](1))
   2.718281828459045
   >>> print(x.ufun[-1](1))
-  1.0
+  0.0
   >>> print(x.vset)
   [(-oo,), (oo,)]
   >>> print(x.vlims)
@@ -88,8 +88,8 @@ class Variable (Icon):
     :example:
     >>> import numpy as np
     >>> import probayes as pb
-    >>> x = pb.Variable('x', [-np.inf, np.inf], vtype=float)
-    >>> dx = x.delta(0.5)
+    >>> x = pb.Variable('x', vtype=float)
+    >>> dx = x.Delta(0.5)
     >>> print(x.apply_delta(1.5, dx))
     2.0
     """
@@ -128,6 +128,8 @@ class Variable (Icon):
 #-------------------------------------------------------------------------------
   @property
   def vtype(self):
+    """ Property vtype is the variable type (default bool). If the variable set 
+    if not set, then it is defaulted according to the variable type. """
     return self._vtype
 
   @vtype.setter
@@ -148,11 +150,7 @@ class Variable (Icon):
 #-------------------------------------------------------------------------------
   @property
   def vset(self):
-    return self._vset
-
-  @vset.setter
-  def vset(self, vset=None):
-    """ Sets the variable set over which the valid values are defined.
+    """ Property vset is the set over which the valid values are defined.
     :param vset: variable set over which domain defined (defaulted by vtype:
                  if bool:  vset = {False, True})
                  if int:   vset = {0, 1})
@@ -175,6 +173,10 @@ class Variable (Icon):
     >>> print(x.vset)
     [(1.0,), (2.0,)]
     """
+    return self._vset
+
+  @vset.setter
+  def vset(self, vset=None):
 
     # Default vset to nominal
     if vset is None and self._vtype: 
@@ -228,6 +230,7 @@ class Variable (Icon):
 #-------------------------------------------------------------------------------
   @property
   def vlims(self):
+    """ The untransformed (self._vlims) limits of the variable. """
     return self._vlims
 
   def _eval_vlims(self):
@@ -261,21 +264,26 @@ class Variable (Icon):
 #-------------------------------------------------------------------------------
   @property
   def ulims(self):
+    """ The transformed (self._vlims) limits of the variable. """
     return self._ulims
 
   @property
   def inside(self):
+    """ A lambda function for the whether an input is within the vset """
     return self._inside
 
   @property
   def isfinite(self):
+    """ Boolean flag denoting whether variable range is finite """
     return self._isfinite
 
   @property
   def length(self):
+    """ Length of the variable according to its (transformed) limits """
     return self._length
 
   def __len__(self):
+    """ Length of the variable according to its (transformed) limits """
     return self._length
 
   def _eval_ulims(self):
@@ -326,6 +334,7 @@ class Variable (Icon):
 #-------------------------------------------------------------------------------
   @property
   def delta(self):
+    """ Returns the default delta object if specified """
     return self._delta
 
   def set_delta(self, delta=None, *args, **kwds):
@@ -338,7 +347,7 @@ class Variable (Icon):
     The first argument delta may be:
 
     1. A callable function (operating on the first term).
-    2. A Variable.delta instance (this defaults all Variable deltas).
+    2. A Variable.Delta instance (this defaults all Variable deltas).
     3. A scalar that may or may not be contained in a container:
       a) No container - the scalar is treated as a fixed delta.
       b) List - delta is uniformly sampled from [-scalar to +scalar].
@@ -519,10 +528,10 @@ class Variable (Icon):
 
     >>> import numpy as np
     >>> import probayes as pb
-    >>> freq = pb.Variable('freq', [1,8], vtype=float)
+    >>> freq = pb.Variable('freq', vtype=float, vset=[1., 8.])
     >>> freq.set_ufun((np.log, np.exp))
-    >>> print(freq({4})
-    [1. 2. 4. 8.]
+    >>> print(freq({4}))
+    freq: Distribution([('freq', array([1., 2., 4., 8.]))])
     """
     values = parse_as_str_dict(values) if isinstance(values, dict) \
              else {self.name: values}
