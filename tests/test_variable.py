@@ -26,6 +26,7 @@ def ismatch(x, y):
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", LOG_TESTS)
 def test_log(inp, out):
+  # Sympy
   x = pb.Variable('x', vtype=float, vset=[zero, inf])
   x.set_ufun(sy.log(x[:]))
   output = x.ufun[0](inp)
@@ -34,6 +35,7 @@ def test_log(inp, out):
   output = x.ufun[-1](output)
   assert ismatch(inp, output), \
       "Observed/expected match {}/{}".format(output, inp)
+  # Numpy
   y = pb.Variable('y', vtype=float, vset=[zero, inf])
   y.set_ufun((np.log, np.exp))
   output = y.ufun[0](inp)
@@ -46,6 +48,7 @@ def test_log(inp, out):
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", INC_TESTS)
 def test_inc(inp, out):
+  # Sympy
   x = pb.Variable('x', vtype=float, vset=[zero, inf])
   x.set_ufun(x[:]+1.)
   output = x.ufun[0](inp)
@@ -54,6 +57,7 @@ def test_inc(inp, out):
   output = x.ufun[-1](output)
   assert ismatch(inp, output), \
       "Observed/expected match {}/{}".format(output, inp)
+  # Numpy
   y = pb.Variable('y', vtype=float, vset=[zero, inf])
   y.set_ufun((lambda z: z+1, lambda z: z-1))
   output = y.ufun[0](inp)
@@ -66,15 +70,24 @@ def test_inc(inp, out):
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("ran,val", RAN_LOG_TESTS)
 def test_ran(ran, val):
-
-  # Using sumpy
+  # Sympy
   x = pb.Variable('x', vtype=float, vset=ran)
   x.set_ufun(sy.log(x[:]))
   vals = x(val)[x.name]
   assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
+  # Numpy
   y = pb.Variable('y', vtype=float, vset=ran)
   y.set_ufun((np.log, np.exp))
   vals = y(val)[y.name]
+  assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
+  # Delta
+  steps = int(abs(list(val)[0]))
+  value = np.mean(vals)
+  y.set_delta([1], bound=True)
+  vals = np.empty(steps, dtype=float)
+  for i in range(steps):
+    vals[i] = y.apply_delta(value)
+    value = vals[i]
   assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
 
 #-------------------------------------------------------------------------------
