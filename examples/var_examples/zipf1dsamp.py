@@ -9,6 +9,6 @@ zipf_range = [0.1, 10.]
 set_size = {-10000} # size negation denotes random sampling
 var = pb.Variable("var", zipf_range)
 var.set_ufun((np.log, np.exp))
-samples = var.eval_vals(set_size)[var.name]
+samples = var(set_size)
 figure()
-hist(samples, 100)
+hist(samples[var.name], 100)

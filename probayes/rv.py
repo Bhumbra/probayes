@@ -76,7 +76,7 @@ class RV (Variable, Prob):
   @name.setter
   def name(self, name=DEFAULT_VNAME):
     self._name = name
-    self.Delta = collections.namedtuple('ð', [self._name])
+    self._Delta = collections.namedtuple('ð', [self._name])
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ class RV (Variable, Prob):
     """
     use_pfun = use_pfun and self._pfun is not None and isunitsetint(values)
     if not use_pfun:
-      return super().eval_vals(values)
+      return super().evaluate(values)
 
     # Evaluate values from inverse cdf bounded within cdf limits
     number = list(values)[0]
