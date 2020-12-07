@@ -9,7 +9,8 @@ import numpy as np
 from probayes.constants import NEARLY_POSITIVE_ZERO, \
                                NEARLY_POSITIVE_INF, \
                                NEARLY_NEGATIVE_INF, \
-                               LOG_NEARLY_POSITIVE_INF
+                               LOG_NEARLY_POSITIVE_INF, \
+                               COMPLEX_ZERO
 
 #-------------------------------------------------------------------------------
 def iscomplex(pscale):
