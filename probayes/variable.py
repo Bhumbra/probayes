@@ -15,6 +15,7 @@ from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP
 from probayes.variable_utils import parse_as_str_dict
 from probayes.expression import Expression
+from probayes.distribution import Distribution
 
 # Defaults
 DEFAULT_VNAME = 'var'
@@ -441,7 +442,7 @@ class Variable (Icon):
     self._eval_ulims()
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, values=None):
+  def evaluate(self, values=None):
     """ Evaluates the values ordered dictionary for __call__ """
 
     # If dictionary input type, values are keyed by variable name
@@ -453,7 +454,7 @@ class Variable (Icon):
       if self._vtype in VTYPES[float]:
         values = {0}
       else:
-        return collections.OrderedDict({self.name: 
+        return Distribution(self._name, {self.name: 
                    np.array(list(self._vset), dtype=self._vtype)})
 
     # Sets may be used to sample from support sets
@@ -471,7 +472,7 @@ class Variable (Icon):
           else:
             indices = np.random.permutation(-number, dtype=int) % self._length
           values = values[indices]
-        return collections.OrderedDict({self.name: values})
+        return Distribution(self._name, {self.name: values})
        
       # Continuous
       else:
@@ -485,8 +486,8 @@ class Variable (Icon):
 
       # Only use ufun when isunitsetint(values)
       if self._ufun:
-        return collections.OrderedDict({self.name: self.ufun[-1](values)})
-    return collections.OrderedDict({self.name: values})
+        return Distribution(self._name, {self.name: self.ufun[-1](values)})
+    return Distribution(self._name, {self.name: values})
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
@@ -525,7 +526,7 @@ class Variable (Icon):
     """
     values = parse_as_str_dict(values) if isinstance(values, dict) \
              else {self.name: values}
-    return self.eval_vals(values)
+    return self.evaluate(values)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
