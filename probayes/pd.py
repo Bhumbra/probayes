@@ -638,8 +638,8 @@ class PD (Distribution):
     # Simple assertions
     assert not self._issingleton,\
         "Function dist.remarginalise() not operative for scalar probabilities"
-    assert isinstance(manifold, Manifold),\
-        "First argument must be Manifold type not {}".format(type(manifold))
+    assert isinstance(manifold, Distribution),\
+        "First argument must be Distribution type not {}".format(type(manifold))
 
     # Read and check dictionary
     vals = None
