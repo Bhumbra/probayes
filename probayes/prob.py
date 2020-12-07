@@ -4,12 +4,11 @@ of a variable set.
 """
 
 #-------------------------------------------------------------------------------
-import warnings
-import numpy as np
+import collections
+import functools
 import scipy.stats
-from probayes.vtypes import isscalar
 from probayes.pscales import eval_pscale, rescale, iscomplex
-from probayes.func import Func
+from probayes.expression import Expression
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
@@ -23,16 +22,16 @@ SCIPY_DIST_METHODS = ['pdf', 'logpdf', 'pmf', 'logpmf', 'cdf', 'logcdf', 'ppf',
 
 #-------------------------------------------------------------------------------
 def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):
-  """ Returns if argument belongs to scipy.stats.continuous """
+  """ Returns if arguments belongs to scipy.stats.continuous """
   return isinstance(arg, tuple(scipy_stats_cont))
 
 #-------------------------------------------------------------------------------
 def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
-  """ Returns if argument belongs to scipy.stats.continuous or discrete """
+  """ Returns if arguments belongs to scipy.stats.continuous or discrete """
   return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
-class Prob:
+class Prob (Expression):
   """ A probability is quantification of degrees of belief concerning outcomes.
   Typically these outcomes are defined over the domains of one or more variables. 
   Since this is not a requirement, this class is not abstract, but it is 
@@ -42,9 +41,12 @@ class Prob:
   :example:
   >>> import scipy.stats
   >>> import probayes as pb
-  >>> norm = pb.Prob(scipy.stats.norm)
-  >>> print(norm(0.))
+  >>> normprob = pb.Prob(scipy.stats.norm)
+  >>> print(normprob(0.))
   0.3989422804014327
+  >>> normlogp = pb.Prob(scipy.stats.norm, pscale='log')
+  >>> print(normlogp(0.))
+  -0.9189385332046727
   """
 
   # Protected
@@ -53,56 +55,85 @@ class Prob:
   _pfun = None      # 2-length tuple of cdf/icdf
 
   # Private
-  __pset = None     # Set of pdfs/logpdfs/cdfs/icdfs
-  __scalar = None   # Flag for being a scalar
-  __callable = None # Flag for callable function
+  __isscipy = None  # Boolean flag of whether prob is a scipy object
 
 #-------------------------------------------------------------------------------
-  def __init__(self, prob=None, pscale=None, *args, **kwds):
+  def __init__(self, prob=None, *args, **kwds):
     """ Initialises the probability and pscale (see set_prob). """
-    self.set_prob(prob, pscale, *args, **kwds)
+    self.set_prob(prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, pscale=None, *args, **kwds):
+  @property
+  def prob(self):
+    return self._prob
+
+  @property
+  def isscipy(self):
+    return self.__isscipy
+
+  def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 
     :param prob: may be a scalar, array, or callable function.
-    :param pscale: represents the scale used to represent probabilities.
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
 
+    'pscale' is a reserved keyword.
+
     See set_pscale() for explanation of how pscale is used.
     """
-    self._pfun = None
-    pset = prob if is_scipy_stats_dist(prob) else None
-    self.__scalar = None
-    self.__callable = None
-
-    # Handle SciPy distributions and scalars, 
-    if pset is not None:
-      prob = None        # needed to pass set_pset assertion
-      self.__pset = pset # needed to pass set_pscale assertion
-    elif isscalar(prob): 
-      prob = float(prob)
-    self._prob = prob 
-
-    # Set pscalar before pset
-    self.set_pscale(pscale) # this defaults self._pfun
-
-    # Create functional interface for prob
-    if pset is not None:
-      self.set_pset(pset, *args, **kwds)
-    elif  self._prob is not None:
-      self._prob = Func(self._prob, *args, **kwds)
-    else:
+    pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
+    self.__isscipy = is_scipy_stats_dist(prob)
+    if not self.__isscipy:
+      self.set_expr(prob, *args, **kwds)
+      self._prob = self._expr
+      self.pscale = pscale
       return
-
-    # Set pscale and distinguish between non-callable and callable self._prob
-    self.__isscalar = self._prob.ret_isscalar()
-    self.__callable = self._prob.ret_callable()
+    self.set_expr(prob, *args, **kwds)
+    self._args = tuple(args)
+    self._kwds = dict(kwds)
+    self._prob = self._expr
+    self._ismulti = True
+    self._callable = True
+    if 'order' in self._kwds:
+      self.set_order(self._kwds.pop('order'))
+    if 'delta' in self._kwds:
+      self.set_delta(self._kwds.pop('delta'))
+    self.pscale = pscale
+    self._set_partials()
+    self._keys = list(self._partials.keys())
+    self._prob = self._partials['logp'] if iscomplex(self._pscale) \
+                 else self._partials['prob']
 
 #-------------------------------------------------------------------------------
-  def set_pscale(self, pscale=None):
+  def _set_partials(self):
+    if not self.__isscipy:
+      super()._set_partials()
+
+    # Extract SciPy object member functions
+    self._partials = collections.OrderedDict()
+    for method in SCIPY_DIST_METHODS:
+      if hasattr(self._prob, method):
+        call = functools.partial(Expression._partial_call, self, 
+                                 getattr(self._prob, method),
+                                 *self._args, **self._kwds)
+        self._partials.update({method: call})
+
+    # Provide a common interface for PDF/PMF and LOGPDF/LOGPMF
+    if 'pdf' in self._partials.keys():
+        self._partials.update({'prob': self._partials['pdf']})
+        self._partials.update({'logp': self._partials['logpdf']})
+    elif 'pmf' in self._partials.keys():
+        self._partials.update({'prob': self._partials['pmf']})
+        self._partials.update({'logp': self._partials['logpmf']})
+
+#-------------------------------------------------------------------------------
+  @property
+  def pscale(self):
+    return self._pscale
+
+  @pscale.setter
+  def pscale(self, pscale=None):
     """ Sets the probability scaling constant used for probabilities.
 
     :param pscale: can be None, a real number, or a complex number, or 'log'
@@ -115,54 +146,13 @@ class Prob:
     :return: pscale (either as a real or complex number)
     """
     self._pscale = eval_pscale(pscale)
-
-    # Probe pset to set functions based on pscale setting
-    if self.__pset is None:
-      if self._pscale != 1.:
-        assert self._prob is not None, \
-            "Cannot specify pscale without setting prob"
-      self.set_pfun()
-
     return self._pscale
 
 #-------------------------------------------------------------------------------
-  def set_pset(self, pset, *args, **kwds):
-    """ Sets a set of probability functions if prob is a scipy.stats object.
-    Normally this function should not require calling if set_prob is set.
-    """
-    self.__pset = pset if is_scipy_stats_dist(pset) else None
-    if self.__pset is None:
-      return
-    assert self._prob is None, "Cannot use scipy.stats.dist while also setting prob"
-    if not iscomplex(self._pscale):
-      if hasattr(self.__pset, 'pdf'):
-        self._prob = Func(self.__pset.pdf, *args, **kwds)
-      elif hasattr(self.__pset, 'pmf'):
-        self._prob = Func(self.__pset.pmf, *args, **kwds)
-      else: 
-        warnings.warn("Cannot find probability function for {}"\
-                      .format(self.__pset))
-    else:
-      if hasattr(self.__pset, 'logpdf'):
-        self._prob = Func(self.__pset.logpdf, *args, **kwds)
-      elif hasattr(self.__pset, 'logpmf'):
-        self._prob = Func(self.__pset.logpmf, *args, **kwds)
-      else: 
-        warnings.warn("Cannot find log probability function for {}"\
-                      .format(self.__pset))
-    if hasattr(self.__pset, 'cdf') and  hasattr(self.__pset, 'ppf'):
-      self.set_pfun((self.__pset.cdf, self.__pset.ppf), *args, **kwds)
-    else:
-      warnings.warn("Cannot find cdf and ppf functions for {}"\
-                    .format(self._pscale))
-      self.set_pfun()
+  @property
+  def pfun(self):
+    return self._pfun
 
-#-------------------------------------------------------------------------------
-  def ret_pset(self):
-    """ Returns object set by set_pset() """
-    return self.__pset
-
-#-------------------------------------------------------------------------------
   def set_pfun(self, pfun=None, *args, **kwds):
     """ Sets a two-length tuple of functions that should correspond to the
     (cumulative probability function, inverse cumulative function) with respect
@@ -175,41 +165,16 @@ class Prob:
     """
     self._pfun = pfun
     if self._pfun is None:
-      return 
-    
-    message = "Input pfun be a two-sized tuple of callable functions"
-    assert isinstance(self._pfun, tuple), message
-    assert len(self._pfun) == 2, message
-    assert callable(self._pfun[0]), message
-    assert callable(self._pfun[1]), message
-    self._pfun = Func(self._pfun, *args, **kwds)
+      return
 
-#-------------------------------------------------------------------------------
-  def ret_pfun(self, index=None):
-    """ Returns object set by set_pfun() """
-    if self._pfun is None or index is None:
-      return self._pfun
-    return self._pfun[index]
-
-#-------------------------------------------------------------------------------
-  def ret_prob(self):
-    """ Returns object set by set_prob() """
-    return self._prob
-
-#-------------------------------------------------------------------------------
-  def ret_callable(self):
-    """ Returns whether object set by set_prob() is callable """
-    return self.__callable
-
-#-------------------------------------------------------------------------------
-  def ret_isscalar(self):
-    """ Returns whether prob is a scalar """
-    return self.__isscalar
-
-#-------------------------------------------------------------------------------
-  def ret_pscale(self):
-    """ Returns the real or complex scaling constant set for pscale """
-    return self._pscale
+    # Non-iconic ufun inputs must a two-length-tuple
+    if not isiconic(self._pfun):
+      message = "Input pfun be a two-sized tuple of callable functions"
+      assert isinstance(self._pfun, tuple), message
+      assert len(self._pfun) == 2, message
+      assert callable(self._pfun[0]), message
+      assert callable(self._pfun[1]), message
+    self._pfun = Expression(self._pfun, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def rescale(self, probs, **kwds):
@@ -230,7 +195,7 @@ class Prob:
     """
     # Callable and non-callable evaluations
     probs = self._prob
-    if self.__callable:
+    if self.callable:
       probs = probs(*args)
     else:
       assert not len(args), \
@@ -244,5 +209,12 @@ class Prob:
   def __call__(self, *args, **kwds):
     """ See eval_prob() """
     return self.eval_prob(*args, **kwds)
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+if __name__ == "__main__":
+  import doctest
+  doctest.testmod()
 
 #-------------------------------------------------------------------------------

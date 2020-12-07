@@ -15,10 +15,6 @@ SYMBOL_TESTS = [(3,4), (np.linspace(-3, 3, 7), np.linspace(-2, 4, 7))]
 VALUE_TESTS = [(4,), ((2, 3),), ({'key_0': 0, 'key_1': 1})]
 FUNCT_TESTS = [(np.negative, 2.), (np.reciprocal, 2.), 
     ((np.log, np.exp), 2.), ({'key_0': np.exp, 'key_1': np.log}, 2.)]
-SCIPY_TESTS = [
-    (scipy.stats.norm, np.linspace(-1, 3, 1000), {'loc': 1., 'scale': 0.5}),
-    (scipy.stats.binom, np.arange(10, dtype=int), {'n': 9, 'p': 0.5})
-              ]
 
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", LOG_TESTS)
@@ -75,14 +71,5 @@ def test_functs(func, vals):
     reverse = expr[keys[1]](forward)
   assert forward != reverse, "No transformation"
   assert np.isclose(vals, reverse), "Reversal did not reverse"
-
-#-------------------------------------------------------------------------------
-@pytest.mark.parametrize("dist, values, kwds", SCIPY_TESTS)
-def test_scipy(dist, values, kwds):
-  expr = pb.Expression(dist, **kwds)
-  prob = expr['prob'](values)
-  logp = expr['logp'](values)
-  assert np.allclose(prob, np.exp(logp)), \
-      "{} probabilities not exponentials of associated logpdf".format(dist)
 
 #-------------------------------------------------------------------------------
