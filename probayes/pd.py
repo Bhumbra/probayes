@@ -147,7 +147,7 @@ class PD (Distribution):
     prob = rescale(self.prob, self._pscale, 1.)
     sum_prob = np.sum(prob, axis=tuple(sum_axes), keepdims=False)
     prob = rescale(sum_prob, 1., self._pscale)
-    return Dist(name=name, 
+    return Distribution(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
@@ -281,7 +281,7 @@ class PD (Distribution):
       prob = div_prob(prob, \
                          np.sum(prob, axis=tuple(sum_axes), keepdims=True))
     prob = rescale(prob, 1., self._pscale)
-    return Dist(name=name, 
+    return Distribution(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
@@ -307,7 +307,7 @@ class PD (Distribution):
           new_dims.append(dims[key])
       prob = np.moveaxis(prob, old_dims, new_dims)
 
-    return Dist(name=self._name, 
+    return Distribution(name=self._name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
@@ -322,7 +322,7 @@ class PD (Distribution):
     marg = rekey_dict(self.marg, keymap) 
     cond = rekey_dict(self.cond, keymap)
     name = margcond_str(marg, cond)
-    return Dist(name=name, 
+    return Distribution(name=name, 
                 vals=manifold.vals, 
                 dims=manifold.dims, 
                 prob=self.prob, 
@@ -368,7 +368,7 @@ class PD (Distribution):
         pscale_product *= pscale**pscale_scaling 
     prob = np.sum(self.prob, axis=tuple(prod_axes)) if iscomplex(pscale) \
            else np.prod(self.prob, axis=tuple(prod_axes))
-    return Dist(name=name, 
+    return Distribution(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
@@ -472,7 +472,7 @@ class PD (Distribution):
 
     # Handle trivial case
     if dim is None:
-      return Dist(self.name, self.vals, self.dims, self.prob, self._pscale)
+      return Distribution(self.name, self.vals, self.dims, self.prob, self._pscale)
 
     # Argsort needed to sort probabilities
     ravals = np.ravel(self.vals[key])
@@ -493,12 +493,12 @@ class PD (Distribution):
         vals.update({_key: keyval})
       else:
         vals.update({_key: np.ravel(_val)[keyidx]})
-    return Dist(self.name, vals, self.dims, prob, self._pscale)
+    return Distribution(self.name, vals, self.dims, prob, self._pscale)
     
 #-------------------------------------------------------------------------------
   def rescaled(self, pscale=None):
     prob = rescale(np.copy(self.prob), self._pscale, pscale)
-    return Dist(name=self.name, 
+    return Distribution(name=self.name, 
                 vals=self.vals, 
                 dims=self.dims,
                 prob=prob, 
@@ -563,7 +563,7 @@ class PD (Distribution):
           dims[key] = dims[key] - dim_delta
     name = margcond_str(marg, cond)
     prob = self.prob[tuple(slices)]
-    return Dist(name=name, 
+    return Distribution(name=name, 
                 vals=vals, 
                 dims=dims, 
                 prob=prob, 
@@ -621,7 +621,7 @@ class PD (Distribution):
     name = margcond_str(marg, cond)
     divp = other.prob if divs else other.prob.reshape(re_shape)
     prob = div_prob(self.prob, divp, self._pscale, other.ret_pscale())
-    return Dist(name=name, 
+    return Distribution(name=name, 
                 vals=vals, 
                 dims=self.dims, 
                 prob=prob, 
@@ -697,7 +697,7 @@ class PD (Distribution):
         rem_vals.update({key: self.vals[key]})
         rem_dims.update({key: self.dims[key]})
 
-    return Dist(rem_name,
+    return Distribution(rem_name,
                 rem_vals,
                 rem_dims,
                 rescale(rem_prob, 1., self._pscale),
