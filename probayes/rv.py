@@ -76,7 +76,7 @@ class RV (Variable, Prob):
   @name.setter
   def name(self, name=DEFAULT_VNAME):
     self._name = name
-    self.delta = collections.namedtuple('ð', [self._name])
+    self.Delta = collections.namedtuple('ð', [self._name])
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------

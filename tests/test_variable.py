@@ -13,6 +13,7 @@ from probayes import NEARLY_POSITIVE_ZERO as zero
 #-------------------------------------------------------------------------------
 LOG_TESTS = [(math.exp(1.),1.)]
 INC_TESTS = [(3,4), (np.linspace(-3, 3, 7), np.linspace(-2, 4, 7))]
+RAN_LOG_TESTS = [([(1,), (100,)], {100}), ([1, 100], {-100})]
 
 #-------------------------------------------------------------------------------
 def ismatch(x, y):
@@ -33,6 +34,14 @@ def test_log(inp, out):
   output = x.ufun[-1](output)
   assert ismatch(inp, output), \
       "Observed/expected match {}/{}".format(output, inp)
+  y = pb.Variable('y', vtype=float, vset=[zero, inf])
+  y.set_ufun((np.log, np.exp))
+  output = y.ufun[0](inp)
+  assert ismatch(out, output), \
+      "Observed/expected match {}/{}".format(output, out)
+  output = y.ufun[-1](output)
+  assert ismatch(inp, output), \
+      "Observed/expected match {}/{}".format(output, inp)
 
 #-------------------------------------------------------------------------------
 @pytest.mark.parametrize("inp,out", INC_TESTS)
@@ -45,5 +54,27 @@ def test_inc(inp, out):
   output = x.ufun[-1](output)
   assert ismatch(inp, output), \
       "Observed/expected match {}/{}".format(output, inp)
+  y = pb.Variable('y', vtype=float, vset=[zero, inf])
+  y.set_ufun((lambda z: z+1, lambda z: z-1))
+  output = y.ufun[0](inp)
+  assert ismatch(out, output), \
+      "Observed/expected match {}/{}".format(output, out)
+  output = y.ufun[-1](output)
+  assert ismatch(inp, output), \
+      "Observed/expected match {}/{}".format(output, inp)
+
+#-------------------------------------------------------------------------------
+@pytest.mark.parametrize("ran,val", RAN_LOG_TESTS)
+def test_ran(ran, val):
+
+  # Using sumpy
+  x = pb.Variable('x', vtype=float, vset=ran)
+  x.set_ufun(sy.log(x[:]))
+  vals = x(val)[x.name]
+  assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
+  y = pb.Variable('y', vtype=float, vset=ran)
+  y.set_ufun((np.log, np.exp))
+  vals = y(val)[y.name]
+  assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
 
 #-------------------------------------------------------------------------------

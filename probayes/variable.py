@@ -1,7 +1,7 @@
 """
-A variable defines a quantity with a defined set over which a function is valid. 
-It thus comprises a name, variable type, and variable set. The function 
-itself is not supported although invertible variable transformations are.
+A variable is a representation of a quantity with a variable set that 
+defines a domain over which a function is valid. It therefore needs a name, 
+variable type, and variable set. 
 """
 
 #-------------------------------------------------------------------------------
@@ -27,36 +27,41 @@ DEFAULT_VSETS = {bool: [False, True],
 
 #-------------------------------------------------------------------------------
 class Variable (Icon):
-  """ Base class for probayes.RV although this class can be called itself.
-  A domain defines a variable with a defined set over which a function can be 
-  defined. It therefore needs a name, variable type, and variable set. 
+  """ A variable is a representation of a quantity with a variable set that 
+  defines a domain over which a function is valid. It therefore needs a name, 
+  variable type, and variable set. 
   
-  While this class xdoes not support defining probability density functions 
-  (use RV for that), it does include an optional to specify a univariate
-  function that can be used to specify a monotonic variable transformation:
+  While this class does not support defining probability density functions 
+  (use RV for that), it does include an option to specify a univariate
+  function that can be used for example to specify a monotonic variable 
+  transformation:
 
   :example:
   >>> import numpy as np
   >>> import probayes as pb
   >>> x = pb.Variable('x', vtype=float)
   >>> x.set_ufun((np.exp, np.log))
+  >>> print(x.ufun[0](1))
+  2.718281828459045
+  >>> print(x.ufun[-1](1))
+  1.0
   >>> print(x.vset)
   [(-oo,), (oo,)]
-  >>> print(x.ret_vlims())
+  >>> print(x.vlims)
   [-inf  inf]
-  >>> print(x.ret_ulims())
+  >>> print(x.ulims)
   [ 0. inf]
   """
 
-  # Public
-  delta = None       # A named tuple generator
                     
   # Protected       
+  _Delta = None      # A namedtuple generator for delta operations
   _vtype = None      # Variable type (bool, int, or float)
   _vset = None       # Variable set (array or 2-length tuple range)
   _vlims = None      # Numpy array of bounds of vset
   _ufun = None       # Univariate function for variable transformation
   _ulims = None      # Transformed self._vlims
+  _isfinite = None   # all(isfinite(ulims))
   _length = None     # Difference in self._ulims
   _inside = None     # Lambda function for defining inside vset
   _delta = None      # Default delta operation
@@ -88,14 +93,18 @@ class Variable (Icon):
     2.0
     """
     self.name = name
+
+    # Allow positions of vtype and vset to be swapped
+    if isinstance(vtype, (list, tuple, set, range, np.ndarray)):
+      vtype, vset = vset, vtype
+
+    # If vtype and/or vset is/are specified, set it/them
     if vtype:
       self.vtype = vtype
-    elif vset:
+    if vset:
       self.vset = vset
-    else:
-      self.vtype = vtype
 
-    # Setting symbol comes afterwards in order to pass vtype/vset assumptions
+    # Setting icon comes afterwards to allow passing vtype/vset assumptions
     self.set_icon(self.name, *args, **kwds)
 
     # Default delta to nothing
@@ -106,10 +115,14 @@ class Variable (Icon):
   def name(self):
     return self._name
 
+  @property
+  def Delta(self):
+    return self._Delta
+
   @name.setter
   def name(self, name=DEFAULT_VNAME):
     self._name = name
-    self.delta = collections.namedtuple('ð', [self._name])
+    self._Delta = collections.namedtuple('ð', [self._name])
 
 #-------------------------------------------------------------------------------
   @property
@@ -195,7 +208,7 @@ class Variable (Icon):
       else:
         if not vtype:
           vtype = eval_vtype(value)
-        elif vtype != eval_vtype(value):
+        elif not self._vtype and vtype != eval_vtype(value):
           raise TypeError("Ambiguous value type {} vs {}".format(
             vtype, eval_vtype(value)))
         vset[i] = (vtype)(value)
@@ -212,6 +225,10 @@ class Variable (Icon):
     self._eval_vlims()
 
 #-------------------------------------------------------------------------------
+  @property
+  def vlims(self):
+    return self._vlims
+
   def _eval_vlims(self):
     """ Evaluates untransformed (self._vlims) and transformed (self._ulims) 
 
@@ -241,6 +258,25 @@ class Variable (Icon):
     return self._eval_ulims()
 
 #-------------------------------------------------------------------------------
+  @property
+  def ulims(self):
+    return self._ulims
+
+  @property
+  def inside(self):
+    return self._inside
+
+  @property
+  def isfinite(self):
+    return self._isfinite
+
+  @property
+  def length(self):
+    return self._length
+
+  def __len__(self):
+    return self._length
+
   def _eval_ulims(self):
     """ Evaluates transformed limits (self._ulims) and inside functions
     
@@ -249,6 +285,7 @@ class Variable (Icon):
     self._ulims = None
     self._length = None
     self._inside = None
+    self._isfinite = None
     if self._vlims is None:
       return self._length
 
@@ -257,11 +294,13 @@ class Variable (Icon):
       self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
       self._ulims = self._vlims
       self._length = True if self._vtype in VTYPES[bool] else len(self._vset)
+      self._isfinite = False
       return self._length
 
     # Floating point limits are susceptible to transormation
     self._ulims = self._vlims if self._ufun is None \
                    else self.ufun[0](self._vlims)
+    self._isfinite = np.all(np.isfinite(self._ulims))
     self._length = max(self._ulims) - min(self._ulims)
 
     # Now set inside function
@@ -284,6 +323,10 @@ class Variable (Icon):
     return self._length
 
 #-------------------------------------------------------------------------------
+  @property
+  def delta(self):
+    return self._delta
+
   def set_delta(self, delta=None, *args, **kwds):
     """ Sets the default delta operation for the domain.
 
@@ -320,6 +363,10 @@ class Variable (Icon):
       self._delta_kwds.update({'bound': False})
 
 #-------------------------------------------------------------------------------
+  @property
+  def icon(self):
+    return self._icon
+
   def set_icon(self, icon=None, *args, **kwds):
     """ Sets the variable symbol and carries members over to this Variable """
     if icon is None:
@@ -394,30 +441,12 @@ class Variable (Icon):
     self._eval_ulims()
 
 #-------------------------------------------------------------------------------
-  def ret_vlims(self):
-    """ Returns the untransformed limits """
-    return self._vlims
-
-#-------------------------------------------------------------------------------
-  def ret_ulims(self):
-    """ Returns the transformed limits """
-    return self._ulims
-
-#-------------------------------------------------------------------------------
-  def ret_length(self):
-    """ Returns the length of the domain """
-    return self._length
-
-#-------------------------------------------------------------------------------
-  def ret_delta(self):
-    """ Returns the delta function if set """
-    return self._delta
-
-#-------------------------------------------------------------------------------
   def eval_vals(self, values=None):
     """ Evaluates the values ordered dictionary for __call__ """
 
-    values = values[self.name] if isinstance(values, dict) else None
+    # If dictionary input type, values are keyed by variable name
+    if isinstance(values, dict):
+      values = values[self.name] 
 
     # Default to arrays of complete sets
     if values is None:
@@ -446,7 +475,7 @@ class Variable (Icon):
        
       # Continuous
       else:
-        assert np.all(np.isfinite(self._ulims)), \
+        assert self._isfinite, \
             "Cannot evaluate {} values for bounds: {}".format(
                 values, self._ulims)
         values = uniform(self._ulims[0], self._ulims[1], number, 
@@ -494,7 +523,8 @@ class Variable (Icon):
     >>> print(freq({4})
     [1. 2. 4. 8.]
     """
-    values = parse_as_str_dict(values)
+    values = parse_as_str_dict(values) if isinstance(values, dict) \
+             else {self.name: values}
     return self.eval_vals(values)
 
 #-------------------------------------------------------------------------------
@@ -519,7 +549,7 @@ class Variable (Icon):
       if delta.ret_callable():
         return delta
       delta = delta()
-    if isinstance(delta, self.delta):
+    if isinstance(delta, self._Delta):
       delta = delta[0]
     orand = isinstance(delta, tuple)
     urand = isinstance(delta, list)
@@ -541,7 +571,7 @@ class Variable (Icon):
     if delta == self._delta and self._delta_kwds['scale']:
       assert np.isfinite(self._length), "Cannot scale by infinite length"
       delta *= self._length
-    return self.delta(delta)
+    return self._Delta(delta)
 
 #------------------------------------------------------------------------------- 
   def apply_delta(self, values, delta=None, bound=None):
@@ -570,7 +600,7 @@ class Variable (Icon):
     elif self._vtype not in VTYPES[bool]:
       if isinstance(delta, (list, tuple)):
         delta = self.eval_delta(delta)
-    if isinstance(delta, self.delta):
+    if isinstance(delta, self._Delta):
       delta = delta[0]
     if delta is None:
       return values

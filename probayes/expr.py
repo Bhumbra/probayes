@@ -29,7 +29,7 @@ class Expr:
   """
 
   # Public
-  _expr = None     # Expression object
+  _expr = None    # Expression object
 
   # Protected
   _symbols = None # Ordered dictionary of symbols keyed by name

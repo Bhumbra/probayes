@@ -65,6 +65,58 @@ class Expression (Expr):
     self.set_expr(expr, *args, **kwds)
     
 #-------------------------------------------------------------------------------
+  @property
+  def args(self):
+    return self._args
+
+  @property
+  def kwds(self):
+    return self._kwds
+
+  @property
+  def order(self):
+    return self.__order
+
+  @property
+  def delta(self):
+    return self.__delta
+
+  @property
+  def scipyobj(self):
+    return self.__scipyobj
+
+  @property
+  def callable(self):
+    return self.__callable
+
+  @property
+  def ismulti(self):
+    return self.__ismulti
+
+  @property
+  def isscalar(self):
+    return self.__isscalar
+
+  @property
+  def isiconic(self):
+    return self.__isiconic
+
+  @property
+  def inverse(self):
+    return self.__inverse
+
+  @property
+  def invexpr(self):
+    return self.__invexpr
+
+  @property
+  def invertible(self):
+    return self.__invertible
+
+  @property
+  def keys(self):
+    return self._keys
+
   def set_expr(self, expr=None, *args, **kwds):
     """ Set the Func instance's function object.
 
@@ -84,6 +136,9 @@ class Expression (Expr):
     self.__delta = None
     self.__scipyobj = None
     self.__callable = None
+    self.__ismulti = None
+    self.__isscalar = None
+    self.__isiconic = None
     self.__inverse = None
     self.__invexpr = None
     self.__invertible = False if 'invertible' not in kwds else \
@@ -262,51 +317,6 @@ class Expression (Expr):
         self._partials.update({key: call})
 
 #-------------------------------------------------------------------------------
-  def ret_args(self):
-    """ Returns args as set by set_expr() """
-    return self._args
-
-#-------------------------------------------------------------------------------
-  def ret_kwds(self):
-    """ Returns kwds as set by set_expr() """
-    return self._kwds
-
-#-------------------------------------------------------------------------------
-  def ret_scipyobj(self):
-    """ Returns SciPy obj if set by set_expr() """
-    return self.__scipyobj
-
-#-------------------------------------------------------------------------------
-  def ret_callable(self):
-    """ Returns boolean flag as to whether expr is callable """
-    return self.__callable
-
-#-------------------------------------------------------------------------------
-  def ret_isscalar(self):
-    """ Returns boolean flag as to whether expr is a scalar """
-    return self.__isscalar
-
-#-------------------------------------------------------------------------------
-  def ret_isiconic(self):
-    """ Returns boolean flag as to whether expr is symbolic """
-    return self.__isiconic
-
-#-------------------------------------------------------------------------------
-  def ret_ismulti(self):
-    """ Returns boolean flag as to whether func comprises a multiple """
-    return self.__ismulti
-
-#-------------------------------------------------------------------------------
-  def ret_order(self):
-    """ Returns order object if set """
-    return self.__order
-
-#-------------------------------------------------------------------------------
-  def ret_delta(self):
-    """ Returns delta object if set """
-    return self.__delta
-
-#-------------------------------------------------------------------------------
   def _call(self, expr, *args, **kwds):
     """ Private call used by the wrapped Func interface that is _ismulti-blind.
     (see __call__ and __getitem__).
@@ -391,7 +401,8 @@ class Expression (Expr):
    """ Wrapper call to the function with optional inclusion of additional
    args and kwds. """
    assert not self.__ismulti, \
-       "Cannot call with multiple expr, use Expr[]()"
+       "Cannot call with multiple expression, use Expression[{}]()".format(
+           list(self._keys()))
    return self._partials[None](*args, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -401,7 +412,7 @@ class Expression (Expr):
    value in the expr dictionary. """
    if spec is not None: 
      assert self.__ismulti, \
-         "Cannot call with non-multiple expr, use Expr()"
+         "Cannot call with non-multiple expression, use Expression()"
    return self._partials[spec]
 
 #-------------------------------------------------------------------------------
