@@ -7,8 +7,8 @@ import probayes as pb
 
 zipf_range = [0.1, 10.]
 set_size = {-10000} # size negation denotes random sampling
-rv = pb.RV("zipf_rv", zipf_range)
-rv.set_ufun((np.log, np.exp))
-samples = rv.eval_vals(set_size)
+var = pb.Variable("var", zipf_range)
+var.set_ufun((np.log, np.exp))
+samples = var.eval_vals(set_size)[var.name]
 figure()
 hist(samples, 100)

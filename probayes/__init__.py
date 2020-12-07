@@ -1,6 +1,10 @@
 __version__ = '0.0.3.X'
+from probayes.constants import NEARLY_POSITIVE_ZERO, \
+                               NEARLY_POSITIVE_INF, \
+                               NEARLY_NEGATIVE_INF, \
+                               LOG_NEARLY_POSITIVE_INF
 from probayes.vtypes import OO
-from probayes.symbol import Symbol
+from probayes.icon import Icon
 from probayes.expr import Expr
 from probayes.variable import Variable
 from probayes.prob import Prob

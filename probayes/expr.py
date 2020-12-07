@@ -29,7 +29,7 @@ class Expr:
   """
 
   # Public
-  _expr = None     # Expression object
+  _expr = None    # Expression object
 
   # Protected
   _symbols = None # Ordered dictionary of symbols keyed by name
@@ -100,7 +100,25 @@ class Expr:
   def __call__(self, *args, **kwds):
     """ Performs evaluation of expression inputting symbols as a dictionary 
     (see sympy.Symbol.subs() input specificion using dictionaries. """
-    values = parse_as_str_dict(*args, **kwds)
+    parse_values = True
+    if not(len(kwds)) and len(args) == len(self._symbols):
+      if not any([isinstance(arg, dict) for arg in args]):
+        values = collections.OrderedDict()
+        parse_values = False
+        for i, key in enumerate(self._symbols.keys()):
+          values.update({key: args[i]})
+    if parse_values:
+      values = parse_as_str_dict(*args, **kwds)
+
+    # Check values in symbols
+    keys = list(values.keys())
+    for key in keys:
+      if key not in self._symbols.keys():
+        __key__ = "__{}__".format(key) # Convention for invertibles
+        if __key__ not in self._symbols.keys():
+          raise KeyError("Key {} not found among symbols {}".format(
+            key, self._symbols.keys()))
+        values[__key__] = values.pop(key)
 
     # While determining type, collect evalues in required order
     etype = None
@@ -123,7 +141,6 @@ class Expr:
     if etype != np.ndarray or isinstance(vals, np.ndarray):
       return vals
     return np.array(vals)
-
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, *args):

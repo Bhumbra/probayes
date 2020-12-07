@@ -4,7 +4,9 @@ specifications. Multiple outputs are supported for non-symbolic outputs
 '''
 import collections
 import functools
-from probayes.vtypes import isscalar, issymbol
+import sympy as sy
+from probayes.vtypes import isscalar
+from probayes.icon import isiconic
 from probayes.expr import Expr
 from probayes.prob import is_scipy_stats_dist, SCIPY_DIST_METHODS
 
@@ -43,9 +45,12 @@ class Expression (Expr):
   _partials = None
 
   # Private
+  __invertible = None
+  __inverse = None
+  __invexpr = None
   __ismulti = None
   __isscalar = None
-  __issymbol = None
+  __isiconic = None
   __scipyobj = None
   __callable = None
   __order = None
@@ -60,6 +65,58 @@ class Expression (Expr):
     self.set_expr(expr, *args, **kwds)
     
 #-------------------------------------------------------------------------------
+  @property
+  def args(self):
+    return self._args
+
+  @property
+  def kwds(self):
+    return self._kwds
+
+  @property
+  def order(self):
+    return self.__order
+
+  @property
+  def delta(self):
+    return self.__delta
+
+  @property
+  def scipyobj(self):
+    return self.__scipyobj
+
+  @property
+  def callable(self):
+    return self.__callable
+
+  @property
+  def ismulti(self):
+    return self.__ismulti
+
+  @property
+  def isscalar(self):
+    return self.__isscalar
+
+  @property
+  def isiconic(self):
+    return self.__isiconic
+
+  @property
+  def inverse(self):
+    return self.__inverse
+
+  @property
+  def invexpr(self):
+    return self.__invexpr
+
+  @property
+  def invertible(self):
+    return self.__invertible
+
+  @property
+  def keys(self):
+    return self._keys
+
   def set_expr(self, expr=None, *args, **kwds):
     """ Set the Func instance's function object.
 
@@ -79,18 +136,25 @@ class Expression (Expr):
     self.__delta = None
     self.__scipyobj = None
     self.__callable = None
+    self.__ismulti = None
+    self.__isscalar = None
+    self.__isiconic = None
+    self.__inverse = None
+    self.__invexpr = None
+    self.__invertible = False if 'invertible' not in kwds else \
+                        self._kwds.pop('invertible')
 
     # Sanity check func
     if self._expr is None:
       assert not args and not kwds, "No optional args without a function"
-    self.__issymbol = issymbol(self._expr)
+    self.__isiconic = isiconic(self._expr)
     self.__ismulti = isinstance(self._expr, (dict, tuple))
 
-    # Symbol
-    if self.__issymbol:
-      self.__ismulti = False
-      self.__callable = True
+    # Icon
+    if self.__isiconic:
       self.expr = expr # this invokes the inherited setter
+      self.__ismulti = self.__invertible and len(self._symbols) == 1
+      self.__callable = True
 
     # Scipy
     elif is_scipy_stats_dist(self.expr):
@@ -112,20 +176,20 @@ class Expression (Expr):
               self.expr.values()
       self._callable = False
       self._isscalar = False
-      self._issymbol = False
+      self._isiconic = False
       each_callable = [callable(expr) for expr in exprs]
       each_isscalar = [isscalar(expr) for expr in exprs]
-      each_issymbol = [issymbol(expr) for expr in exprs]
+      each_isiconic = [isiconic(expr) for expr in exprs]
       assert len(set(each_callable)) < 2, \
           "Cannot mix callable and uncallable expressions"
       assert len(set(each_isscalar)) < 2, \
           "Cannot mix scalars and nonscalars"
-      assert not any(each_issymbol), \
+      assert not any(each_isiconic), \
           "Symbolic expressions not supported for multiples"
       if len(self.expr):
         self.__callable = each_callable[0]
         self.__isscalar = each_isscalar[0]
-        self.__issymbol = each_issymbol[0]
+        self.__isiconic = each_isiconic[0]
       if not self.__callable:
         assert not args and not kwds, "No optional args with uncallable function"
     if 'order' in self._kwds:
@@ -191,9 +255,28 @@ class Expression (Expr):
 
 
     # Evaluate symbolic call if symbol expression
-    if self.__issymbol:
+    if self.__isiconic:
       call = functools.partial(Expr.__call__, self)
       self._partials.update({None: call})
+
+      # If invertible, solve the expression
+      if self.__invertible:
+        self._partials.update({0: call})
+        key = list(self._symbols.keys())[0]
+        __key__ = "__{}__".format(key)
+        self.__inverse = sy.Symbol(__key__)
+        invexprs = sy.solve(self._expr - self.__inverse, self._symbols[key])
+        n_exprs = len(invexprs)
+        assert n_exprs, "No invertible solutions for expression {}".format(
+            self._expr)
+        invexpr = invexprs[0]
+        if n_exprs > 1:
+          for expr in invexprs[1:]:
+            if len(expr.__repr__()) < len(invexpr.__repr__()):
+              invexpr = expr
+        self.__invexpr = Expr(invexpr)
+        call = functools.partial(Expr.__call__, self.__invexpr)
+        self._partials.update({-1: call})
 
     # Extract SciPy object member functions
     elif self.__scipyobj:
@@ -224,6 +307,7 @@ class Expression (Expr):
         call = functools.partial(Expression._partial_call, self, expr, 
                                  *self._args, **self._kwds)
         self._partials.update({i: call})
+      self._partials.update({-1: call})
 
     # Dictionaries keys are mapped directly
     elif isinstance(self.expr, dict):
@@ -233,51 +317,6 @@ class Expression (Expr):
         self._partials.update({key: call})
 
 #-------------------------------------------------------------------------------
-  def ret_args(self):
-    """ Returns args as set by set_expr() """
-    return self._args
-
-#-------------------------------------------------------------------------------
-  def ret_kwds(self):
-    """ Returns kwds as set by set_expr() """
-    return self._kwds
-
-#-------------------------------------------------------------------------------
-  def ret_scipyobj(self):
-    """ Returns SciPy obj if set by set_expr() """
-    return self.__scipyobj
-
-#-------------------------------------------------------------------------------
-  def ret_callable(self):
-    """ Returns boolean flag as to whether expr is callable """
-    return self.__callable
-
-#-------------------------------------------------------------------------------
-  def ret_isscalar(self):
-    """ Returns boolean flag as to whether expr is a scalar """
-    return self.__isscalar
-
-#-------------------------------------------------------------------------------
-  def ret_issymbol(self):
-    """ Returns boolean flag as to whether expr is symbolic """
-    return self.__issymbol
-
-#-------------------------------------------------------------------------------
-  def ret_ismulti(self):
-    """ Returns boolean flag as to whether func comprises a multiple """
-    return self.__ismulti
-
-#-------------------------------------------------------------------------------
-  def ret_order(self):
-    """ Returns order object if set """
-    return self.__order
-
-#-------------------------------------------------------------------------------
-  def ret_delta(self):
-    """ Returns delta object if set """
-    return self.__delta
-
-#-------------------------------------------------------------------------------
   def _call(self, expr, *args, **kwds):
     """ Private call used by the wrapped Func interface that is _ismulti-blind.
     (see __call__ and __getitem__).
@@ -285,7 +324,7 @@ class Expression (Expr):
     #argsin = args; kwdsin = kwds; import pdb; pdb.set_trace() # debugging
 
     # Non-callables
-    if not self.__callable and not self.__issymbol:
+    if not self.__callable and not self.__isiconic:
       assert not args and not kwds, \
           "No optional args with uncallable or symbolic expressions"
       return expr 
@@ -294,12 +333,12 @@ class Expression (Expr):
     if len(args) == 1 and isinstance(args[0], dict):
       args, kwds = (), {**kwds, **dict(args[0])}
 
-    #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # for debugging
-    if not self.__issymbol or (not self.__order and not self.__delta):
+    #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
+    if not self.__isiconic or (not self.__order and not self.__delta):
       return expr(*args, **kwds)
 
     # Symbols are evaluated by substitution
-    if self.__issymbol:
+    if self.__isiconic:
       subs = []
       for atom in expr.atoms:
         if hasattr(atom, 'name'):
@@ -350,7 +389,7 @@ class Expression (Expr):
         raise TypeError("Unrecognised delta key: val type: {}:{}".\
                         format(key, val))
 
-    #argsout = args; kwdsout = kwds; import pdb; pdb.set_trace() # for debugging
+    #argsout = args; kwdsout = kwds; import pdb; pdb.set_trace() # debugging
     return expr(*tuple(args), **kwds)
 
 #-------------------------------------------------------------------------------
@@ -362,7 +401,8 @@ class Expression (Expr):
    """ Wrapper call to the function with optional inclusion of additional
    args and kwds. """
    assert not self.__ismulti, \
-       "Cannot call with multiple expr, use Expr[]()"
+       "Cannot call with multiple expression, use Expression[{}]()".format(
+           list(self._keys()))
    return self._partials[None](*args, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -372,7 +412,7 @@ class Expression (Expr):
    value in the expr dictionary. """
    if spec is not None: 
      assert self.__ismulti, \
-         "Cannot call with non-multiple expr, use Expr()"
+         "Cannot call with non-multiple expression, use Expression()"
    return self._partials[spec]
 
 #-------------------------------------------------------------------------------
@@ -385,11 +425,11 @@ class Expression (Expr):
 #-------------------------------------------------------------------------------
   def __repr__(self):
     """ Print representation """
-    if self.__issymbol or not self.__callable:
+    if self.__isiconic or not self.__callable:
       return object.__repr__(self)+ ": '{}'".format(self.expr)
     if self._keys is None:
       return object.__repr__(self) 
-    return object.__repr__(self)+ ": '" + self._keys + "'"
+    return object.__repr__(self)+ ": '{}'".format(self._keys)
 
 #-------------------------------------------------------------------------------
 
