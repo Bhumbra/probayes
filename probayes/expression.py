@@ -186,7 +186,6 @@ class Expression (Expr):
     if 'delta' in self._kwds:
       self.set_delta(self._kwds.pop('delta'))
     self._set_partials()
-    self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
   def set_order(self, order=None):
@@ -242,7 +241,6 @@ class Expression (Expr):
     # Protected function to update partial function dictionary of calls
     self._partials = collections.OrderedDict()
 
-
     # Evaluate symbolic call if symbol expression
     if self.__isiconic:
       call = functools.partial(Expr.__call__, self)
@@ -287,6 +285,7 @@ class Expression (Expr):
         call = functools.partial(Expression._partial_call, self, val, 
                                  *self._args, **self._kwds)
         self._partials.update({key: call})
+    self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
   def _call(self, expr, *args, **kwds):

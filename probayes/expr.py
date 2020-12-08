@@ -93,7 +93,14 @@ class Expr:
     assert isinstance(efun, dict), \
         "Input efun must be dictionary type, not {}".format(type(efun))
     for key, val in efun.items():
-      self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
+      try:
+        self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
+      except TypeError:
+        if hasattr(self._expr, 'doit'):
+          self._efun.update({key: (self._expr.doit, *args)})
+        else:
+          raise TypeError("Cannot process method {} for {}".format(
+                          self._expr, key))
     return self._efun
 
 #-------------------------------------------------------------------------------

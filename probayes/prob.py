@@ -7,6 +7,9 @@ of a variable set.
 import collections
 import functools
 import scipy.stats
+import sympy as sy
+import sympy.stats
+from probayes.icon import isiconic
 from probayes.pscales import eval_pscale, rescale, iscomplex
 from probayes.expression import Expression
 
@@ -20,23 +23,39 @@ SCIPY_DIST_METHODS = ['pdf', 'logpdf', 'pmf', 'logpmf', 'cdf', 'logcdf', 'ppf',
                       'rvs', 'sf', 'logsf', 'isf', 'moment', 'stats', 'expect', 
                       'entropy', 'fit', 'median', 'mean', 'var', 'std', 'interval']
 
-#-------------------------------------------------------------------------------
+
 def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):
   """ Returns if arguments belongs to scipy.stats.continuous """
   return isinstance(arg, tuple(scipy_stats_cont))
 
-#-------------------------------------------------------------------------------
 def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
   """ Returns if arguments belongs to scipy.stats.continuous or discrete """
   return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
+SYMPY_STATS_DIST = {sympy.stats.rv.RandomSymbol}
+def is_sympy_stats_dist(arg, sympy_stats_dist=SYMPY_STATS_DIST):
+  """ Returns if arguments belongs to sympy.stats.continuous or discrete """
+  return isinstance(arg, tuple(sympy_stats_dist))
+
+
+SYMPY_DIST_METHODS = {'pdf': sy.stats.density}
+"""
+# Sadly the log transformation attempted below logs the input rather than PDF
+def sympy_log_density(expr, condition=None, evaluate=True, numsamples=None, **kwds):
+  class SympyLogDensity(sympy.stats.rv.Density):
+    expr = property(lambda self: sy.log(self.args[0]))
+  if numsamples:
+    raise ValueError("Log density not supported for entered numsamples")
+  return SympyLogDensity(expr, condition).doit(evaluate=evaluate, **kwds)
+SYMPY_DIST_METHODS = {'pdf': sy.stats.density, 'logpdf': sympy_log_density}
+"""
+
+#-------------------------------------------------------------------------------
 class Prob (Expression):
   """ A probability is quantification of degrees of belief concerning outcomes.
-  Typically these outcomes are defined over the domains of one or more variables. 
-  Since this is not a requirement, this class is not abstract, but it is 
-  nevertheless not so useful as probayes.RV if instantiated directly. 
-  This class can be used to define a probability distribution.
+  It is therefore an expression that can be defined with respect to no, one,
+  or more variable.
 
   :example:
   >>> import scipy.stats
@@ -53,9 +72,12 @@ class Prob (Expression):
   _prob = None      # Probability distribution function
   _pscale = None    # Probability type (can be a scipy.stats.dist object)
   _pfun = None      # 2-length tuple of cdf/icdf
+  _sfun = None      # Random-variate sampling function
 
   # Private
-  __isscipy = None  # Boolean flag of whether prob is a scipy object
+  __isscipy = None  # Boolean flag of whether expression is a scipy stats object
+  __issympy = None  # Boolean flag of whether expression is a sympy stats object
+                    # Not in use yet
 
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, *args, **kwds):
@@ -83,11 +105,16 @@ class Prob (Expression):
     """
     pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
     self.__isscipy = is_scipy_stats_dist(prob)
-    if not self.__isscipy:
+    self.__issympy = is_sympy_stats_dist(prob)
+
+    # Probabilities can be defined as regular expressions
+    if not self.__isscipy and not self.__issympy:
       self.set_expr(prob, *args, **kwds)
       self._prob = self._expr
       self.pscale = pscale
       return
+
+    # Scipy/SymPy expressions
     self.set_expr(prob, *args, **kwds)
     self._args = tuple(args)
     self._kwds = dict(kwds)
@@ -100,31 +127,64 @@ class Prob (Expression):
       self.set_delta(self._kwds.pop('delta'))
     self.pscale = pscale
     self._set_partials()
-    self._keys = list(self._partials.keys())
-    self._prob = self._partials['logp'] if iscomplex(self._pscale) \
-                 else self._partials['prob']
+
+    # Scipy dist
+    if self.__isscipy:
+      self._prob = self._partials['logp'] if iscomplex(self._pscale) \
+                   else self._partials['prob']
+
+      # Set pfun and sfun objects
+      if 'cdf' in self._keys and 'ppf' in self._keys:
+        self.set_pfun((self._partials['cdf'], self._partials['ppf']),
+                      *self._args, **self._kwds)
+      if 'rvs' in self._keys:
+        self.set_sfun(self._partials['rvs'], *self._args, **self._kwds)
+
+    # Sympy dist
+    elif self.__issympy:
+      if iscomplex(self._pscale):
+        raise NotImplementedError("Log PDFs not supported by Sympy")
+      self._prob = self._partials['logp'] if iscomplex(self._pscale) \
+                   else self._partials['prob']
 
 #-------------------------------------------------------------------------------
   def _set_partials(self):
-    if not self.__isscipy:
-      super()._set_partials()
 
-    # Extract SciPy object member functions
+    # Regular expressions
     self._partials = collections.OrderedDict()
-    for method in SCIPY_DIST_METHODS:
-      if hasattr(self._prob, method):
-        call = functools.partial(Expression._partial_call, self, 
-                                 getattr(self._prob, method),
-                                 *self._args, **self._kwds)
-        self._partials.update({method: call})
+    if not self.__isscipy and not self.__issympy:
+      super()._set_partials()
+    
+    # Extract SciPy object member functions
+    elif self.__isscipy:
+      for method in SCIPY_DIST_METHODS:
+        if hasattr(self._prob, method):
+          call = functools.partial(Expression._partial_call, self, 
+                                   getattr(self._expr, method),
+                                   *self._args, **self._kwds)
+          self._partials.update({method: call})
 
-    # Provide a common interface for PDF/PMF and LOGPDF/LOGPMF
-    if 'pdf' in self._partials.keys():
-        self._partials.update({'prob': self._partials['pdf']})
-        self._partials.update({'logp': self._partials['logpdf']})
-    elif 'pmf' in self._partials.keys():
-        self._partials.update({'prob': self._partials['pmf']})
-        self._partials.update({'logp': self._partials['logpmf']})
+      # Provide a common interface for PDF/PMF and LOGPDF/LOGPMF
+      if 'pdf' in self._partials.keys():
+          self._partials.update({'prob': self._partials['pdf']})
+          self._partials.update({'logp': self._partials['logpdf']})
+      elif 'pmf' in self._partials.keys():
+          self._partials.update({'prob': self._partials['pmf']})
+          self._partials.update({'logp': self._partials['logpmf']})
+
+    # Extract pdf and logpdf for sympy objects (logpdf not supported by Sympy)
+    elif self.__issympy:
+      for key, method in SYMPY_DIST_METHODS.items():
+        call = functools.partial(Expression._partial_call, self, 
+                                 method(self._expr), 
+                                 *self._args, **self._kwds)
+        self._partials.update({key: call})
+        if key == 'pdf':
+          self._partials.update({'prob': call})
+        elif key == 'logpdf':
+          self._partials.update({'logp': call})
+
+    self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
   @property
@@ -156,11 +216,11 @@ class Prob (Expression):
     """ Sets a two-length tuple of functions that should correspond to the
     (cumulative probability function, inverse cumulative function) with respect
     to the callable function set by set_prob(). It is necessary to set these
-    functions if sampling variables with non-flat distributions.
+    functions if sampling variables non-randomly with non-flat distributions.
 
     :param pfun: two-length tuple of callable functions
-    :param *args: arguments to pass to pfun functions
-    :param **kwds: keywords to pass to pfun functions
+    :param *args: arguments to pass to callable function
+    :param **kwds: keywords to pass to callable function
     """
     self._pfun = pfun
     if self._pfun is None:
@@ -168,12 +228,46 @@ class Prob (Expression):
 
     # Non-iconic ufun inputs must a two-length-tuple
     if not isiconic(self._pfun):
-      message = "Input pfun be a two-sized tuple of callable functions"
+      message = "Input pfun must be a two-sized tuple of callable functions"
       assert isinstance(self._pfun, tuple), message
       assert len(self._pfun) == 2, message
       assert callable(self._pfun[0]), message
       assert callable(self._pfun[1]), message
+    elif 'invertible' not in kwds:
+      kwds.update({'invertible': True})
     self._pfun = Expression(self._pfun, *args, **kwds)
+
+#-------------------------------------------------------------------------------
+  @property
+  def sfun(self):
+    return self._sfun
+
+  def set_sfun(self, sfun=None, *args, **kwds):
+    """ Sets the random variate sampling function with respect to the callable 
+    function set by set_prob(). It is necessary to set this functions if 
+    sampling variables within infinite limits.
+
+    :param sfun: a callable function or a two-tuple pair of functions
+    :param *args: arguments to pass to callable function
+    :param **kwds: keywords to pass to callable function
+
+    If two functions are entered, the first is assumed for contiguous 
+    unrandomised sampling, and the second for randomised.
+    """
+    self._sfun = sfun
+    if self._sfun is None:
+      return
+
+    # Non-iconic sfun inputs must a two-length-tuple
+    if not isiconic(self._sfun):
+      message = "Input sfun must be a single or pair of callable functions"
+      if isinstance(self._sfun, tuple):
+        assert len(self._sfun) == 2, message
+        assert callable(self._sfun[0]), message
+        assert callable(self._sfun[1]), message
+      else:
+        assert callable(self._pfun[1]), message
+    self._sfun = Expression(self._sfun, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def rescale(self, probs, **kwds):

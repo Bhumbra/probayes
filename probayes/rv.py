@@ -68,7 +68,7 @@ class RV (Variable, Prob):
     """
 
     Variable.__init__(self, name, vtype, vset)
-    self.set_prob(*args, **kwds)
+    Prob.__init__(self, prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   @property
@@ -96,7 +96,7 @@ class RV (Variable, Prob):
     if prob is not None:
       super().set_prob(prob, *args, **kwds)
     else:
-      self._default_prob(pscale)
+      self._default_prob(self._pscale)
 
     # Check uncallable probabilities commensurate with self._vset
     if self._vset is not None and \
@@ -133,8 +133,8 @@ class RV (Variable, Prob):
     functions if sampling variables with non-flat distributions.
 
     :param pfun: two-length tuple of callable functions
-    :param *args: arguments to pass to pfun functions
-    :param **kwds: keywords to pass to pfun functions
+    :param *args: arguments to pass to callable functions
+    :param **kwds: keywords to pass to callable functions
     """
     super().set_pfun(pfun, *args, **kwds)
     if self._ufun is None or self._pfun is None:

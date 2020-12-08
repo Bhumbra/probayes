@@ -286,6 +286,11 @@ class Variable (Icon):
     """ Length of the variable according to its (transformed) limits """
     return self._length
 
+  def __contains__(self, *args, **kwds):
+    if self._inside:
+      return self._inside(*args, **kwds)
+    return None
+
   def _eval_ulims(self):
     """ Evaluates transformed limits (self._ulims) and inside functions
     
