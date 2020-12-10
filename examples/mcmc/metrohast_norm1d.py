@@ -22,9 +22,9 @@ sigma_lims = (5, 20.)
 x_obs = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 
 # SET UP MODEL AND SAMPLER
-mu = pb.RV('mu', mu_lims, vtype=float, pscale='log')
-sigma = pb.RV('sigma', sigma_lims, vtype=float, pscale='log')
-x = pb.RV('x', (-np.inf, np.inf), vtype=float)
+mu = pb.RV('mu', vtype=float, vset=mu_lims, pscale='log')
+sigma = pb.RV('sigma', vtype=float, vset=sigma_lims, pscale='log')
+x = pb.RV('x', vtype=float, vset=(-np.inf, np.inf))
 sigma.set_ufun((np.log, np.exp))
 paras = pb.RF(mu, sigma)
 stats = pb.RF(x)

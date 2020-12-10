@@ -11,7 +11,7 @@ from probayes.dist import Dist
 from probayes.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
 from probayes.pscales import div_prob, rescale, eval_pscale
-from probayes.func import Func
+from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
 
@@ -93,36 +93,37 @@ class RV (Variable, Prob):
     pscale is used.
     """
     self._tran, self._tfun = None, None
-    if prob is not None:
-      super().set_prob(prob, *args, **kwds)
-    else:
+    super().set_prob(prob, *args, **kwds)
+    if self._prob is None:
       self._default_prob(self._pscale)
 
     # Check uncallable probabilities commensurate with self._vset
     if self._vset is not None and \
-        not self.ret_callable() and not self.ret_isscalar():
-      assert len(self._prob()) == len(self._vset), \
+        not self.callable and not self.isscalar:
+      assert len(self._prob) == len(self._vset), \
           "Probability of length {} incommensurate with Vset of length {}".format(
               len(self._prob), len(self._vset))
 
+    """
     # If using scipy stats, ensure vset is float type
     pset = self.ret_pset()
     if is_scipy_stats_cont(pset):
       if self._vtype not in VTYPES[float]:
         self.set_vset(self._vset, vtype=float)
+    """
    
 #-------------------------------------------------------------------------------
   def _default_prob(self, pscale=None):
     """ Defaults unspecified probabilities to uniform over self._vset """
-    self._pscale = eval_pscale(pscale)
+    self._pscale = eval_pscale(pscale) or self._pscale
     if self._prob is None:
       if self._vset is None:
-        return self.ret_callable()
+        return
       else:
         prob = div_prob(1., float(self._length))
         if self._pscale != 1.:
           prob = rescale(prob, 1., self._pscale)
-        super().set_prob(prob, self._pscale)
+        super().set_prob(prob, pscale=self._pscale)
         self.set_tran(prob)
 
 #-------------------------------------------------------------------------------
@@ -162,7 +163,7 @@ class RV (Variable, Prob):
       return
 
     # Recalibrate scalar probabilities for floating point vtypes
-    if self.ret_isscalar() and \
+    if self.isscalar and \
         self._vtype in VTYPES[float]:
       self._default_prob(self._pscale)
 
@@ -195,9 +196,9 @@ class RV (Variable, Prob):
     self.__sym_tran = None
     if self._tran is None:
       return
-    self._tran = Func(self._tran, *args, **kwds)
-    self.__sym_tran = not self._tran.ret_ismulti()
-    if self._tran.ret_callable() or self._tran.ret_isscalar():
+    self._tran = Expression(self._tran, *args, **kwds)
+    self.__sym_tran = not self._tran.ismulti
+    if self._tran.callable or self._tran.isscalar:
       return
     assert self._vtype not in VTYPES[float],\
       "Scalar or callable transitional required for floating point data types"
@@ -220,10 +221,10 @@ class RV (Variable, Prob):
     :param *args: arguments to pass to tfun functions
     :param **kwds: keywords to pass to tfun functions
     """
-    self._tfun = tfun if tfun is None else Func(tfun, *args, **kwds)
+    self._tfun = tfun if tfun is None else Expression(tfun, *args, **kwds)
     if self._tfun is None:
       return
-    assert self._tfun.ret_ismulti(), "Tuple of two functions required"
+    assert self._tfun.ismulti, "Tuple of two functions required"
     assert len(self._tfun) == 2, "Tuple of two functions required."
 
 #-------------------------------------------------------------------------------
@@ -272,10 +273,10 @@ class RV (Variable, Prob):
     :return: evaluated probabilities
     """
     values = values[self.name] if isinstance(values, dict) else values
-    if not self.ret_isscalar():
+    if not self.isscalar:
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
-                                prob=self._prob(), 
+                                prob=self._prob, 
                                 inside=self._inside,
                                 pscale=self._pscale)
 
@@ -340,7 +341,7 @@ class RV (Variable, Prob):
 
     #---------------------------------------------------------------------------
     # Scalar treatment is the most trivial and ignores reverse
-    if self._tran.ret_isscalar():
+    if self._tran.isscalar:
       if isunitsetint(succ_vals):
         succ_vals = self.eval_vals(succ_vals, use_pfun=False)
       elif isunitsetfloat(succ_vals):
@@ -357,10 +358,10 @@ class RV (Variable, Prob):
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
                   
     # Handle discrete non-callables
-    elif not self._tran.ret_callable():
-      if reverse and not self._tran.ret_ismulti() and not self.__sym_tran:
+    elif not self._tran.callable:
+      if reverse and not self._tran.ismulti and not self.__sym_tran:
         warnings.warn("Reverse direction called from asymmetric transitional")
-      prob = self._tran() if not self._tran.ret_ismulti() else \
+      prob = self._tran() if not self._tran.ismulti else \
              self._tran[int(reverse)]()
       if isunitset(succ_vals):
         succ_vals, pred_idx, succ_idx = matrix_cond_sample(pred_vals, 
@@ -414,7 +415,7 @@ class RV (Variable, Prob):
     cond = None
 
     # Scalar treatment is the most trivial and ignores reverse
-    if self._tran.ret_isscalar():
+    if self._tran.isscalar:
       cond = nominal_uniform_prob(pred_vals,
                                   succ_vals, 
                                   prob=self._tran(), 
@@ -422,8 +423,8 @@ class RV (Variable, Prob):
                   
 
     # Handle discrete non-callables
-    elif not self._tran.ret_callable():
-      prob = self._tran() if not self._tran.ret_ismulti() else \
+    elif not self._tran.callable:
+      prob = self._tran() if not self._tran.ismulti else \
              self._tran[int(reverse)]()
       cond = lookup_square_matrix(pred_vals,
                                   succ_vals, 
@@ -435,7 +436,7 @@ class RV (Variable, Prob):
 
     # That just leaves callables
     else:
-      prob = self._tran if not self._tran.ret_ismulti() else \
+      prob = self._tran if not self._tran.ismulti else \
              self._tran[int(reverse)]
       kwds = {self._name: pred_vals,
               self._name+"'": succ_vals}

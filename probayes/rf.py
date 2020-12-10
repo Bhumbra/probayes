@@ -166,7 +166,7 @@ class RF (NX_UNDIRECTED_GRAPH):
       self.delta = collections.namedtuple('ð', self._keys)
       self._delta_type = self.delta
     rvs = self.ret_rvs()
-    pscale = prod_pscale([rv.ret_pscale() for rv in rvs])
+    pscale = prod_pscale([rv.pscale for rv in rvs])
     self.set_pscale(pscale)
     self.eval_length()
 
@@ -212,7 +212,7 @@ class RF (NX_UNDIRECTED_GRAPH):
       self._pscale = eval_pscale(pscale)
       return self._pscale
     rvs = self.ret_rvs(aslist=True)
-    pscales = [rv.ret_pscale() for rv in rvs]
+    pscales = [rv.pscale for rv in rvs]
     self._pscale = prod_pscale(pscales)
     return self._pscale
 
