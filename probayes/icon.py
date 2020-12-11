@@ -2,12 +2,23 @@
 
 #-------------------------------------------------------------------------------
 import sympy as sy
+import sympy.stats
 import collections
 
 #-------------------------------------------------------------------------------
 def isiconic(var):
   """ Returns whether object is a Sympy object """
-  return isinstance(var, sy.Basic)
+  # Non-callables objects derive from sy.Basic
+  if not callable(var):
+    return isinstance(var, sy.Basic)
+  return False
+
+  """
+  # A hacky solution for functions
+  import sys
+  module_path = str(sys.modules.get(var.__module__))
+  return 'sympy.' in module_path and '/sympy/' in module_path
+  """
 
 #-------------------------------------------------------------------------------
 class Icon:

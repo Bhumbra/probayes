@@ -6,6 +6,7 @@ of a variable set.
 #-------------------------------------------------------------------------------
 import collections
 import functools
+import numpy as np
 import scipy.stats
 import sympy as sy
 import sympy.stats
@@ -38,22 +39,43 @@ def is_sympy_stats_dist(arg, sympy_stats_dist=SYMPY_STATS_DIST):
   """ Returns if arguments belongs to sympy.stats.continuous or discrete """
   return isinstance(arg, tuple(sympy_stats_dist))
 
-
-SYMPY_DIST_METHODS = {'pdf': sy.stats.density, 'rvs': sy.stats.sample}
-"""
-# Sadly the log transformation attempted below logs the input rather than PDF
-def sympy_log_density(expr, condition=None, evaluate=True, numsamples=None, **kwds):
-  class SympyLogDensity(sympy.stats.rv.Density):
-    expr = property(lambda self: sy.log(self.args[0]))
-  if numsamples:
-    raise ValueError("Log density not supported for entered numsamples")
-  return SympyLogDensity(expr, condition).doit(evaluate=evaluate, **kwds)
-SYMPY_DIST_METHODS = {'pdf': sy.stats.density, 'logpdf': sympy_log_density, 
-    'rvs': sy.stats.sample}
-"""
+#-------------------------------------------------------------------------------
+def sympy_prob(sympy_dist, vals, dtype=None, pfunc=sympy.stats.density, use_log=False):
+  if isinstance(vals, np.ndarray) and vals.ndim:
+    shape = vals.shape
+    vals = np.ravel(vals).tolist()
+    if dtype:
+      prob = [dtype(pfunc(sympy_dist)(val)) for val in vals]
+    else:
+      prob = [pfunc(sympy_dist)(val) for val in vals]
+    prob = np.array(prob).reshape(shape)
+    if dtype and use_log:
+      return np.log(prob)
+    return prob
+  prob = pfunc(sympy_dist)(vals)
+  if dtype:
+    prob = dtype(prob)
+    if use_log:
+      return np.log(prob)
+    return prob
+  return prob
 
 #-------------------------------------------------------------------------------
-class Prob (Expression):
+def sympy_sfun(sympy_dist, size=0, dtype=None, sfunc=sympy.stats.sample):
+  if not size:
+    samples = sfunc(sympy_dist)
+    if dtype:
+      return (dtype)(samples)
+    return samples
+  if dtype:
+    samples = [dtype(sfunc(sympy_dist)) for _ in range(size)]
+    return np.array(samples)
+  else:
+    samples = [sfunc(sympy_dist) for _ in range(size)]
+    return samples
+
+#-------------------------------------------------------------------------------
+class Prob (Expression): 
   """ A probability is quantification of degrees of belief concerning outcomes.
   It is therefore an expression that can be defined with respect to no, one,
   or more variable.
@@ -67,18 +89,25 @@ class Prob (Expression):
   >>> normlogp = pb.Prob(scipy.stats.norm, pscale='log')
   >>> print(normlogp(0.))
   -0.9189385332046727
+
+  Use of Sympy's probabilistic expressions can be set w.r.t. a symbol
+  :example:
+  >>> import sympy; import sympy.stats
+  >>> import probayes as pb
+  >>> x = sympy.Symbol('x')
+  >>> normprob = pb.Prob(sympy.stats.Normal(x, 0, 1))
   """
 
   # Protected
-  _prob = None      # Probability distribution function
-  _pscale = None    # Probability type (can be a scipy.stats.dist object)
-  _pfun = None      # 2-length tuple of cdf/icdf
-  _sfun = None      # Random-variate sampling function
+  _prob = None       # Probability distribution function
+  _logp = None       # Log probability distribution function (for SymPy only)
+  _pscale = None     # Probability type (can be a scipy.stats.dist object)
+  _pfun = None       # 2-length tuple of cdf/icdf
+  _sfun = None       # Random-variate sampling function
 
   # Private
-  __isscipy = None  # Boolean flag of whether expression is a scipy stats object
-  __issympy = None  # Boolean flag of whether expression is a sympy stats object
-  __sympy_rv = None # What SymPy calls an RV
+  __isscipy = None   # Boolean flag of whether expression is a scipy stats object
+  __issympy = None   # Boolean flag of whether expression is a sympy stats object
 
 
 #-------------------------------------------------------------------------------
@@ -132,8 +161,6 @@ class Prob (Expression):
 
     # Scipy dist
     if self.__isscipy:
-      self._prob = self._partials['logp'] if iscomplex(self._pscale) \
-                   else self._partials['prob']
 
       # Set pfun and sfun objects
       if 'cdf' in self._keys and 'ppf' in self._keys:
@@ -141,21 +168,15 @@ class Prob (Expression):
       if 'rvs' in self._keys and hasattr(self._expr, 'rvs'):
         self.set_sfun(self._expr.rvs, *self._args, **self._kwds)
 
-    # Sympy dist - CDFs require a Symbol and therefore are not set here
+    # Sympy sampler - CDFs require a Symbol and therefore are not set here
     elif self.__issympy:
-      if iscomplex(self._pscale):
-        raise NotImplementedError("Log PDFs not supported by Sympy")
-      self._prob = self._partials['logp'] if iscomplex(self._pscale) \
-                   else self._partials['prob']
-      if 'rvs' in self._keys:
-        self.set_sfun(self._expr['rvs'].args[1])
-      """
-      if self.__sympy_rv:
-        self.set_sfun(sympy.stats.sample, self.__sympy_rv, 
-                      *self._args, **self._kwds)
-      """
+      self.set_sfun(sympy_sfun, self._expr)
 
 #-------------------------------------------------------------------------------
+  @property
+  def logp(self):
+    return self._logp
+
   def _set_partials(self):
 
     # Regular expressions
@@ -180,19 +201,15 @@ class Prob (Expression):
           self._partials.update({'prob': self._partials['pmf']})
           self._partials.update({'logp': self._partials['logpmf']})
 
-    # Extract pdf and logpdf for sympy objects (logpdf not supported by Sympy)
+    # Extract prob for sympy objects
     elif self.__issympy:
-      for key, method in SYMPY_DIST_METHODS.items():
-        sympy_rv = method(self._expr)
-        if key == 'pdf':
-          self.__sympy_rv = sympy_rv
-        call = functools.partial(Expression._partial_call, self, 
-                                 sympy_rv, *self._args, **self._kwds)
-        self._partials.update({key: call})
-        if key == 'pdf':
-          self._partials.update({'prob': call})
-        elif key == 'logpdf':
-          self._partials.update({'logp': call})
+      kwds = dict(self._kwds)
+      if 'dtype' not in kwds:
+        kwds.update({'dtype':float})
+      self._prob = Expression(sympy_prob, self._expr, *self._args, **kwds)
+      if 'use_log' not in kwds:
+        kwds.update({'use_log': True})
+      self._logp = Expression(sympy_prob, self._expr, *self._args, **kwds)
 
     self._keys = list(self._partials.keys())
 
@@ -276,7 +293,7 @@ class Prob (Expression):
         assert callable(self._sfun[0]), message
         assert callable(self._sfun[1]), message
       else:
-        assert callable(self._pfun[1]), message
+        assert callable(self._sfun), message
     self._sfun = Expression(self._sfun, *args, **kwds)
 
 #-------------------------------------------------------------------------------
@@ -299,6 +316,12 @@ class Prob (Expression):
     # Callable and non-callable evaluations
     probs = self._prob
     if self.callable:
+      if self.__isscipy:
+        probs = self._partials['logp'] if iscomplex(self._pscale) \
+                else self._partials['prob']
+      elif self.__issympy:
+        if iscomplex(self._pscale):
+          probs = self._logp
       probs = probs(*args)
     else:
       assert not len(args), \

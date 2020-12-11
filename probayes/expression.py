@@ -306,7 +306,10 @@ class Expression (Expr):
 
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
     if not self.__isiconic or (not self.__order and not self.__delta):
-      return expr(*args, **kwds)
+      if args or all(isinstance(key, str) for key in kwds.keys()):
+        return expr(*args, **kwds)
+      else:
+        return expr(dict(kwds))
 
     # Symbols are evaluated by substitution
     if self.__isiconic:
