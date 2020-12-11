@@ -196,7 +196,7 @@ class Expression (Expr):
     if self.__order is None:
       return
     assert self.__delta is None, "Cannot set both order and delta"
-    assert not self.__symbol, "Cannot set order when using symbols"
+    assert not self.isiconic, "Cannot set order when using symbols"
     self._check_mapping(self.__order)
 
 #-------------------------------------------------------------------------------
@@ -208,7 +208,7 @@ class Expression (Expr):
     if self.__delta is None:
       return
     assert self.__order is None, "Cannot set both order and delta"
-    assert not self.__symbol, "Cannot set delta when using symbols"
+    assert not self.isiconic, "Cannot set delta when using symbols"
     self._check_mapping(self.__delta)
 
 #-------------------------------------------------------------------------------
@@ -305,7 +305,7 @@ class Expression (Expr):
       args, kwds = (), {**kwds, **dict(args[0])}
 
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
-    if not self.__isiconic or (not self.__order and not self.__delta):
+    if not self.__isiconic and (not self.__order and not self.__delta):
       if args or all(isinstance(key, str) for key in kwds.keys()):
         return expr(*args, **kwds)
       else:

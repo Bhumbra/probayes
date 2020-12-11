@@ -246,8 +246,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     self._unit_tran = False
     if self._nrvs == 1:
       rv = self.ret_rvs()[0]
-      self._unit_prob = self._prob is None and rv.ret_prob() is not None
-      self._unit_tran = self._tran is None and rv.ret_tran() is not None
+      self._unit_prob = self._prob is None and rv.prob is not None
+      self._unit_tran = self._tran is None and rv.tran is not None
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):

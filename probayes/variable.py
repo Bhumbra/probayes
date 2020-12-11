@@ -607,6 +607,10 @@ class Variable (Icon):
     3. A list: the delta is uniformly sampled in the range [0, scalar].
     """
 
+    # If dictionary input type, values are keyed by variable name
+    if isinstance(values, dict):
+      values = values[self.name] 
+
     # Call eval_delta() if values is a list and return values if delta is None
     delta = delta or self._delta
     if isinstance(delta, Expression):

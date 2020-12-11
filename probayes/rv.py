@@ -104,14 +104,6 @@ class RV (Variable, Prob):
           "Probability of length {} incommensurate with Vset of length {}".format(
               len(self._prob), len(self._vset))
 
-    """
-    # If using scipy stats, ensure vset is float type
-    pset = self.ret_pset()
-    if is_scipy_stats_cont(pset):
-      if self._vtype not in VTYPES[float]:
-        self.set_vset(self._vset, vtype=float)
-    """
-   
 #-------------------------------------------------------------------------------
   def _default_prob(self, pscale=None):
     """ Defaults unspecified probabilities to uniform over self._vset """
@@ -140,11 +132,9 @@ class RV (Variable, Prob):
     super().set_pfun(pfun, *args, **kwds)
     if self._ufun is None or self._pfun is None:
       return
-    if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
-        self.ret_pfun(1) != scipy.stats.uniform.ppf:
-      assert self._ufun is None, \
-        "Cannot assign non-uniform distribution alongside " + \
-        "values transformation functions"
+    assert self._ufun is None, \
+      "Cannot assign non-uniform distribution alongside " + \
+      "values transformation functions"
 
 #-------------------------------------------------------------------------------
   def set_ufun(self, ufun=None, *args, **kwds):
@@ -170,13 +160,15 @@ class RV (Variable, Prob):
     # Check pfun is unspecified or uniform
     if self._pfun is None:
       return
-    if self.ret_pfun(0) != scipy.stats.uniform.cdf or \
-        self.ret_pfun(1) != scipy.stats.uniform.ppf:
-      assert self._pfun is None, \
-        "Cannot assign values tranformation function alongside " + \
-        "non-uniform distribution"
+    assert self._pfun is None, \
+      "Cannot assign values tranformation function alongside " + \
+      "non-uniform distribution"
 
 #-------------------------------------------------------------------------------
+  @property
+  def tran(self):
+    return self._tran
+
   def set_tran(self, tran=None, *args, **kwds):
     """ Sets a transitional function as a conditional probability. This can
     be specified numerically or one or two callable functions.
@@ -211,6 +203,10 @@ class RV (Variable, Prob):
     self.__sym_tran = np.allclose(tran, tran.T)
 
 #-------------------------------------------------------------------------------
+  @property
+  def tfun(self):
+    return self._tfun
+
   def set_tfun(self, tfun=None, *args, **kwds):
     """ Sets a two-length tuple of functions that should correspond to the
     (cumulative probability function, inverse cumulative function) with respect
@@ -225,17 +221,6 @@ class RV (Variable, Prob):
     if self._tfun is None:
       return
     assert self._tfun.ismulti, "Tuple of two functions required"
-    assert len(self._tfun) == 2, "Tuple of two functions required."
-
-#-------------------------------------------------------------------------------
-  def ret_tran(self):
-    """ Returns the set transitional conditional probability object(s) """
-    return self._tran
-
-#-------------------------------------------------------------------------------
-  def ret_tfun(self):
-    """ Returns the set transitional conditional (CDF, ICDF) object(s) """
-    return self._tfun
 
 #-------------------------------------------------------------------------------
   def eval_vals(self, values, use_pfun=True):
@@ -254,13 +239,13 @@ class RV (Variable, Prob):
     number = list(values)[0]
     assert np.all(np.isfinite(self._lims)), \
         "Cannot evaluate {} values for bounds: {}".format(values, self._lims)
-    lims = self.ret_pfun(0)(self._lims)
+    lims = self.pfun[0](self._lims)
     values = uniform(
                      lims[0], lims[1], number, 
                      isinstance(self._vset[0], tuple),
                      isinstance(self._vset[1], tuple)
                     )
-    return self.ret_pfun(1)(values)
+    return self.pfun[1](values)
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
@@ -309,6 +294,8 @@ class RV (Variable, Prob):
     """
 
     assert self._tran is not None, "No transitional function specified"
+    if isinstance(pred_vals, dict):
+      pred_vals = pred_vals[self.name]
     kwargs = dict() # to pass over to eval_tran()
     if succ_vals is None:
       if self._delta is None:

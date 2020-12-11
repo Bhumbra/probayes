@@ -1,7 +1,7 @@
-Replace Func with Expression for Prob class and refactor
-Inherit Distributions for Probability Distribution class.
+Refactor to replace self.ret_attrib() functions with @property decorators.
 Use frozensets for key sets.
-Replace self.ret_attrib() functions with @property decorators.
+Support iconic CDFs.
+Inherit Distributions for Probability Distribution class.
 Support Fields of Variables sharing Expressions collected as Functionals.
 Support Dependences between Domains with respect to Functionals.
 Support explicit Naive Bayes.

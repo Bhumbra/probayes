@@ -868,8 +868,8 @@ class RF (NX_UNDIRECTED_GRAPH):
         succ_vals = self.eval_tfun(pred_vals)
       elif self._nrvs == 1:
         rv = self.ret_rvs(aslist=True)[0]
-        tran = rv.ret_tran()
-        tfun = rv.ret_tfun()
+        tran = rv.tran
+        tfun = rv.tfun
         if (tran is not None and not tran.ret_callable()) or \
             (tfun is not None and tfun.ret_callable()):
           vals, dims, kwargs = rv.eval_step(pred_vals[rv.name], succ_vals, reverse=reverse)
