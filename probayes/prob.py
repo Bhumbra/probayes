@@ -39,7 +39,7 @@ def is_sympy_stats_dist(arg, sympy_stats_dist=SYMPY_STATS_DIST):
   return isinstance(arg, tuple(sympy_stats_dist))
 
 
-SYMPY_DIST_METHODS = {'pdf': sy.stats.density}
+SYMPY_DIST_METHODS = {'pdf': sy.stats.density, 'rvs': sy.stats.sample}
 """
 # Sadly the log transformation attempted below logs the input rather than PDF
 def sympy_log_density(expr, condition=None, evaluate=True, numsamples=None, **kwds):
@@ -48,7 +48,8 @@ def sympy_log_density(expr, condition=None, evaluate=True, numsamples=None, **kw
   if numsamples:
     raise ValueError("Log density not supported for entered numsamples")
   return SympyLogDensity(expr, condition).doit(evaluate=evaluate, **kwds)
-SYMPY_DIST_METHODS = {'pdf': sy.stats.density, 'logpdf': sympy_log_density}
+SYMPY_DIST_METHODS = {'pdf': sy.stats.density, 'logpdf': sympy_log_density, 
+    'rvs': sy.stats.sample}
 """
 
 #-------------------------------------------------------------------------------
@@ -77,7 +78,8 @@ class Prob (Expression):
   # Private
   __isscipy = None  # Boolean flag of whether expression is a scipy stats object
   __issympy = None  # Boolean flag of whether expression is a sympy stats object
-                    # Not in use yet
+  __sympy_rv = None # What SymPy calls an RV
+
 
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, *args, **kwds):
@@ -135,17 +137,23 @@ class Prob (Expression):
 
       # Set pfun and sfun objects
       if 'cdf' in self._keys and 'ppf' in self._keys:
-        self.set_pfun((self._partials['cdf'], self._partials['ppf']),
-                      *self._args, **self._kwds)
-      if 'rvs' in self._keys:
-        self.set_sfun(self._partials['rvs'], *self._args, **self._kwds)
+        self.set_pfun((self._expr.cdf, self._expr.ppf), *self._args, **self._kwds)
+      if 'rvs' in self._keys and hasattr(self._expr, 'rvs'):
+        self.set_sfun(self._expr.rvs, *self._args, **self._kwds)
 
-    # Sympy dist
+    # Sympy dist - CDFs require a Symbol and therefore are not set here
     elif self.__issympy:
       if iscomplex(self._pscale):
         raise NotImplementedError("Log PDFs not supported by Sympy")
       self._prob = self._partials['logp'] if iscomplex(self._pscale) \
                    else self._partials['prob']
+      if 'rvs' in self._keys:
+        self.set_sfun(self._expr['rvs'].args[1])
+      """
+      if self.__sympy_rv:
+        self.set_sfun(sympy.stats.sample, self.__sympy_rv, 
+                      *self._args, **self._kwds)
+      """
 
 #-------------------------------------------------------------------------------
   def _set_partials(self):
@@ -175,9 +183,11 @@ class Prob (Expression):
     # Extract pdf and logpdf for sympy objects (logpdf not supported by Sympy)
     elif self.__issympy:
       for key, method in SYMPY_DIST_METHODS.items():
+        sympy_rv = method(self._expr)
+        if key == 'pdf':
+          self.__sympy_rv = sympy_rv
         call = functools.partial(Expression._partial_call, self, 
-                                 method(self._expr), 
-                                 *self._args, **self._kwds)
+                                 sympy_rv, *self._args, **self._kwds)
         self._partials.update({key: call})
         if key == 'pdf':
           self._partials.update({'prob': call})

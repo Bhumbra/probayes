@@ -245,6 +245,7 @@ class Variable (Icon):
     # Non-float limits are simple
     if self._vtype not in VTYPES[float]:
       self._vlims = np.array([min(self._vset), max(self._vset)])
+      return self._eval_ulims()
 
     # Evaluates the limits from vset float
     assert len(self._vset) == 2, \
