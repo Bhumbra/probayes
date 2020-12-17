@@ -155,17 +155,17 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
         variables = list(variables.values())
     for var in variables:
       assert isinstance(var, RV), \
-          "Input not a RV instance but of type: {}".format(type(rv))
+          "Input not a variable instance but of type: {}".format(type(var))
       if self._nvars:
         assert var not in list(self.nodes), \
-            "Existing RV name {} already present in collection".format(key)
+            "Existing variable {} already present in collection".format(var)
       super().add_node(var)
     else:
       assert isinstance(var, RV), \
-          "Input not a RV instance but of type: {}".format(type(rv))
+          "Input not a variable instance but of type: {}".format(type(var))
       if self._nvars:
         assert var not in list(self.nodes), \
-            "Existing RV name {} already present in collection".format(key)
+            "Existing RV {} already present in collection".format(var)
       super().add_node(var)
     self._refresh()
 
