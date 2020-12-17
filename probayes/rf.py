@@ -420,11 +420,11 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
       return
 
     # Set as general function
-    self._tran = Expression(tran, *args, **kwds)
-    self._sym_tran = not self._tran.ret_ismulti()
+    self._tran = Prob(tran, *args, **kwds)
+    self._sym_tran = not self._tran.ismulti
 
     # If a covariance matrix, set the LU decomposition as the tfun
-    if not self._tran.ret_callable() and not self._tran.isscalar():
+    if not self._tran.callable and not self._tran.isscalar:
       message = "Non-callable non-scalar tran objects must be a square 2D " + \
                 "Numpy array of size corresponding to number of variables {}".\
                  format(self._nvars)
@@ -438,9 +438,9 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
       return
 
     # If a scipy object, set the tfun
-    elif self._tran.ret_isscipy():
-      scipyobj = self._tran.ret_scipyobj()
-      self.set_tfun(self._tran, scipyobj=self._tran.ret_scipyobj())
+    elif self._tran.isscipy:
+      scipyobj = self._tran.scipyobj
+      self.set_tfun(self._tran, scipyobj=self._tran.scipyobj)
       return
 
     # Otherwise reinstantiate self._tran as an explicit conditional function
@@ -499,7 +499,7 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 
     # Non-callables are treated as LUD matrices
     elif not callable(self._tfun): 
-        self._tfun = Expression(self._tfun, *args, **kwds)
+        self._tfun = Prob(self._tfun, *args, **kwds)
         message = "Non-callable tran objects must be a triangular 2D Numpy array " + \
                   "of size corresponding to number of variables {}".format(self._nvars)
         assert isinstance(tfun, np.ndarray), message
