@@ -33,7 +33,7 @@ def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
   """ Returns if arg belongs to scipy.stats.continuous or discrete """
   return isinstance(arg, tuple(scipy_stats_dist))
 
-def is_scipy_stats_mvar(arg, scipy_stats_dist=SCIPY_STATS_MVAR):
+def is_scipy_stats_mvar(arg, scipy_stats_mvar=SCIPY_STATS_MVAR):
   """ Returns if arg belongs to scipy.stats._multivariate.multi_rv_generic """
   return isinstance(arg, tuple(scipy_stats_mvar))
 

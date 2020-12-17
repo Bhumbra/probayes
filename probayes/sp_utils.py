@@ -10,7 +10,7 @@ def sample_generator(sp, sampler_id, *args, stop=None, **kwds):
     while True:
       yield sp.next(sampler_id, *args, **kwds)
   else:
-    while sp.ret_counter(sampler_id) < stop:
+    while sp.get_counter(sampler_id) < stop:
       yield sp.next(sampler_id, *args, **kwds)
     else:
       sp.reset(sampler_id)
