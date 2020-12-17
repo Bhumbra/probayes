@@ -89,7 +89,7 @@ class RV (Variable, Prob):
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
 
-    'pscale' is a reserved keyword. See set_pscale() for explanation of how 
+    'pscale' is a reserved keyword. See Prob.pscale for explanation of how 
     pscale is used.
     """
     self._tran, self._tfun = None, None
@@ -167,6 +167,7 @@ class RV (Variable, Prob):
 #-------------------------------------------------------------------------------
   @property
   def tran(self):
+    """ Returns the transitional probability expression if specified """
     return self._tran
 
   def set_tran(self, tran=None, *args, **kwds):
@@ -205,6 +206,7 @@ class RV (Variable, Prob):
 #-------------------------------------------------------------------------------
   @property
   def tfun(self):
+    """ Returns the transitional CDF/ICDF expression if specified """
     return self._tfun
 
   def set_tfun(self, tfun=None, *args, **kwds):
@@ -476,18 +478,18 @@ class RV (Variable, Prob):
     from probayes.rf import RF
     from probayes.sd import SD
     if isinstance(other, SD):
-      leafs = [self] + other.ret_leafs().ret_rvs()
-      stems = other.ret_stems()
-      roots = other.ret_roots()
+      leafs = [self] + list(other.leafs.vars.values())
+      stems = other.stems
+      roots = other.roots
       args = RF(*tuple(leafs))
       if stems:
         args += list(stems.values())
       if roots:
-        args += roots.ret_rvs()
+        args += list(roots.values())
       return SD(*args)
 
     if isinstance(other, RF):
-      rvs = [self] + other.ret_rvs()
+      rvs = [self] + list(other.vars.values())
       return RF(*tuple(rvs))
 
     if isinstance(other, RV):

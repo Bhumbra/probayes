@@ -100,10 +100,13 @@ class Variable (Icon):
       vtype, vset = vset, vtype
 
     # If vtype and/or vset is/are specified, set it/them
-    if vtype:
+    if vtype or vset:
+      if vtype:
+        self.vtype = vtype
+      if vset:
+        self.vset = vset
+    else:
       self.vtype = vtype
-    if vset:
-      self.vset = vset
 
     # Setting icon comes afterwards to allow passing vtype/vset assumptions
     self.set_icon(self.name, *args, **kwds)

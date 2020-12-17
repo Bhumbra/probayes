@@ -24,14 +24,18 @@ SCIPY_DIST_METHODS = ['pdf', 'logpdf', 'pmf', 'logpmf', 'cdf', 'logcdf', 'ppf',
                       'rvs', 'sf', 'logsf', 'isf', 'moment', 'stats', 'expect', 
                       'entropy', 'fit', 'median', 'mean', 'var', 'std', 'interval']
 
-
+#-------------------------------------------------------------------------------
 def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):
-  """ Returns if arguments belongs to scipy.stats.continuous """
+  """ Returns if arg belongs to scipy.stats.continuous """
   return isinstance(arg, tuple(scipy_stats_cont))
 
 def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
-  """ Returns if arguments belongs to scipy.stats.continuous or discrete """
+  """ Returns if arg belongs to scipy.stats.continuous or discrete """
   return isinstance(arg, tuple(scipy_stats_dist))
+
+def is_scipy_stats_mvar(arg, scipy_stats_dist=SCIPY_STATS_MVAR):
+  """ Returns if arg belongs to scipy.stats._multivariate.multi_rv_generic """
+  return isinstance(arg, tuple(scipy_stats_mvar))
 
 #-------------------------------------------------------------------------------
 SYMPY_STATS_DIST = {sympy.stats.rv.RandomSymbol}

@@ -54,6 +54,14 @@ class SD (NX_DIRECTED_GRAPH, RF):
     self.set_prob()
 
 #-------------------------------------------------------------------------------
+  @property
+  def deps(self):
+    return self._deps
+
+  @property
+  def arch(self):
+    return self._arch
+
   def def_deps(self, *args):
     """ Defaults the dependence of SD with RVs, RFs. or SD arguments.
 
@@ -83,24 +91,22 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
       # Declare vertices, adding edges if there are multiple arguments
       if len(rfs) == 1:
-        rvs = rfs[0].ret_rvs(aslist=True)
-        for rv in rvs:
-          NX_DIRECTED_GRAPH.add_node(self, rv.name, **{'rv': rv})
+        variables = list(rfs[0].varlist)
+        for var in variables:
+          NX_DIRECTED_GRAPH.add_node(self, var)
         return self._refresh(rfs[0])
-      leafs_rvs = rfs[0].ret_rvs(aslist=True)
-      roots_rvs = rfs[-1].ret_rvs(aslist=True)
+      leafs_vars = rfs[0].varlist
+      roots_vars = rfs[-1].varlist
       if len(rfs) > 2:
         for rf in rfs[1:-1]:
-          leafs_rvs += rf.ret_rvs(aslist=True)
-      for rv in roots_rvs:
-        NX_DIRECTED_GRAPH.add_node(self, rv.name, **{'rv': rv})
-      for rv in leafs_rvs:
-        NX_DIRECTED_GRAPH.add_node(self, rv.name, **{'rv': rv})
-      roots_keys = [rv.name for rv in roots_rvs]
-      leafs_keys = [rv.name for rv in leafs_rvs]
-      for roots_key in roots_keys:
-        for leafs_key in leafs_keys:
-          NX_DIRECTED_GRAPH.add_edge(self, roots_key, leafs_key)
+          leafs_vars += list(rf.varlist)
+      for var in roots_vars:
+        NX_DIRECTED_GRAPH.add_node(self, var)
+      for var in leafs_vars:
+        NX_DIRECTED_GRAPH.add_node(self, var)
+      for roots_var in roots_vars:
+        for leafs_var in leafs_vars:
+          NX_DIRECTED_GRAPH.add_edge(self, roots_var, leafs_var)
       if len(rfs) == 2:
         return self._refresh(rfs[0], rfs[1])
       return self._refresh(RF(*tuple(leafs_rvs)), rfs[-1])
@@ -109,20 +115,20 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
     # Adding all vertices in forward order, starting with leafs then the rest
     for arg in args:
-      leafs_data = collections.OrderedDict(arg.ret_leafs().nodes.data())
-      for key, val in leafs_data.items():
-        NX_DIRECTED_GRAPH.add_node(self, val['rv'].name(), **{'rv': val['rv']})
+      leafs = list(arg.leafs.varlist)
+      for leaf in leafs:
+        NX_DIRECTED_GRAPH.add_node(self, leaf)
     for arg in args:
-      rvs_data = collections.OrderedDict(arg.nodes.data())
-      for key, val in rvs_data.items():
-        NX_DIRECTED_GRAPH.add_node(self, val['rv'].name(), **{'rv': val['rv']})
+      variables = list(arg.nodes)
+      for var in variables:
+        NX_DIRECTED_GRAPH.add_node(self, var)
 
     # Adding all edges in reverse order
     for arg in args[::-1]:
       NX_DIRECTED_GRAPH.add_edges_from(self, arg.edges())
 
     # Explicit dependences to be added in reverse order with all implicit bets off
-    deps = [arg.ret_deps() for arg in args[::-1]]
+    deps = [arg.deps for arg in args[::-1]]
     if any(deps):
       self._arch = None
       [self.add_deps(dep) for dep in deps]
@@ -134,8 +140,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     run_leafs = [None] * len(args)
     run_roots = [None] * len(args)
     for i, arg in enumerate(args):
-      run_leafs[i] = arg.ret_leafs().ret_rvs(aslist=True)
-      run_roots[i] = arg.ret_roots().ret_rvs(aslist=True)
+      run_leafs[i] = list(arg.leafs().varlist)
+      run_roots[i] = list(arg.roots().varlist)
 
     # Detect for implicit serial dependences
     serial = len(args) > 1
@@ -148,10 +154,10 @@ class SD (NX_DIRECTED_GRAPH, RF):
       leafs, roots = None, None
       for i, arg in enumerate(args):
         if i == 0:
-          leafs = arg.ret_leafs()
-          roots = arg.ret_roots()
+          leafs = arg.leafs
+          roots = arg.roots
         elif i == len(args) - 1:
-          roots = arg.ret_roots()
+          roots = arg.roots
       return self._refresh(leafs, roots)
 
     # Detect for implicit parallel dependences
@@ -169,7 +175,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
           break
     if parallel:
       self._arch = tuple(args[::-1])
-      leafs = args[0].ret_leafs()
+      leafs = args[0].leafs
       roots = RF(*tuple(roots))
       return self._refresh(leafs, roots)
 
@@ -203,51 +209,49 @@ class SD (NX_DIRECTED_GRAPH, RF):
       leafs = [] # RF of vertices with no children/successors
       roots = [] # RF of vertices with no parents/predecessors (and not a leaf)
       self._stems = collections.OrderedDict()
-      rvs = collections.OrderedDict(self.nodes.data())
-      for key, val in rvs.items():
-        parents = list(self.predecessors(key))
-        children = list(self.successors(key))
+      variables = list(self.nodes)
+      for var in variables:
+        parents = list(self.predecessors(var))
+        children = list(self.successors(var))
         if parents and children:
-          self._stems.update({key: val})
+          self._stems.update({var.name: var})
         elif children: # roots must have children
-          roots += [val]
+          roots += [var]
         else: # leafs can be parentless
-          leafs += [val]
+          leafs += [var]
       self._leafs = RF(*tuple(leafs))
       if roots:
         self._roots = RF(*tuple(roots))
 
     # Default IID keys and evaluate name and id from leafs and roots only
-    self._keys = list(self._leafs.nodes)
-    for key in list(self.nodes):
-      if key not in self._keys:
-        self._keys.append(key)
-    self._keyset = set(self._keys)
-    self._defiid = self._leafs.ret_keys(False)
-    self._name = self._leafs.ret_name()
-    self._id = self._leafs.ret_id()
+    self._vars = collections.OrderedDict({var.name: var for var in list(self.nodes)})
+    self._nvars = self.number_of_nodes()
+    self._varlist = list(self._vars.values())
+    self._keylist = list(self._vars.keys())
+    self._keyset = frozenset(self._keylist)
+    self._name = self._leafs.name
+    self._id = self._leafs.id
     self.__sub_rfs = {'leafs': self._leafs}
     if self._roots:
-      self._name += "|{}".format(self._roots.ret_name())
-      self._id += "_with_{}".format(self._roots.ret_id())
+      self._name += "|{}".format(self._roots.name)
+      self._id += "_with_{}".format(self._roots.id)
       self.__sub_rfs.update({'roots': self._roots})
-    self.set_pscale()
     self.eval_length()
     self.opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
 
     # Set the default proposal object and default the delta accordingly
     self._def_prop_obj = self._roots if self._roots is not None else self._leafs
-    self.delta = self._def_prop_obj.delta
+    self._Delta = self._def_prop_obj.Delta
     self._delta_type = self._def_prop_obj._delta_type
     self.set_prop_obj(None) # this is for the instantiater to decide
 
     # Determine unit RVRF
     self._unit_prob = False
     self._unit_tran = False
-    if self._nrvs == 1:
-      rv = self.ret_rvs()[0]
-      self._unit_prob = self._prob is None and rv.prob is not None
-      self._unit_tran = self._tran is None and rv.tran is not None
+    if self._nvars == 1:
+      var = self._varlist[0]
+      self._unit_prob = self._prob is None and var.prob is not None
+      self._unit_tran = self._tran is None and var.tran is not None
 
 #-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):
@@ -294,24 +298,16 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return collections.OrderedDict({dep_key: self._deps[dep_key]})
 
 #-------------------------------------------------------------------------------
-  def ret_deps(self, key=None):
-    if self._deps is None:
-      return None
-    if key is not None:
-      return self._deps[key]
-    return self._deps
-
-#-------------------------------------------------------------------------------
   def set_prop_obj(self, prop_obj=None):
     """ Sets the object used for assigning proposal distributions """
     self._prop_obj = prop_obj
     if self._prop_obj is None:
       return
-    self.delta = self._prop_obj.delta
+    self._Delta = self._prop_obj.Delta
     self._delta_type = self._prop_obj._delta_type
 
 #-------------------------------------------------------------------------------
-  def ret_leafs_roots(self, spec=None):
+  def leafs_roots(self, spec=None):
     """ Returns a proxy object from __sub_rfs. """
     if spec is None:
       return self.__sub_rfs
@@ -324,12 +320,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return spec
 
 #-------------------------------------------------------------------------------
-  def ret_arch(self):
-    return self._arch 
- 
-#-------------------------------------------------------------------------------
   def set_prop(self, prop=None, *args, **kwds):
-    _prop = self.ret_leafs_roots(prop)
+    _prop = self.leafs_roots(prop)
     if not _prop:
       return super().set_prop(prop, *args, **kwds)
     self.set_prop_obj(_prop)
@@ -338,7 +330,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def set_delta(self, delta=None, *args, **kwds):
-    _delta = self.ret_leafs_roots(delta)
+    _delta = self.leafs_roots(delta)
     if not _delta:
       return super().set_delta(delta, *args, **kwds)
     self.set_prop_obj(_delta)
@@ -351,7 +343,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def set_tran(self, tran=None, *args, **kwds):
-    _tran = self.ret_leafs_roots(tran)
+    _tran = self.leafs_roots(tran)
     if not _tran:
       self._tran_obj = self
       return super().set_tran(tran, *args, **kwds)
@@ -362,7 +354,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def set_tfun(self, tfun=None, *args, **kwds):
-    _tfun = self.ret_leafs_roots(tfun)
+    _tfun = self.leafs_roots(tfun)
     if not _tfun:
       self._tran_obj = self
       return super().set_tfun(tfun, *args, **kwds)
@@ -373,7 +365,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def set_cfun(self, cfun=None, *args, **kwds):
-    _cfun = self.ret_leafs_roots(cfun)
+    _cfun = self.leafs_roots(cfun)
     if not _cfun:
       return super().set_cfun(cfun, *args, **kwds)
     self.set_prop_obj(_cfun)
@@ -385,7 +377,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
   def eval_dist_name(self, values, suffix=None):
     if suffix is not None:
       return super().eval_dist_name(values, suffix)
-    keys = self._keys 
+    keys = self._keylist 
     vals = collections.OrderedDict()
     if not isinstance(vals, dict):
       vals.update({key: vals for key in keys})
@@ -397,17 +389,17 @@ class SD (NX_DIRECTED_GRAPH, RF):
             vals.update({subkey: val[i]})
         else:
           vals.update({key: val})
-      for key in self._keys:
+      for key in self._keylist:
         if key not in vals.keys():
           vals.update({key: None})
     marg_vals = collections.OrderedDict()
     if self._leafs:
-      for key in self._leafs.ret_keys():
+      for key in self._leafs.keys:
         if key in keys:
           marg_vals.update({key: vals[key]})
     cond_vals = collections.OrderedDict()
     if self._roots:
-      for key in self._roots.ret_keys():
+      for key in self._roots.keys:
         if key in keys:
           cond_vals.update({key: vals[key]})
     marg_dist_name = self._leafs.eval_dist_name(marg_vals)
@@ -419,19 +411,11 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return dist_name
 
 #-------------------------------------------------------------------------------
-  def ret_leafs(self):
-    return self._leafs
-
-#-------------------------------------------------------------------------------
-  def ret_roots(self):
-    return self._roots
-
-#-------------------------------------------------------------------------------
-  def set_rvs(self, *args):
+  def set_vars(self, *args):
     raise NotImplementedError()
 
 #-------------------------------------------------------------------------------
-  def add_rv(self, rv):
+  def add_var(self, rv):
     raise NotImplementedError()
 
 #-------------------------------------------------------------------------------
@@ -467,15 +451,15 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return vals
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, *args, _skip_parsing=False, **kwds):
+  def evaluate(self, *args, _skip_parsing=False, **kwds):
     assert self._leafs, "No leaf stochastic random variables defined"
-    return super().eval_vals(*args, _skip_parsing=_skip_parsing, **kwds)
+    return super().evaluate(*args, _skip_parsing=_skip_parsing, **kwds)
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
     """ Like RF.__call__ but optionally takes 'joint' keyword """
 
-    if not self._nrvs:
+    if not self._nvars:
       return None
     joint = False if 'joint' not in kwds else kwds.pop('joint')
     dist = super().__call__(*args, **kwds)
@@ -508,7 +492,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       return self.parse_args(*args)
     if len(args) == 1 and isinstance(args[0], dict):
       arg = args[0]
-      keyset = self._tran_obj.ret_keys(False)
+      keyset = self._tran_obj.keyset
       pred = collections.OrderedDict({key: val for key, val in arg.items() 
                                                if key in keyset})
       return self._tran_obj.parse_args(pred)
@@ -626,40 +610,13 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def __and__(self, other):
-    marg = self.ret_marg().ret_rvs()
-    cond = self.ret_cond().ret_rvs()
-    if isinstance(other, SD):
-      marg = marg + other.ret_marg().ret_rvs()
-      cond = cond + other.ret_cond().ret_rvs()
-      return SD(marg, cond)
-
-    if isinstance(other, RF):
-      marg = marg + other.ret_rvs()
-      return SD(marg, cond)
-
-    if isinstance(other, RV):
-      marg = marg + [other]
-      return SD(marg, cond)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+    return SD(other, self)
 
 #-------------------------------------------------------------------------------
   def __or__(self, other):
-    marg = self.ret_marg().ret_rvs()
-    cond = self.ret_cond().ret_rvs()
     if isinstance(other, SD):
-      marg = marg + other.ret_cond().ret_rvs()
-      cond = cond + other.ret_marg().ret_rvs()
-      return SD(marg, cond)
-
-    if isinstance(other, RF):
-      cond = cond + other.ret_rvs()
-      return SD(marg, cond)
-
-    if isinstance(other, RV):
-      cond = cond + [self]
-      return SD(marg, cond)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+      if self._roots and other.roots:
+        raise ValueError("Cannot cross-conditionalise stochastic dependencies")
+    return SD(self, other)
 
 #-------------------------------------------------------------------------------
