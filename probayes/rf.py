@@ -10,7 +10,7 @@ import scipy.stats
 import networkx as nx
 
 from probayes.rv import RV
-from probayes.prob import Prob, is_scipy_stats_mvar
+from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.dist_utils import margcond_str
 from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless, \
@@ -44,6 +44,7 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
   _Delta = None      # A namedtuple generator for delta operations
   _vars = None       # OrderedDict of variables
   _nvars = None      # Number of variables
+  _unitvar = None    # Boolean flag for one variable
   _varlist = None    # List of variable objects
   _keylist = None    # List of keys of variable names
   _keyset = None     # Unordered set of keys of random variable names
@@ -174,6 +175,10 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
   def nvars(self):
     return self._nvars
 
+  @property
+  def unitvar(self):
+    return self._unitvar
+
   def __len__(self):
     return self._nvars
 
@@ -205,10 +210,11 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
     """ Updates RV summary objects, RF name and id, and delta factory. """
     self._vars = collections.OrderedDict({var.name: var for var in list(self.nodes)})
     self._nvars = self.number_of_nodes()
+    self._unitvar = self._nvars == 1
     self._varlist = list(self._vars.values())
     self._keylist = list(self._vars.keys())
     self._keyset = frozenset(self._keylist)
-    self._defiid = self._keyset
+    self._defiid = self._leafs.keylist
     self._name = ','.join(self._keylist)
     self._id = '_and_'.join(self._keylist)
     if self._id:
@@ -222,7 +228,7 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 #-------------------------------------------------------------------------------
   @property
   def prob(self):
-    return self.prob
+    return self._prob
 
   @property
   def passdims(self):
@@ -439,8 +445,12 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 
     # If a scipy object, set the tfun
     elif self._tran.isscipy:
-      scipyobj = self._tran.scipyobj
-      self.set_tfun(self._tran, scipyobj=self._tran.scipyobj)
+      scipyobj = self._tran.expr
+      self.set_tfun(self._tran, scipyobj=scipyobj)
+      return
+
+    # Return for unit variable RFs
+    elif self._unitvar:
       return
 
     # Otherwise reinstantiate self._tran as an explicit conditional function
@@ -488,7 +498,7 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 
     # Handle SciPy objects specifically
     elif scipyobj is not None:      
-      lims = np.array([rv.ret_lims() for rv in self._varlist])
+      lims = np.array([rv.ulims for rv in self._varlist])
       mean = scipyobj.mean
       cov = scipyobj.cov
       self._cond_cov = CondCov(mean, cov, lims)
@@ -691,12 +701,10 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 
     # Otherwise distinguish between uncallable and callables
     if not self._callable:
-      return self._prob()
-    elif isinstance(self._prob, Expression) and self._prob.isscipy:
-      return call_scipy_prob(self._prob, self._pscale, values)
+      return self._call()
     if self._passdims:
-      return self._prob(values, dims=dims)
-    return self._prob(values)
+      return super().eval_prob(values, dims=dims)
+    return super().eval_prob(values)
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):
@@ -993,8 +1001,12 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
     name = margcond_str(marg, cond)
     vals = dist.vals
     dims = dist.dims
+    # This next line needs to be modified to handle new API
+    """
     prob = dist.prob if self._sym_tran or self._tran is None \
            else self._tran[1](dist.vals)
+    """
+    prob = dist.prob
     pscale = dist.ret_pscale()
     return Dist(name, vals, dims, prob, pscale)
 

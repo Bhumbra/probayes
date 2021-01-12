@@ -19,7 +19,8 @@ SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
 SCIPY_STATS_DISC = {scipy.stats.rv_discrete}
 SCIPY_STATS_MVAR = {scipy.stats._multivariate.multi_rv_generic}
 SCIPY_STATS_DIST = SCIPY_STATS_MVAR.union(
-                       SCIPY_STATS_CONT.union(SCIPY_STATS_DISC))
+                       SCIPY_STATS_CONT.union(SCIPY_STATS_DISC).\
+                           union(SCIPY_STATS_MVAR))
 SCIPY_DIST_METHODS = ['pdf', 'logpdf', 'pmf', 'logpmf', 'cdf', 'logcdf', 'ppf', 
                       'rvs', 'sf', 'logsf', 'isf', 'moment', 'stats', 'expect', 
                       'entropy', 'fit', 'median', 'mean', 'var', 'std', 'interval']
@@ -29,13 +30,17 @@ def is_scipy_stats_cont(arg, scipy_stats_cont=SCIPY_STATS_CONT):
   """ Returns if arg belongs to scipy.stats.continuous """
   return isinstance(arg, tuple(scipy_stats_cont))
 
-def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
-  """ Returns if arg belongs to scipy.stats.continuous or discrete """
-  return isinstance(arg, tuple(scipy_stats_dist))
+def is_scipy_stats_disc(arg, scipy_stats_disc=SCIPY_STATS_DISC):
+  """ Returns if arg belongs to scipy.stats.continuous """
+  return isinstance(arg, tuple(scipy_stats_disc))
 
 def is_scipy_stats_mvar(arg, scipy_stats_mvar=SCIPY_STATS_MVAR):
   """ Returns if arg belongs to scipy.stats._multivariate.multi_rv_generic """
   return isinstance(arg, tuple(scipy_stats_mvar))
+
+def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
+  """ Returns if arg belongs to scipy.stats.continuous or discrete """
+  return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
 SYMPY_STATS_DIST = {sympy.stats.rv.RandomSymbol}
@@ -113,7 +118,6 @@ class Prob (Expression):
   __isscipy = None   # Boolean flag of whether expression is a scipy stats object
   __issympy = None   # Boolean flag of whether expression is a sympy stats object
 
-
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, *args, **kwds):
     """ Initialises the probability and pscale (see set_prob). """
@@ -127,6 +131,10 @@ class Prob (Expression):
   @property
   def isscipy(self):
     return self.__isscipy
+
+  @property
+  def issympy(self):
+    return self.__issympy
 
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
@@ -190,6 +198,12 @@ class Prob (Expression):
     
     # Extract SciPy object member functions
     elif self.__isscipy:
+
+      # Instantiate multivariate scipy objects
+      if is_scipy_stats_mvar(self._expr):
+        self._expr = self._expr(*self._args,  **self._kwds)
+
+      # Iterate available methods
       for method in SCIPY_DIST_METHODS:
         if hasattr(self._prob, method):
           call = functools.partial(Expression._partial_call, self, 
@@ -317,28 +331,43 @@ class Prob (Expression):
 
     :return: evaluated probabilities
     """
+    # Strip pscale if pscale
+    kwds = dict(kwds)
+    pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
+
     # Callable and non-callable evaluations
-    probs = self._prob
     if self.callable:
+
+      # Scipy
       if self.__isscipy:
-        probs = self._partials['logp'] if iscomplex(self._pscale) \
+        prob = self._partials['logp'] if iscomplex(self._pscale) \
                 else self._partials['prob']
+        import pdb; pdb.set_trace()
+        prob = prob(*args)
+
+      # Sympy
       elif self.__issympy:
-        if iscomplex(self._pscale):
-          probs = self._logp
-      probs = probs(*args)
+        prob = self._logp if iscomplex(self._pscale) else self._prob
+        prob = prob(*args)
+
+      # Call via expression partials interface
+      else:
+        prob = self._partials[None](*args, **kwds)
+
     else:
       assert not len(args), \
           "Cannot evaluate from values from an uncallable probability function"
-      probs = probs()
-    if 'pscale' in kwds:
-      return self.rescale(probs, kwds['pscale'])
-    return probs
+      prob = self._prob()
+
+    # Optionally rescale
+    if pscale:
+      return self.rescale(prob, kwds['pscale'])
+    return prob
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
     """ See eval_prob() """
-    return self.eval_prob(*args, **kwds)
+    return Prob.eval_prob(self, *args, **kwds)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

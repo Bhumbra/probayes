@@ -4,12 +4,20 @@ specifications. Multiple outputs are supported for non-symbolic expressions. Not
 that an expression may comprise a constant by not being callable, and therefore 
 not all expressions are functions.
 '''
+import types
 import collections
 import functools
 import sympy as sy
 from probayes.vtypes import isscalar
 from probayes.icon import isiconic
 from probayes.expr import Expr
+
+#-------------------------------------------------------------------------------
+def islambda(func):
+  if not callable(func):
+    return False
+  if type(func) is types.LambdaType:
+    return func.__name__ == '<lambda>'
 
 #-------------------------------------------------------------------------------
 class Expression (Expr):
@@ -46,6 +54,7 @@ class Expression (Expr):
   _partials = None
   _ismulti = None
   _callable = None
+  _islambda = None
 
   # Private
   __invertible = None
@@ -84,6 +93,10 @@ class Expression (Expr):
   @property
   def callable(self):
     return self._callable
+
+  @property
+  def islambda(self):
+    return self._islambda
 
   @property
   def ismulti(self):
@@ -129,6 +142,7 @@ class Expression (Expr):
     self._args = tuple(args)
     self._kwds = dict(kwds)
     self._callable = None
+    self._islambda = None
     self._ismulti = None
     self.__order = None
     self.__delta = None
@@ -150,10 +164,12 @@ class Expression (Expr):
       self.expr = expr # this invokes the inherited setter
       self._ismulti = self.__invertible and len(self._symbols) == 1
       self._callable = True
+      self._islambda = False
 
     # Unitary
     elif not self._ismulti:
       self._callable = callable(self.expr)
+      self._islambda = islambda(self.expr)
       if not self._callable:
         assert not args and not kwds, \
             "No optional arguments with uncallable expressions"
@@ -164,19 +180,24 @@ class Expression (Expr):
       exprs = self.expr if isinstance(self.expr, tuple) else \
               self.expr.values()
       self._callable = False
+      self._islambda = False
       self.__isscalar = False
       self.__isiconic = False
       each_callable = [callable(expr) for expr in exprs]
+      each_islambda = [islambda(expr) for expr in exprs]
       each_isscalar = [isscalar(expr) for expr in exprs]
       each_isiconic = [isiconic(expr) for expr in exprs]
       assert len(set(each_callable)) < 2, \
           "Cannot mix callable and uncallable expressions"
+      assert len(set(each_islambda)) < 2, \
+          "Cannot mix lambda and non-lambda expressions"
       assert len(set(each_isscalar)) < 2, \
           "Cannot mix scalars and nonscalars"
       assert not any(each_isiconic), \
           "Symbolic expressions not supported for multiples"
       if len(self.expr):
         self._callable = each_callable[0]
+        self._islambda = each_islambda[0]
         self.__isscalar = each_isscalar[0]
         self.__isiconic = each_isiconic[0]
       if not self._callable:
@@ -306,8 +327,15 @@ class Expression (Expr):
 
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
     if not self.__isiconic and (not self.__order and not self.__delta):
-      if args or all(isinstance(key, str) for key in kwds.keys()):
-        return expr(*args, **kwds)
+      if not expr.__code__.co_argcount:
+        assert not len(args), \
+            "Unexpected entering of positional arguments: {}".format(args)
+        if self._islambda:
+          return expr()
+        else:
+          return expr(**kwds)
+      elif args or all(isinstance(key, str) for key in kwds.keys()):
+          return expr(*args, **kwds)
       else:
         return expr(dict(kwds))
 

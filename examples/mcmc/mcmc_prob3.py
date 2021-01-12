@@ -31,12 +31,12 @@ def q(**kwds):
   x, xprime = kwds['x'], kwds["x'"]
   return scipy.stats.norm.pdf(xprime, loc=x, scale=1.)
 
-x = pb.RV('x', (-np.inf, np.inf), vtype=float)
+x = pb.RV('x', vtype=float, vset=(-np.inf, np.inf))
 process = pb.SP(x)
 process.set_prob(scipy.stats.uniform.pdf, loc=3., scale=4.,
                  order={'x': 0})
 process.set_tran(q)
-lambda_delta = lambda : process.delta(x=scipy.stats.norm.rvs(loc=0., scale=1.))
+lambda_delta = lambda : process.Delta(x=scipy.stats.norm.rvs(loc=0., scale=1.))
 process.set_delta(lambda_delta)
 process.set_scores('hastings')
 process.set_update('metropolis')

@@ -14,8 +14,8 @@ n_steps = 2000
 means = [0.5, -0.5]
 covar = [[1.5, -1.0], [-1.0, 2.]]
 
-x = pb.RV('x', lims, vtype=float)
-y = pb.RV('y', lims, vtype=float)
+x = pb.RV('x', vtype=float, vset=lims)
+y = pb.RV('y', vtype=float, vset=lims)
 process = pb.SP(x & y)
 process.set_prob(scipy.stats.multivariate_normal, means, covar)
 process.set_tran(scipy.stats.multivariate_normal, means, covar, tsteps=1)

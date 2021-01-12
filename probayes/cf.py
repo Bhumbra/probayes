@@ -1,3 +1,4 @@
+# This module is to be deprecated along with Func.
 '''A conditional function is a functional wrapper that describes the 
 dependence of an about output RF with respect to an input RF or the
 by the dependence of a subgroup of RVs with respect to the others. 
@@ -60,6 +61,14 @@ class CF (Func):
   @property
   def isscipy(self):
     return self._Func__isscipy
+
+  @property
+  def isscalar(self):
+    return self._Func__isscalar
+
+  @property
+  def ismulti(self):
+    return self._Func__ismulti
 
   def __init__(self, out=None, inp=None, func=None, *args, **kwds):
     """ Sets the output and input random fields out and inp and initialises 

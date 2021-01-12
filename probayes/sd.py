@@ -191,7 +191,6 @@ class SD (NX_DIRECTED_GRAPH, RF):
     :param leafs: sets default for leafs
     :param roots: sets default for roots
     """
-    super()._refresh()
     self._leafs = None
     self._stems = collections.OrderedDict()
     self._roots = None
@@ -224,11 +223,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
         self._roots = RF(*tuple(roots))
 
     # Default IID keys and evaluate name and id from leafs and roots only
-    self._vars = collections.OrderedDict({var.name: var for var in list(self.nodes)})
-    self._nvars = self.number_of_nodes()
-    self._varlist = list(self._vars.values())
-    self._keylist = list(self._vars.keys())
-    self._keyset = frozenset(self._keylist)
+    super()._refresh()
     self._name = self._leafs.name
     self._id = self._leafs.id
     self.__sub_rfs = {'leafs': self._leafs}
