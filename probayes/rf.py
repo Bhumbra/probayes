@@ -10,23 +10,21 @@ import scipy.stats
 import networkx as nx
 
 from probayes.rv import RV
+from probayes.field import Field
 from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.dist_utils import margcond_str
-from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless, \
-                            revtype, uniform
-from probayes.pscales import iscomplex, real_sqrt, prod_rule, \
-                         rescale, eval_pscale, prod_pscale
+from probayes.vtypes import isscalar, isunitsetint
+from probayes.pscales import iscomplex, real_sqrt, prod_pscale
 from probayes.rf_utils import rv_prod_rule, call_scipy_prob, sample_cond_cov
 from probayes.expression import Expression
 from probayes.cf import CF
 from probayes.cond_cov import CondCov
 
-NX_UNDIRECTED_GRAPH = nx.OrderedGraph
 DEFAULT_CONDITIONAL_PROBABILITY = {False: 1., True: 0.}
 
 #-------------------------------------------------------------------------------
-class RF (NX_UNDIRECTED_GRAPH, Prob):
+class RF (Field, Prob):
   """
   A random field is a collection of a random variables that participate in a 
   joint probability distribution function without explicit directional 
@@ -40,74 +38,27 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
   """
 
   # Protected
-  _name = None       # Random field name cannot be set externally
-  _Delta = None      # A namedtuple generator for delta operations
-  _vars = None       # OrderedDict of variables
-  _nvars = None      # Number of variables
-  _unitvar = None    # Boolean flag for one variable
-  _varlist = None    # List of variable objects
-  _keylist = None    # List of keys of variable names
-  _keyset = None     # Unordered set of keys of random variable names
   _defiid = None     # Default IID random variables for calling distributions
   _passdims = None   # Flag to pass dimensions to probability function
   _prop = None       # Non-transitional proposition function
   _prop_deps = None  # Set of proposition dependencies
-  _delta = None      # Delta function (to replace step)
-  _delta_args = None # Optional delta args (must be dictionaries)
-  _delta_kwds = None # Optional delta kwds
-  _delta_type = None # Proxy for delta used for casting
   _tran = None       # Transitional proposition function
   _tfun = None       # CDF/IDF of transition function 
   _tsteps = None     # Number of steps per transitional modificiation
   _cvars = None      # Conditional random variable sampling specification
-  _length = None     # Length of junction
-  _lengths = None    # Lengths of RVs
   _sym_tran = None   # Flag for symmetrical transitional conditional functions
-  _spherise = None   # Flag to spherise samples
-  _leafs = None      # RF of RVs that do not condition others (for SD)
-  _roots = None      # RF of RVs not dependent on others (for SD)
-  _stems = None      # OrderedDict of latent RVs (for SD)
 
   # Private
-  __isscalar = None  # isscalar(_prob)
-  __callable = None  # callable(_prob)
   __cond_mod = None  # conditional RV index modulus
   __cond_cov = None  # conditional covariance matrix
 
 #-------------------------------------------------------------------------------
   def __init__(self, *args): # over-rides NX_GRAPH.__init__()
     """ Initialises a random field with RVs for in args. See set_vars(). """
-    super().__init__()
-    self.set_vars(*args)
-    self.set_delta()
+    super().__init__(*args)
     self.set_prob()
     self.set_prop()
     self.set_tran()
-
-#-------------------------------------------------------------------------------
-  def add_node(self, *args, **kwds):
-    """ Direct adding of nodes disallowed """
-    raise NotImplementedError("Not implemented for this class")
-
-#-------------------------------------------------------------------------------
-  def add_node_from(self, *args, **kwds):
-    """ Direct adding of nodes disallowed """
-    raise NotImplementedError("Not implemented for this class")
-
-#-------------------------------------------------------------------------------
-  def remove_node(self, *args, **kwds):
-    """ Removal of nodes disallowed """
-    raise NotImplementedError("Not implemented for this class")
-
-#-------------------------------------------------------------------------------
-  def add_edge(self, *args, **kwds):
-    """ Direct adding of edges disallowed """
-    raise NotImplementedError("Not implemented for this class")
-
-#-------------------------------------------------------------------------------
-  def add_edges_from(self, *args, **kwds):
-    """ Direct adding of edges disallowed """
-    raise NotImplementedError("Not implemented for this class")
 
 #-------------------------------------------------------------------------------
   def add_cd(self, *args, **kwds):
@@ -115,111 +66,9 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
     raise NotImplementedError("Not implemented for this class")
 
 #-------------------------------------------------------------------------------
-  @property
-  def leafs(self):
-    return self._leafs
-
-  @property
-  def stems(self):
-    return self._stems
-
-  @property
-  def roots(self):
-    return self._roots
-
-  def set_vars(self, *args):
-    """ Initialises a random field with RVs for each arg in args.
-
-    :param *args: each arg may be an RV instance or the first arg may be a RF.
-    
-    """
-    self._leafs, self._stems, self._roots = self, None, None
-    if len(args) == 1 and isinstance(args[0], (RF, set, tuple, list)):
-      args = args[0]
-    else:
-      args = tuple(args)
-    self.add_var(args)
-
-#-------------------------------------------------------------------------------
-  def add_var(self, var):
-    """ Adds one or more random variables to the random field.
-
-    :param var: a RV or RF instance, or a list/tuple of RV instances.
-    """
-    assert self._prob is None, \
-      "Cannot assign new randon variables after specifying joint/condition prob"
-    if isinstance(var, (RF, dict, set, tuple, list)):
-      variables = var
-      if isinstance(variables, RF):
-        variables = variables.varlist
-      elif isinstance(variables, dict):
-        variables = list(variables.values())
-    for var in variables:
-      assert isinstance(var, RV), \
-          "Input not a variable instance but of type: {}".format(type(var))
-      if self._nvars:
-        assert var not in list(self.nodes), \
-            "Existing variable {} already present in collection".format(var)
-      super().add_node(var)
-    else:
-      assert isinstance(var, RV), \
-          "Input not a variable instance but of type: {}".format(type(var))
-      if self._nvars:
-        assert var not in list(self.nodes), \
-            "Existing RV {} already present in collection".format(var)
-      super().add_node(var)
-    self._refresh()
-
-#-------------------------------------------------------------------------------
-  @property
-  def nvars(self):
-    return self._nvars
-
-  @property
-  def unitvar(self):
-    return self._unitvar
-
-  def __len__(self):
-    return self._nvars
-
-  @property
-  def varlist(self):
-    return self._varlist
-
-  @property
-  def keylist(self):
-    return self._keylist
-
-  @property
-  def keyset(self):
-    return self._keyset
-
-  @property
-  def name(self):
-    return self._name
-
-  @property
-  def id(self):
-    return self._id
-
-  @property
-  def Delta(self):
-    return self._Delta
-
   def _refresh(self):
     """ Updates RV summary objects, RF name and id, and delta factory. """
-    self._vars = collections.OrderedDict({var.name: var for var in list(self.nodes)})
-    self._nvars = self.number_of_nodes()
-    self._unitvar = self._nvars == 1
-    self._varlist = list(self._vars.values())
-    self._keylist = list(self._vars.keys())
-    self._keyset = frozenset(self._keylist)
-    self._defiid = self._leafs.keylist
-    self._name = ','.join(self._keylist)
-    self._id = '_and_'.join(self._keylist)
-    if self._id:
-      self._Delta = collections.namedtuple('ð', self._keylist)
-      self._delta_type = self._Delta
+    super()._refresh()
     if self._nvars:
       pscales = [var.pscale for var in self._vars.values()]
       self._pscale = prod_pscale(pscales)
@@ -260,111 +109,6 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 #-------------------------------------------------------------------------------
   def _default_prob(self):
     pass
-
-#-------------------------------------------------------------------------------
-  @property
-  def delta(self):
-    """ Returns the default delta object if specified """
-    return self._delta
-
-  def set_delta(self, delta=None, *args, **kwds):
-    """ Sets the default delta function or operation.
-
-    :param delta: the delta function or operation (see below)
-    :param *args: optional arguments to pass if delta is callable.
-    :param **kwds: optional keywords to pass if delta is callable.
-
-    The input delta may be:
-
-    1. A callable function (for which args and kwds are passed on as usual).
-    2. An RV.delta instance (this defaults all RV deltas).
-    3. A dictionary for RVs, this is converted to an RF.delta.
-    4. A scalar that may contained in a list or tuple:
-      a) No container - the scalar is treated as a fixed delta.
-      b) List - delta is uniformly and independently sampled across RVs.
-      c) Tuple - delta is spherically sampled across RVs.
-
-      For non-tuples, an optional argument (args[0]) can be included as a 
-      dictionary to specify by RV-name deltas following the above conventions
-      except their values are not subject to scaling even if 'scale' is given,
-      but they are subject to bounding if 'bound' is specified.
-
-    For setting types 2-4, optional keywords are (default False):
-      'scale': Flag to denote scaling deltas to RV lengths
-      'bound': Flag to constrain delta effects to RV bounds (None bounces)
-      
-    """
-    self._delta = delta
-    self._delta_args = args
-    self._delta_kwds = dict(kwds)
-    self._spherise = {}
-    if self._delta is None:
-      return
-    elif callable(self._delta):
-      self._delta = Expression(self._delta, *args, **kwds)
-      return
-
-    # Default scale and bound
-    if 'scale' not in self._delta_kwds:
-      self._delta_kwds.update({'scale': False})
-    if 'bound' not in self._delta_kwds:
-      self._delta_kwds.update({'bound': False})
-    scale = self._delta_kwds['scale']
-    bound = self._delta_kwds['bound']
-
-    # Handle deltas and dictionaries
-    if isinstance(self._delta, dict):
-      self._delta = self._delta_type(**self._delta)
-    if isinstance(delta, self._delta_type):
-      assert not args, \
-        "Optional args prohibited for dict/delta instance inputs"
-      for i, var in enumerate(self._varlist):
-        var.set_delta(self._delta[i], scale=scale, bound=bound)
-      return
-
-    # Default scale and bound and check args
-    if self._delta_args:
-      assert len(self._delta_args) == 1, \
-          "Optional positional arguments must comprises a single dict"
-      unscale = self._delta_args[0]
-      assert isinstance(unscale, dict), \
-          "Optional positional arguments must comprises a single dict"
-
-    # Non tuples can be converted to deltas; can pre-scale here
-    if not isinstance(self._delta, tuple):
-      scaling = self._lengths
-      delta = self._delta 
-      urand = isinstance(delta, list)
-      if urand:
-        assert len(delta) == 1, "List delta requires a single element"
-        delta = delta[0]
-      deltas = {key: delta for key in self._keylist}
-      unscale = {} if not self._delta_args else self._delta_args[0]
-      deltas.update(unscale)
-      delta_dict = collections.OrderedDict(deltas)
-      for i, (key, val) in enumerate(deltas.items()):
-        delta = val
-        if scale and key not in unscale:
-          assert np.isfinite(self._lengths[i]), \
-              "Cannot scale by infinite length for RV {}".format(key)
-          delta = val * self._lengths[i]
-        if urand:
-          delta = [delta]
-        delta_dict.update({key: delta})
-      self._delta = self._delta_type(**delta_dict)
-      for i, var in enumerate(self._varlist):
-        var.set_delta(self._delta[i], scale=False, bound=bound)
-
-    # Tuple deltas must be evaluated on-the-fly and cannot be pre-scaled
-    else:
-      unscale = {} if not self._delta_args else self._delta_args[0]
-      self._spherise = {}
-      for i, key in enumerate(self._keylist):
-        if key not in unscale.keys():
-          length = self._lengths[i]
-          assert np.isfinite(length), \
-              "Cannot spherise RV {} with infinite length".format(key)
-          self._spherise.update({key: length})
 
 #-------------------------------------------------------------------------------
   @property
@@ -530,158 +274,6 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
     self._tfun = CF(self, inp, self._tfun, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def eval_length(self):
-    """ Evaluates and returns the joint length of the random junction. """
-    self._lengths = np.array([var.length for var in self._varlist], 
-                             dtype=float)
-    self._length = np.sqrt(np.sum(self._lengths))
-    return self._length
-
-#-------------------------------------------------------------------------------
-  def parse_args(self, *args, **kwds):
-    """ Returns (values, iid) from *args and **kwds """
-    args = tuple(args)
-    kwds = dict(kwds)
-    pass_all = False if 'pass_all' not in kwds else kwds.pop('pass_all')
-    
-    if not args and not kwds:
-      args = (None,)
-    if args:
-      assert len(args) == 1 and not kwds, \
-        "With order specified, calls argument must be a single " + \
-              "dictionary or keywords only"
-      kwds = dict(args[0]) if isinstance(args[0], dict) else \
-             ({key: args[0] for key in self._keylist})
-
-    elif kwds:
-      assert not args, \
-        "With order specified, calls argument must be a single " + \
-              "dictionary or keywords only"
-    values = dict(kwds)
-    seen_keys = []
-    for key, val in values.items():
-      count_comma = key.count(',')
-      if count_comma:
-        seen_keys.extend(key.split(','))
-        if isinstance(val, (tuple, list)):
-          assert len(val) == count_comma+1, \
-              "Mismatch in key specification {} and number of values {}".\
-              format(key, len(val))
-        else:
-          values.update({key: [val] * (count_comma+1)})
-      else:
-        seen_keys.append(key)
-      if not pass_all:
-        assert seen_keys[-1] in self._keylist, \
-            "Unrecognised key {} among available RVs {}".format(
-                seen_keys[-1], self._keylist)
-    for key in self._keylist:
-      if key not in seen_keys:
-        values.update({key: None})
-    if pass_all:
-      list_keys = list(values.keys())
-      for key in list_keys:
-        if key not in self._keylist:
-          values.pop(key)
-
-    return values
-
-#-------------------------------------------------------------------------------
-  def eval_dist_name(self, values=None, suffix=None):
-    # Evaluates the string used to set the distribution name
-    vals = collections.OrderedDict()
-    if isinstance(values, dict):
-      for key, val in values.items():
-        if ',' in key:
-          subkeys = key.split(',')
-          for i, subkey in enumerate(subkeys):
-            vals.update({subkey: val[i]})
-        else:
-          vals.update({key: val})
-      for key in self._keylist:
-        if key not in vals.keys():
-          vals.update({key: None})
-    else:
-      vals.update({key: values for key in self._keylist})
-    var_dist_names = [var.eval_dist_name(vals[var.name], suffix) \
-                     for var in self._varlist]
-    dist_name = ','.join(var_dist_names)
-    return dist_name
-
-#-------------------------------------------------------------------------------
-  def evaluate(self, *args, _skip_parsing=False, min_dim=0, **kwds):
-    """ 
-    Keep args and kwds since could be called externally. This ignores self._prob.
-    """
-    values = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
-    dims = collections.OrderedDict()
-    
-    # Don't reshape if all scalars (and therefore by definition no shared keys)
-    if all([np.isscalar(value) for value in values.values()]): # use np.scalar
-      return values, dims
-
-    # Create reference mapping for shared keys across vars
-    values_ref = collections.OrderedDict({key: [key, None] for key in self._keylist})
-    for key in values.keys():
-      if ',' in key:
-        subkeys = key.split(',')
-        for i, subkey in enumerate(subkeys):
-          values_ref[subkey] = [key, i]
-
-    # Share dimensions for joint variables and do not dimensionalise scalars
-    ndim = min_dim
-    dims = collections.OrderedDict({key: None for key in self._keylist})
-    seen_keys = set()
-    for i, key in enumerate(self._keylist):
-      new_dim = False
-      if values_ref[key][1] is None: # i.e. not shared
-        if not isdimensionless(values[key]):
-          dims[key] = ndim
-          new_dim = True
-        seen_keys.add(key)
-      elif key not in seen_keys:
-        val_ref = values_ref[key]
-        subkeys = val_ref[0].split(',')
-        for subkey in subkeys:
-          dims[subkey] = ndim
-          seen_keys.add(subkey)
-        if not isdimensionless(values[val_ref[0]][val_ref[1]]):
-          new_dim = True
-      if new_dim:
-        ndim += 1
-
-    # Reshape
-    vdims = [dim for dim in dims.values() if dim is not None]
-    ndims = max(vdims) + 1 if len(vdims) else 0
-    ones_ndims = np.ones(ndims, dtype=int)
-    vals = collections.OrderedDict()
-    for i, var in enumerate(self._varlist):
-      key = var.name
-      reshape = True
-      if key in values.keys():
-        vals.update({key: values[key]})
-        reshape = not np.isscalar(vals[key])
-        if vals[key] is None or isinstance(vals[key], set):
-          vals.update(var.evaluate(vals[key]))
-      else:
-        val_ref = values_ref[key]
-        vals_val = values[val_ref[0]][val_ref[1]]
-        if vals_val is None or isinstance(vals_val, set):
-          vals_val = var.evaluate(vals_val)
-        vals.update({key: vals_val})
-      if reshape and not isscalar(vals[key]):
-        re_shape = np.copy(ones_ndims)
-        re_dim = dims[key]
-        re_shape[re_dim] = vals[key].size
-        vals[key] = vals[key].reshape(re_shape)
-    
-    # Remove dimensionality for singletons
-    for key in self._keylist:
-      if issingleton(vals[key]):
-        dims[key] = None
-    return vals, dims
-
-#-------------------------------------------------------------------------------
   def eval_prob(self, values=None, dims=None):
     if values is None:
       values = {}
@@ -710,78 +302,9 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 
 #-------------------------------------------------------------------------------
   def eval_delta(self, delta=None):
+    delta = super().eval_delta(delta)
 
-    # Handle native delta types within RV deltas
-    if delta is None: 
-      if self._delta is None:
-        variables = list(self._varlist)
-        if len(variables) == 1 and variables[0]._delta is not None:
-          return variables[0]._delta
-        return None
-      elif isinstance(self._delta, Expression):
-        delta = self._delta()
-      elif isinstance(self._delta, self._delta_type):
-        delta_dict = collections.OrderedDict()
-        variables = self._varlist
-        for i, key in enumerate(self._keylist):
-          delta_dict.update({key: variables[i].eval_delta()})
-        delta = self._delta_type(**delta_dict)
-      else:
-        delta = self._delta
-    elif isinstance(delta, Expression):
-      delta = delta()
-    elif isinstance(delta, self._delta_type):
-      delta_dict = collections.OrderedDict()
-      variables = self.ret_vars(aslist=True)
-      for i, key in enumerate(self._keylist):
-        delta_dict.update({key: variables[i].eval_delta(delta[i])})
-      delta = self._delta_type(**delta_dict)
-
-    # Non spherical case
-    if not isinstance(self._delta_type, Expression) and \
-         isinstance(delta, self._delta_type): # i.e. non-spherical
-      if self._tfun is None or self._tfun.isscalar:
-        return delta
-      elif not self._tfun.callable:
-        delta = np.ravel(delta)
-        delta = self._tfun().dot(delta)
-        return self._delta_type(*delta)
-      else:
-        delta = self._tfun(delta)
-        assert isinstance(delta, self._delta_type), \
-            "User supplied tfun did not output delta type {}".\
-            format(self._delta_type)
-        return delta
-
-    # Rule out possibility of all RVs contained in unscaling argument
-    assert isinstance(delta, tuple), \
-        "Unknown delta type: {}".format(delta)
-    unscale = {} if not self._delta_args else self._delta_args
-    if not len(self._spherise):
-      return self._delta_type(**unscale)
-
-    # Spherical version
-    delta = delta[0]
-    spherise = self._spherise
-    keys = self._spherise.keys()
-    rss = real_sqrt(np.sum(np.array(list(spherise.values()))**2))
-    if self._delta_kwds['scale']:
-      delta *= rss
-    deltas = np.random.uniform(-delta, delta, size=len(spherise))
-    rss_deltas = real_sqrt(np.sum(deltas ** 2.))
-    deltas = (deltas * delta) / rss_deltas
-    delta_dict = collections.OrderedDict()
-    idx = 0
-    for i, key in enumerate(keys):
-      if key in unscale:
-        val = unscale[key]
-      else:
-        val = deltas[idx]
-        idx += 1
-        if self._delta_kwds['scale']:
-          val *= self._lengths[i]
-      delta_dict.update({key: val})
-    delta = self._delta_type(**delta_dict)
+    # Adjust delta if there is LUD tfun
     if self._tfun is None or self._tfun.isscalar:
       return delta
     elif not self._tfun.callable:
@@ -793,27 +316,6 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
           "User supplied tfun did not output delta type {}".\
           format(self._delta_type)
       return delta
-
-#-------------------------------------------------------------------------------
-  def apply_delta(self, values, delta=None):
-    delta = delta or self._delta
-    if delta is None:
-      return values
-    if not isinstance(delta, self._delta_type):
-      variables = self._varlist
-      if len(variables) == 1 and isinstance(delta, variables[0].delta):
-        return variables[0].apply_delta(values, delta)
-      raise TypeError("Cannot apply delta without providing delta type {}".\
-        format(self._delta_type))
-    bound = False if 'bound' not in self._delta_kwds \
-           else self._delta_kwds['bound']
-    vals = collections.OrderedDict(values)
-    keys = delta._fields
-    for i, key in enumerate(keys):
-      vals.update({key: self._vars[key].apply_delta(values[key], 
-                                                    delta[i], 
-                                                    bound=bound)})
-    return vals
 
 #-------------------------------------------------------------------------------
   def eval_prop(self, values, **kwargs):
@@ -830,46 +332,33 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
 #-------------------------------------------------------------------------------
   def eval_step(self, pred_vals, succ_vals, reverse=False):
     """ Returns adjusted succ_vals """
-
-    # Evaluate deltas if required
     if succ_vals is None:
       if self._delta is None:
-        pred_values = list(pred_vals.values())
         if all([isscalar(pred_value) for pred_value in pred_values]):
           succ_vals = {0}
-        else:
-          succ_vals = pred_vals
-      else:
-        succ_vals = self.eval_delta()
-    elif isinstance(succ_vals, Expression) or \
-        isinstance(succ_vals, (tuple, self._delta_type)):
-      succ_vals = self.eval_delta(succ_vals)
 
-    # Apply deltas
-    cond = None
-    if isinstance(succ_vals, self._delta_type):
-      succ_vals = self.apply_delta(pred_vals, succ_vals)
-    elif isunitsetint(succ_vals):
-      if self._tfun is not None and self._tfun.callable:
-        succ_vals = self.eval_tfun(pred_vals)
-      elif self._nvars == 1:
-        var = self._varlist[0]
-        tran = var.tran
-        tfun = var.tfun
-        if (tran is not None and not tran.callable) or \
-            (tfun is not None and tfun.callable):
-          vals, dims, kwargs = var.eval_step(pred_vals[var.name], 
-                                             succ_vals, reverse=reverse)
-          return vals, dims, kwargs
-        raise ValueError("Transitional CDF calling requires callable tfun")
-      else:
-        raise ValueError("Transitional CDF calling requires callable tfun")
+    # If not sampling succeeding values, use deterministic call
+    if not isunitsetint(succ_vals):
+      return super().eval_step(pred_vals, succ_vals, reverse=reverse)
+
+    if self._tfun is not None and self._tfun.callable:
+      succ_vals = self.eval_tfun(pred_vals)
+    elif self._nvars == 1:
+      var = self._varlist[0]
+      tran = var.tran
+      tfun = var.tfun
+      if (tran is not None and not tran.callable) or \
+          (tfun is not None and tfun.callable):
+        vals, dims, kwargs = var.eval_step(pred_vals[var.name], 
+                                           succ_vals, reverse=reverse)
+        return vals, dims, kwargs
+      raise ValueError("Transitional CDF calling requires callable tfun")
+    else:
+      raise ValueError("Transitional CDF calling requires callable tfun")
 
     # Initialise outputs with predecessor values
     dims = {}
     kwargs = {'reverse': reverse}
-    if cond is not None:
-      kwargs = {'cond': cond}
     vals = collections.OrderedDict()
     for key in self._keylist:
       vals.update({key: pred_vals[key]})
@@ -1011,35 +500,6 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
     prob = dist.prob
     pscale = dist.ret_pscale()
     return Dist(name, vals, dims, prob, pscale)
-
-#-------------------------------------------------------------------------------
-  def subfield(self, vertices):
-    """ Returns a view of vertices, which must all be members, as an RF.
-
-    :param vertices: str/RV/RF or list/tuple of str/RVs/RF to include in RF
-
-    :return: an RF including only those vertices
-    """
-
-    # Convert to list
-    if isinstance(vertices, tuple):
-      vertices = list(vertices)
-    if not isinstance(vertices, list):
-      vertices = [vertices]
-
-    # Collate variables and return as RF
-    variables = []
-    for vertex in vertices:
-      if isinstance(vertex, RF):
-        variables += [vertex.ret_vars(aslist=True)]
-      elif isinstance(vertex, RV):
-        variables += [vertex]
-      elif isinstance(vertex, str):
-        variables += [self._vars[vertex]]
-      else:
-        raise TypeError("Unrecognised vertex specification type: {}".format(
-            type(vertex)))
-    return RF(*tuple(variables))
 
 #-------------------------------------------------------------------------------
   def _eval_iid(self, dist_name, vals, dims, prob, iid):

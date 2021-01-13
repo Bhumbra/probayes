@@ -309,7 +309,7 @@ class Expression (Expr):
     self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
-  def _call(self, expr, *args, **kwds):
+  def _call(self, expr=None, *args, **kwds):
     """ Private call used by the wrapped Func interface that is _ismulti-blind.
     (see __call__ and __getitem__).
     """
@@ -319,6 +319,10 @@ class Expression (Expr):
     if not self._callable and not self.__isiconic:
       assert not args and not kwds, \
           "No optional args with uncallable or symbolic expressions"
+      if expr is None:
+        print(type(self._partials))
+        import pdb; pdb.set_trace()
+        expr = self._partials[None]
       return expr 
 
     # Allow first argument to denote kwds
