@@ -1,14 +1,23 @@
 '''
 A wrapper for expression functions that makes optional use of 'order' and 'delta' 
-specifications. Multiple outputs are supported for non-symbolic outputs
+specifications. Multiple outputs are supported for non-symbolic expressions. Note
+that an expression may comprise a constant by not being callable, and therefore 
+not all expressions are functions.
 '''
+import types
 import collections
 import functools
 import sympy as sy
 from probayes.vtypes import isscalar
 from probayes.icon import isiconic
 from probayes.expr import Expr
-from probayes.prob import is_scipy_stats_dist, SCIPY_DIST_METHODS
+
+#-------------------------------------------------------------------------------
+def islambda(func):
+  if not callable(func):
+    return False
+  if type(func) is types.LambdaType:
+    return func.__name__ == '<lambda>'
 
 #-------------------------------------------------------------------------------
 class Expression (Expr):
@@ -43,16 +52,16 @@ class Expression (Expr):
   _kwds = None
   _keys = None
   _partials = None
+  _ismulti = None
+  _callable = None
+  _islambda = None
 
   # Private
   __invertible = None
   __inverse = None
   __invexpr = None
-  __ismulti = None
   __isscalar = None
   __isiconic = None
-  __scipyobj = None
-  __callable = None
   __order = None
   __delta = None
 
@@ -82,16 +91,16 @@ class Expression (Expr):
     return self.__delta
 
   @property
-  def scipyobj(self):
-    return self.__scipyobj
+  def callable(self):
+    return self._callable
 
   @property
-  def callable(self):
-    return self.__callable
+  def islambda(self):
+    return self._islambda
 
   @property
   def ismulti(self):
-    return self.__ismulti
+    return self._ismulti
 
   @property
   def isscalar(self):
@@ -132,11 +141,11 @@ class Expression (Expr):
     self._expr = expr
     self._args = tuple(args)
     self._kwds = dict(kwds)
+    self._callable = None
+    self._islambda = None
+    self._ismulti = None
     self.__order = None
     self.__delta = None
-    self.__scipyobj = None
-    self.__callable = None
-    self.__ismulti = None
     self.__isscalar = None
     self.__isiconic = None
     self.__inverse = None
@@ -148,24 +157,20 @@ class Expression (Expr):
     if self._expr is None:
       assert not args and not kwds, "No optional args without a function"
     self.__isiconic = isiconic(self._expr)
-    self.__ismulti = isinstance(self._expr, (dict, tuple))
+    self._ismulti = isinstance(self._expr, (dict, tuple))
 
     # Icon
     if self.__isiconic:
       self.expr = expr # this invokes the inherited setter
-      self.__ismulti = self.__invertible and len(self._symbols) == 1
-      self.__callable = True
-
-    # Scipy
-    elif is_scipy_stats_dist(self.expr):
-      self.__scipyobj = self.expr
-      self.__ismulti = True
-      self.__callable = True
+      self._ismulti = self.__invertible and len(self._symbols) == 1
+      self._callable = True
+      self._islambda = False
 
     # Unitary
-    elif not self.__ismulti:
-      self.__callable = callable(self.expr)
-      if not self.__callable:
+    elif not self._ismulti:
+      self._callable = callable(self.expr)
+      self._islambda = islambda(self.expr)
+      if not self._callable:
         assert not args and not kwds, \
             "No optional arguments with uncallable expressions"
         self.__isscalar = isscalar(self.expr)
@@ -175,29 +180,33 @@ class Expression (Expr):
       exprs = self.expr if isinstance(self.expr, tuple) else \
               self.expr.values()
       self._callable = False
-      self._isscalar = False
-      self._isiconic = False
+      self._islambda = False
+      self.__isscalar = False
+      self.__isiconic = False
       each_callable = [callable(expr) for expr in exprs]
+      each_islambda = [islambda(expr) for expr in exprs]
       each_isscalar = [isscalar(expr) for expr in exprs]
       each_isiconic = [isiconic(expr) for expr in exprs]
       assert len(set(each_callable)) < 2, \
           "Cannot mix callable and uncallable expressions"
+      assert len(set(each_islambda)) < 2, \
+          "Cannot mix lambda and non-lambda expressions"
       assert len(set(each_isscalar)) < 2, \
           "Cannot mix scalars and nonscalars"
       assert not any(each_isiconic), \
           "Symbolic expressions not supported for multiples"
       if len(self.expr):
-        self.__callable = each_callable[0]
+        self._callable = each_callable[0]
+        self._islambda = each_islambda[0]
         self.__isscalar = each_isscalar[0]
         self.__isiconic = each_isiconic[0]
-      if not self.__callable:
+      if not self._callable:
         assert not args and not kwds, "No optional args with uncallable function"
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
       self.set_delta(self._kwds.pop('delta'))
     self._set_partials()
-    self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
   def set_order(self, order=None):
@@ -208,7 +217,7 @@ class Expression (Expr):
     if self.__order is None:
       return
     assert self.__delta is None, "Cannot set both order and delta"
-    assert not self.__symbol, "Cannot set order when using symbols"
+    assert not self.isiconic, "Cannot set order when using symbols"
     self._check_mapping(self.__order)
 
 #-------------------------------------------------------------------------------
@@ -220,7 +229,7 @@ class Expression (Expr):
     if self.__delta is None:
       return
     assert self.__order is None, "Cannot set both order and delta"
-    assert not self.__symbol, "Cannot set delta when using symbols"
+    assert not self.isiconic, "Cannot set delta when using symbols"
     self._check_mapping(self.__delta)
 
 #-------------------------------------------------------------------------------
@@ -250,9 +259,8 @@ class Expression (Expr):
 
 #-------------------------------------------------------------------------------
   def _set_partials(self):
-    # Private function to update partial function dictionary of calls
+    # Protected function to update partial function dictionary of calls
     self._partials = collections.OrderedDict()
-
 
     # Evaluate symbolic call if symbol expression
     if self.__isiconic:
@@ -278,25 +286,8 @@ class Expression (Expr):
         call = functools.partial(Expr.__call__, self.__invexpr)
         self._partials.update({-1: call})
 
-    # Extract SciPy object member functions
-    elif self.__scipyobj:
-      for method in SCIPY_DIST_METHODS:
-        if hasattr(self.__scipyobj, method):
-          call = functools.partial(Expression._partial_call, self, 
-                                   getattr(self.__scipyobj, method),
-                                   *self._args, **self._kwds)
-          self._partials.update({method: call})
-
-      # Provide a common interface for PDF/PMF and LOGPDF/LOGPMF
-      if 'pdf' in self._partials.keys():
-          self._partials.update({'prob': self._partials['pdf']})
-          self._partials.update({'logp': self._partials['logpdf']})
-      elif 'pmf' in self._partials.keys():
-          self._partials.update({'prob': self._partials['pmf']})
-          self._partials.update({'logp': self._partials['logpmf']})
-
     # Non-multiples are keyed by: None
-    elif not self.__ismulti:
+    elif not self._ismulti:
       call = functools.partial(Expression._partial_call, self, self.expr, 
                                *self._args, **self._kwds)
       self._partials.update({None: call})
@@ -315,6 +306,7 @@ class Expression (Expr):
         call = functools.partial(Expression._partial_call, self, val, 
                                  *self._args, **self._kwds)
         self._partials.update({key: call})
+    self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
   def _call(self, expr, *args, **kwds):
@@ -324,7 +316,7 @@ class Expression (Expr):
     #argsin = args; kwdsin = kwds; import pdb; pdb.set_trace() # debugging
 
     # Non-callables
-    if not self.__callable and not self.__isiconic:
+    if not self._callable and not self.__isiconic:
       assert not args and not kwds, \
           "No optional args with uncallable or symbolic expressions"
       return expr 
@@ -334,8 +326,16 @@ class Expression (Expr):
       args, kwds = (), {**kwds, **dict(args[0])}
 
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
-    if not self.__isiconic or (not self.__order and not self.__delta):
-      return expr(*args, **kwds)
+    if not self.__isiconic and (not self.__order and not self.__delta):
+      if self._islambda and hasattr(expr, '__code__') and \
+          not expr.__code__.co_argcount: # Allow argument-free lambdas
+        assert not len(args), \
+            "Unexpected entering of positional arguments: {}".format(args)
+        return expr()
+      elif args or all(isinstance(key, str) for key in kwds.keys()):
+        return expr(*args, **kwds)
+      else:
+        return expr(dict(kwds))
 
     # Symbols are evaluated by substitution
     if self.__isiconic:
@@ -400,7 +400,7 @@ class Expression (Expr):
   def __call__(self, *args, **kwds):
    """ Wrapper call to the function with optional inclusion of additional
    args and kwds. """
-   assert not self.__ismulti, \
+   assert not self._ismulti, \
        "Cannot call with multiple expression, use Expression[{}]()".format(
            list(self._keys()))
    return self._partials[None](*args, **kwds)
@@ -411,21 +411,21 @@ class Expression (Expr):
    numeric, otherwise spec is treated as key returning the corresponding
    value in the expr dictionary. """
    if spec is not None: 
-     assert self.__ismulti, \
+     assert self._ismulti, \
          "Cannot call with non-multiple expression, use Expression()"
    return self._partials[spec]
 
 #-------------------------------------------------------------------------------
   def __len__(self):
     """ Returns the number of expressions in the tuple set by set_expr() """
-    if not self.__ismulti:
+    if not self._ismulti:
       return None
     return len(self._partials)
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
     """ Print representation """
-    if self.__isiconic or not self.__callable:
+    if self.__isiconic or not self._callable:
       return object.__repr__(self)+ ": '{}'".format(self.expr)
     if self._keys is None:
       return object.__repr__(self) 

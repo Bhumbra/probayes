@@ -9,7 +9,7 @@ import collections
 import inspect
 import warnings
 from probayes.sd import SD
-from probayes.func import Func
+from probayes.expression import Expression
 from probayes.dist import Dist
 from probayes.dist_utils import summate
 from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
@@ -18,7 +18,7 @@ from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 class SP (SD):
 
   # Public
-  stuv = None     # scores + thresholds + update + veridct
+  stuv = None     # scores + thresholds + update + verdit
   opqrstuv = None # opqr + stuv
 
   # Protected
@@ -39,13 +39,17 @@ class SP (SD):
 #-------------------------------------------------------------------------------
   def _refresh(self, *args, **kwds):
     super()._refresh(*args, **kwds)
-    if not self._nrvs:
+    if not self._nvars:
       return
     self.stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
     self.opqrstuv = collections.namedtuple(self._id, 
                         ['o', 'p', 'q', 'r', 's', 't', 'u', 'v'])
 
 #-------------------------------------------------------------------------------
+  @property
+  def scores(self):
+    return self._scores
+
   def set_scores(self, scores=None, *args, **kwds):
     self._scores = scores
     if self._scores is None:
@@ -56,9 +60,13 @@ class SP (SD):
       self.set_scores(MCMC_SAMPLERS[self._scores][0], pscale=self._pscale)
       self.set_thresh(scores)
       return
-    self._scores = Func(self._scores, *args, **kwds)
+    self._scores = Expression(self._scores, *args, **kwds)
 
 #-------------------------------------------------------------------------------
+  @property
+  def thresh(self):
+    return self._thresh
+
   def set_thresh(self, thresh=None, *args, **kwds):
     self._thresh = thresh
     if self._thresh is None:
@@ -69,9 +77,13 @@ class SP (SD):
       self.set_thresh(MCMC_SAMPLERS[self._thresh][1])
       self.set_update(thresh)
       return
-    self._thresh = Func(self._thresh, *args, **kwds)
+    self._thresh = Expression(self._thresh, *args, **kwds)
 
 #-------------------------------------------------------------------------------
+  @property
+  def update(self):
+    return self._update
+
   def set_update(self, update=None, *args, **kwds):
     self._update = update
     if self._update is None:
@@ -81,17 +93,17 @@ class SP (SD):
           "Neither args nor kwds permitted with spec '{}'".format(self._update)
       self.set_update(MCMC_SAMPLERS[self._update][2])
       return
-    self._update = Func(self._update, *args, **kwds)
+    self._update = Expression(self._update, *args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def eval_func(self, func=None, *args, **kwds):
-    if func is None:
-      return func
-    assert isinstance(func, Func), \
-        "Evaluation of func no possible for type {}".format(type(func))
-    if not func.ret_callable():
-      return func()
-    return func(*args, **kwds)
+  def eval_expr(self, expr=None, *args, **kwds):
+    if expr is None:
+      return expr
+    assert isinstance(expr, Expression), \
+        "Evaluation of expr no possible for type {}".format(type(expr))
+    if not expr.callable:
+      return expr()
+    return expr(*args, **kwds)
 
 #-------------------------------------------------------------------------------
   def reset(self, sampler_id=None, reset_last=True): # Leave option to preseve
@@ -103,7 +115,7 @@ class SP (SD):
       self.__last = collections.OrderedDict()
     if sampler_id is None:
       return
-    sampler = self.ret_sampler(sampler_id)
+    sampler = self.get_sampler(sampler_id)
     self.__counter[sampler] = 0
     if sampler not in self.__last:
       self.__last[sampler] = None
@@ -130,7 +142,7 @@ class SP (SD):
       dist = summate(*samples)
       if not conditionalise:
         return dist
-      return dist.conditionalise(self._leafs.ret_keys())
+      return dist.conditionalise(self._leafs.keys)
 
     # If empty call or dictionary arguments, pass to SD
     if not samples or len(kwds) or \
@@ -178,11 +190,11 @@ class SP (SD):
       if opqrstuv[key] is not None:
         opqrstuv[key] = summate(*tuple(opqrstuv[key]))
         if conditionalise and key in ['o', 'p', 'v']:
-          opqrstuv[key] = opqrstuv[key].conditionalise(self._leafs.ret_keys())
+          opqrstuv[key] = opqrstuv[key].conditionalise(self._leafs.keys)
     return self.opqrstuv(**opqrstuv)
 
 #-------------------------------------------------------------------------------
-  def ret_sampler(self, sampler_id=None):
+  def get_sampler(self, sampler_id=None):
     if sampler_id is None:
       return self.__samplers
     if type(sampler_id) is int:
@@ -190,22 +202,22 @@ class SP (SD):
     return sampler_id
 
 #-------------------------------------------------------------------------------
-  def ret_counter(self, sampler_id=None):
+  def get_counter(self, sampler_id=None):
     if sampler_id is None:
       return self.__counter
-    return self.__counter[self.ret_sampler(sampler_id)]
+    return self.__counter[self.get_sampler(sampler_id)]
 
 #-------------------------------------------------------------------------------
-  def ret_last(self, sampler_id=None):
+  def get_last(self, sampler_id=None):
     if sampler_id is None:
       return self.__last
-    return self.__last[self.ret_sampler(sampler_id)]
+    return self.__last[self.get_sampler(sampler_id)]
 
 #-------------------------------------------------------------------------------
   def next(self, sampler_id, *args, **kwds):
 
     # Reset counters
-    sampler = self.ret_sampler(sampler_id)
+    sampler = self.get_sampler(sampler_id)
     self.__counter[sampler] += 1
     last = self.__last[sampler]
     no_proposal = self._tran is None and self._tfun is None and \
@@ -229,11 +241,11 @@ class SP (SD):
         opqr = self.sample(*args, **kwds)
 
     # Set to last if accept is not False
-    stuv = self.stuv(self.eval_func(self._scores, opqr),
-                     self.eval_func(self._thresh),
+    stuv = self.stuv(self.eval_expr(self._scores, opqr),
+                     self.eval_expr(self._thresh),
                      None,
                      None)
-    update = self.eval_func(self._update, stuv)
+    update = self.eval_expr(self._update, stuv)
     verdit = opqr.o
     if self._update is None or self.__last[sampler] is None or update:
       self.__last[sampler] = opqr
@@ -279,4 +291,3 @@ class SP (SD):
     return steps
 
 #-------------------------------------------------------------------------------
-

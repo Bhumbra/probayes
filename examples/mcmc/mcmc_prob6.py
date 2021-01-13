@@ -52,13 +52,13 @@ def r(**kwds):
   return scipy.stats.norm.pdf(yprime, loc=y, scale=prop_stdv) * \
          scipy.stats.norm.pdf(xprime, loc=x-2., scale=prop_stdv)
 
-x = pb.RV('x', (-np.inf, np.inf), vtype=float)
-y = pb.RV('y', (-np.inf, np.inf), vtype=float)
+x = pb.RV('x', vtype=float, vset=(-np.inf, np.inf))
+y = pb.RV('y', vtype=float, vset=(-np.inf, np.inf))
 process = pb.SP(x & y)
 process.set_prob(scipy.stats.multivariate_normal, [0., 0.],
                  [[2.0, 1.2], [1.2, 2.0]])
 process.set_tran((q, r))
-lambda_delta = lambda : process.delta(x=scipy.stats.norm.rvs(loc=-2, scale=prop_stdv),
+lambda_delta = lambda : process.Delta(x=scipy.stats.norm.rvs(loc=-2, scale=prop_stdv),
                                       y=scipy.stats.norm.rvs(loc=0., scale=prop_stdv))
 process.set_delta(lambda_delta)
 process.set_scores('hastings')

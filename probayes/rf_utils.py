@@ -13,7 +13,7 @@ def rv_prod_rule(*args, rvs, pscale=None):
   Values (=args[0]) are keyed by RV name and rvs are a list of RVs.
   """
   values = args[0]
-  pscales = [rv.ret_pscale() for rv in rvs]
+  pscales = [rv.pscale for rv in rvs]
   pscale = pscale or prod_pscale(pscales)
   use_logs = iscomplex(pscale)
   probs = [rv.eval_prob(values[rv.name]) for rv in rvs]

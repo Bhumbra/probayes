@@ -1,6 +1,8 @@
-Replace Func with Expression for Prob class and refactor
+Refactor RF and SD to replace self.ret_attrib() functions with @property decorators.
+Support multiple parameters to assign a SymPy probability distribution.
+Use frozensets for key sets.
+Support iconic CDFs.
 Inherit Distributions for Probability Distribution class.
-Replace self.ret_attrib() functions with @property decorators.
 Support Fields of Variables sharing Expressions collected as Functionals.
 Support Dependences between Domains with respect to Functionals.
 Support explicit Naive Bayes.

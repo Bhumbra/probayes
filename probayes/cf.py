@@ -1,3 +1,4 @@
+# This module is to be deprecated along with Func.
 '''A conditional function is a functional wrapper that describes the 
 dependence of an about output RF with respect to an input RF or the
 by the dependence of a subgroup of RVs with respect to the others. 
@@ -13,7 +14,7 @@ def _to_rf(obj=None):
   if obj is None:
     return obj
   if isinstance(obj, RF):
-    assert not obj.ret_stems() and not obj.ret_roots(), \
+    assert not obj.stems and not obj.roots, \
         "RFs must be rootless and stemless"
     return obj
   elif isinstance(obj, RV):
@@ -24,9 +25,9 @@ def _to_rf(obj=None):
       if isinstance(subobj, RV):
         rvs += [subobj]
       elif isinstance(subobj, RF):
-        assert not obj.ret_stems() and not obj.ret_roots(), \
+        assert not obj.stems and not obj.roots, \
             "RFs must be rootless and stemless"
-        rvs += subobj.ret_rvs(aslist=True)
+        rvs += subobj.varlist
       else:
         raise TypeError("Unexpected type: {}".format(type(subobj)))
     return RF(*tuple(rvs))
@@ -53,6 +54,22 @@ class CF (Func):
   __unknown = None
 
 #-------------------------------------------------------------------------------
+  @property
+  def callable(self):
+    return self._Func__callable
+
+  @property
+  def isscipy(self):
+    return self._Func__isscipy
+
+  @property
+  def isscalar(self):
+    return self._Func__isscalar
+
+  @property
+  def ismulti(self):
+    return self._Func__ismulti
+
   def __init__(self, out=None, inp=None, func=None, *args, **kwds):
     """ Sets the output and input random fields out and inp and initialises 
     the function according to object in func, which may be an uncallable
@@ -86,13 +103,13 @@ class CF (Func):
     if not self.__inpdict and inp is not None:
       assert self._out is not None, "Set outputs before inputs"
       self._inp = _to_rf(inp)
-      self._name = '|'.join([self._out.ret_name(), self._inp.ret_name()])
+      self._name = '|'.join([self._out.name, self._inp.name])
       return 
     elif inp is not None and not isinstance(inp, collections.OrderedDict):
       raise TypeError("Dictionary specification for inp must be an OrderedDict")
 
     # At this stage, there must be at least two RVs
-    rv_keys = self._out.ret_keys(aslist=True)
+    rv_keys = self._out.keylist
     assert len(rv_keys) > 1, "Multiple RVs required for conditional functions"
 
     # Check inp if entered
