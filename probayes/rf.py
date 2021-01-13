@@ -224,6 +224,9 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
       pscales = [var.pscale for var in self._vars.values()]
       self._pscale = prod_pscale(pscales)
     self.eval_length()
+    self._prop = None
+    self._tran = None
+    self._tfun = None
 
 #-------------------------------------------------------------------------------
   @property
@@ -245,7 +248,6 @@ class RF (NX_UNDIRECTED_GRAPH, Prob):
     pscale is used. Keyword 'passdims' is reserved to pass a flag to callable
     prob functions to pass the dimensionality dictionary for values.
     """
-    self._tran, self._tfun = None, None
     kwds = dict(kwds)
     self._passdims = False if 'passdims' not in kwds else kwds.pop('passdims')
     if 'pscale' not in kwds and self._nvars:

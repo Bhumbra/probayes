@@ -117,6 +117,7 @@ class Prob (Expression):
   # Private
   __isscipy = None   # Boolean flag of whether expression is a scipy stats object
   __issympy = None   # Boolean flag of whether expression is a sympy stats object
+  __issmvar = None   # Boolean flag of whether expression is a scipy mvar object
 
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, *args, **kwds):
@@ -136,6 +137,10 @@ class Prob (Expression):
   def issympy(self):
     return self.__issympy
 
+  @property
+  def issmvar(self):
+    return self.__issmvar
+
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 
@@ -149,6 +154,7 @@ class Prob (Expression):
     pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
     self.__isscipy = is_scipy_stats_dist(prob)
     self.__issympy = is_sympy_stats_dist(prob)
+    self.__issmvar = is_scipy_stats_mvar(prob)
 
     # Probabilities can be defined as regular expressions
     if not self.__isscipy and not self.__issympy:
@@ -158,7 +164,10 @@ class Prob (Expression):
       return
 
     # Scipy/SymPy expressions
-    self.set_expr(prob, *args, **kwds)
+    if self.__issmvar: # Scipy self._expr must be instantiated as a frozen object
+      self._expr = prob
+    else:
+      self.set_expr(prob, *args, **kwds)
     self._args = tuple(args)
     self._kwds = dict(kwds)
     self._prob = self._expr
@@ -199,9 +208,10 @@ class Prob (Expression):
     # Extract SciPy object member functions
     elif self.__isscipy:
 
-      # Instantiate multivariate scipy objects
-      if is_scipy_stats_mvar(self._expr):
+      # Instantiate multivariate scipy objects with pre-specified args
+      if self.__issmvar and is_scipy_stats_mvar(self._expr):
         self._expr = self._expr(*self._args,  **self._kwds)
+        self._args, self._kwds = (), {} # No longer used
 
       # Iterate available methods
       for method in SCIPY_DIST_METHODS:
@@ -342,8 +352,11 @@ class Prob (Expression):
       if self.__isscipy:
         prob = self._partials['logp'] if iscomplex(self._pscale) \
                 else self._partials['prob']
-        import pdb; pdb.set_trace()
-        prob = prob(*args)
+        if self.issmvar: # for mvar, convert dictionaries to arrays
+          vals = np.array(list(args[0].values()))
+          prob = prob(vals)
+        else:
+          prob = prob(*args)
 
       # Sympy
       elif self.__issympy:

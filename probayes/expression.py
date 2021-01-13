@@ -327,15 +327,13 @@ class Expression (Expr):
 
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
     if not self.__isiconic and (not self.__order and not self.__delta):
-      if not expr.__code__.co_argcount:
+      if self._islambda and hasattr(expr, '__code__') and \
+          not expr.__code__.co_argcount: # Allow argument-free lambdas
         assert not len(args), \
             "Unexpected entering of positional arguments: {}".format(args)
-        if self._islambda:
-          return expr()
-        else:
-          return expr(**kwds)
+        return expr()
       elif args or all(isinstance(key, str) for key in kwds.keys()):
-          return expr(*args, **kwds)
+        return expr(*args, **kwds)
       else:
         return expr(dict(kwds))
 

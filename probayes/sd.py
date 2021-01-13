@@ -293,6 +293,10 @@ class SD (NX_DIRECTED_GRAPH, RF):
     return collections.OrderedDict({dep_key: self._deps[dep_key]})
 
 #-------------------------------------------------------------------------------
+  @property
+  def prop_obj(self):
+    return self._prop_obj
+
   def set_prop_obj(self, prop_obj=None):
     """ Sets the object used for assigning proposal distributions """
     self._prop_obj = prop_obj
@@ -329,7 +333,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     if not _delta:
       return super().set_delta(delta, *args, **kwds)
     self.set_prop_obj(_delta)
-    self._delta = _delta._delta
+    self._delta = _delta.delta
     self._delta_args = _delta._delta_args
     self._delta_kwds = _delta._delta_kwds
     self._delta_type = _delta._delta_type
@@ -344,7 +348,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       return super().set_tran(tran, *args, **kwds)
     self._tran_obj = _tran
     self.set_prop_obj(self._tran_obj)
-    self._tran = _tran._tran
+    self._tran = _tran.tran
     return self._tran
 
 #-------------------------------------------------------------------------------
@@ -355,7 +359,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       return super().set_tfun(tfun, *args, **kwds)
     self._tran_obj = _tfun
     self.set_prop_obj(_tfun)
-    self._tfun = _tfun._tfun
+    self._tfun = _tfun.tfun
     return self._tfun
 
 #-------------------------------------------------------------------------------

@@ -26,11 +26,11 @@ x_obs = np.random.normal(0, 1, size=rand_size)
 y_obs = np.random.normal(slope*x_obs + intercept, y_noise)
 
 # Set up RVs, RFs, and SP
-x = pb.RV('x', x_range, vtype=float)
-y = pb.RV('y', [-np.inf, np.inf], vtype=float) 
-beta_0 = pb.RV('beta_0', [-6., 6.], vtype=float) 
-beta_1 = pb.RV('beta_1', [-6., 6.], vtype=float) 
-y_sigma = pb.RV('y_sigma', [(0.001), 10.], vtype=float) 
+x = pb.RV('x', vtype=float, vset=x_range)
+y = pb.RV('y', vtype=float, vset=[-np.inf, np.inf]) 
+beta_0 = pb.RV('beta_0', vtype=float, vset=[-6., 6.]) 
+beta_1 = pb.RV('beta_1', vtype=float, vset=[-6., 6.]) 
+y_sigma = pb.RV('y_sigma', vtype=float, vset=[(0.001), 10.]) 
 
 # Define likelihood and conditional functions
 def norm_reg(x, y, beta_0, beta_1, y_sigma):
