@@ -334,7 +334,7 @@ class RV (Variable, Prob):
     # Scalar treatment is the most trivial and ignores reverse
     if self._tran is None or self._tran.isscalar:
       if isunitsetint(succ_vals):
-        succ_vals = self.eval_vals(succ_vals, use_pfun=False)[self._name]
+        succ_vals = self.eval_vals(succ_vals, use_pfun=False)
       elif isunitsetfloat(succ_vals):
         assert self._vtype in VTYPES[float], \
             "Inverse CDF sampling for scalar probabilities unavailable for " + \
@@ -345,7 +345,7 @@ class RV (Variable, Prob):
         if self._ufun is not None:
           succ_val = self.ufun[-1](succ_val)
 
-      prob = self._tran() if self._tran is not None else None
+      prob = self._tran() if self._tran is not None else np.NaN
       pred_vals, succ_vals, dims = _reshape_vals(pred_vals, succ_vals)
                   
     # Handle discrete non-callables
@@ -405,16 +405,11 @@ class RV (Variable, Prob):
     succ_idx = None if 'succ_idx' not in kwargs else kwargs['succ_idx'] 
     cond = None
 
-    # No transitional means no conditional
-    if self._tran is None:
-      pass
-
     # Scalar treatment is the most trivial and ignores reverse
-    elif self._tran.isscalar:
-      prob = None if self._tran is None else self._tran()
+    if self._tran.isscalar:
       cond = nominal_uniform_prob(pred_vals,
                                   succ_vals, 
-                                  prob=prob, 
+                                  prob=self._tran(), 
                                   inside=self._inside) 
                   
 
@@ -477,14 +472,6 @@ class RV (Variable, Prob):
     if dist_succ_name is None:
       dist_succ_name = self.eval_dist_name(vals[self.__prime_key], "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
-
-    # TODO - distinguish between probabilistic and non-probabistic outputs
-    if cond is None:
-      cond = 1.
-      for val in vals.values():
-        if isinstance(val, np.ndarray):
-          cond = cond * np.ones(val.shape, dtype=float)
-
     return Dist(dist_name, vals, dims, cond, self._pscale)
 
 #-------------------------------------------------------------------------------

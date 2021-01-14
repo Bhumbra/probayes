@@ -377,7 +377,7 @@ class Prob (Expression):
     else:
       assert not len(args), \
           "Cannot evaluate from values from an uncallable probability function"
-      prob = self._prob()
+      prob = self._prob() if callable(self._prob) else self._prob
 
     # Optionally rescale
     if pscale:

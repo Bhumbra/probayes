@@ -144,8 +144,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
     run_leafs = [None] * len(args)
     run_roots = [None] * len(args)
     for i, arg in enumerate(args):
-      run_leafs[i] = list(arg.leafs().varlist)
-      run_roots[i] = list(arg.roots().varlist)
+      run_leafs[i] = list(arg.leafs.varlist)
+      run_roots[i] = list(arg.roots.varlist)
 
     # Detect for implicit serial dependences
     serial = len(args) > 1
