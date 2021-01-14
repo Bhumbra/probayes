@@ -24,8 +24,11 @@ oxy = o | xy
 oxy.set_prob(inside)
 
 # CALL PROBABILITIES AND EVALUATE EXPECTATION AND AREA
+print("foo")
 p_cond_omc = oxy({'x,y': set_size})
+print("bar")
 p_omc_true = p_cond_omc({'o': True})
+print("baz")
 xy_vals = p_cond_omc.ret_cond_vals()
 p_marg_omc = xy(xy_vals)
 p_joint_omc = p_marg_omc * p_cond_omc

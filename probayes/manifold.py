@@ -97,9 +97,15 @@ class Manifold:
     self._aresingleton = [issingleton(val) for val in self.vals.values()]
     self._issingleton = np.all(self._aresingleton)
     self.ndim = 0 
+    valid_dims = []
     for dim in self.dims.values():
       if dim is not None:
+        valid_dims.append(dim)
         self.ndim = max(self.ndim, dim+1)
+    if valid_dims:
+      valid_dims = np.unique(valid_dims)
+      assert np.all(valid_dims == np.arange(len(valid_dims))), \
+          "Invalid dimension specification: {}".format(self.dims)
 
     # If evaluating non-singleton dimensions, warn if using dict
     if eval_dims and len(self.vals) > 1 and not self._issingleton:
@@ -153,6 +159,8 @@ class Manifold:
                    any(np.array(values.shape) != vals_shape)
         if re_shape:
           self.vals[key] = values.reshape(vals_shape)
+    if None in self.shape:
+      import pdb; pdb.set_trace()
     self.size = int(np.prod(self.shape))
 
     return self.dims

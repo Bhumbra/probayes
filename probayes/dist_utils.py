@@ -160,8 +160,8 @@ def product(*args, **kwds):
             cond_same = False
             break
     if marg_same and cond_same:
-      marg_names =  marg_names[0]
-      cond_names =  cond_names[0]
+      marg_names = marg_names[0]
+      cond_names = cond_names[0]
       prod_marg_name = ','.join(marg_names)
       prod_cond_name = ','.join(cond_names)
       prod_name = '|'.join([prod_marg_name, prod_cond_name])

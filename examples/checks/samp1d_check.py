@@ -1,8 +1,9 @@
 # Sampling program to test simple 1-D sampling
 import probayes as pb
 num_samples = 10
+sample_range = [0., 1.]
 
-x = pb.RV('x', vtype=float)
+x = pb.RV('x', vtype=float, vset=sample_range)
 p = pb.SP(x)
 
 # Method one

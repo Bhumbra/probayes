@@ -11,6 +11,7 @@ from probayes.expr import Expr
 from probayes.variable import Variable
 from probayes.prob import Prob
 from probayes.rv import RV
+from probayes.field import Field
 from probayes.rf import RF
 from probayes.sd import SD
 from probayes.sp import SP
