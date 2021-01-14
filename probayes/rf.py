@@ -603,26 +603,6 @@ class RF (Field, Prob):
     return self._keyset == other.keyset
 
 #-------------------------------------------------------------------------------
-  def __ne__(self, other):
-    """ Equality for RFs is defined as comprising the same RVs """
-    return not self.__eq__(other)
-
-#-------------------------------------------------------------------------------
-  def __getitem__(self, key):
-    if type(key) is int:
-      key = self._keylist[key]
-    if isinstance(key, str):
-      if key not in self._keylist:
-        return None
-    return self._vars[key]
-
-#-------------------------------------------------------------------------------
-  def __repr__(self):
-    if not self._name:
-      return NX_UNDIRECTED_GRAPH.__repr__(self)
-    return NX_UNDIRECTED_GRAPH.__repr__(self) + ": '" + self._name + "'"
-
-#-------------------------------------------------------------------------------
   def __and__(self, other):
     from probayes.rv import RV
     from probayes.sd import SD

@@ -164,7 +164,7 @@ class Prob (Expression):
       return
 
     # Scipy/SymPy expressions
-    if self.__issmvar: # Scipy self._expr must be instantiated as a frozen object
+    if self.__issmvar: # Scipy self._expr is instantiated later as a frozen object
       self._expr = prob
     else:
       self.set_expr(prob, *args, **kwds)
@@ -208,7 +208,7 @@ class Prob (Expression):
     # Extract SciPy object member functions
     elif self.__isscipy:
 
-      # Instantiate multivariate scipy objects with pre-specified args
+      # Instantiate multivariate scipy objects with pre-specified arguments
       if self.__issmvar and is_scipy_stats_mvar(self._expr):
         self._expr = self._expr(*self._args,  **self._kwds)
         self._args, self._kwds = (), {} # No longer used
@@ -353,7 +353,14 @@ class Prob (Expression):
         prob = self._partials['logp'] if iscomplex(self._pscale) \
                 else self._partials['prob']
         if self.issmvar: # for mvar, convert dictionaries to arrays
-          vals = np.array(list(args[0].values()))
+          vals = list(args[0].values())
+          if len(vals) == 1:
+            vals = np.array(vals)
+          else:
+            vals = vals[::-1]
+            if len(vals) > 2:
+              vals = vals[1:] + [vals[0]]
+            vals = np.stack(np.meshgrid(*tuple(vals)), axis=-1)
           prob = prob(vals)
         else:
           prob = prob(*args)

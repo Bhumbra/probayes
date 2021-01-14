@@ -319,11 +319,11 @@ class Expression (Expr):
     if not self._callable and not self.__isiconic:
       assert not args and not kwds, \
           "No optional args with uncallable or symbolic expressions"
+      if self._ismulti:
+        return expr
       if expr is None:
-        print(type(self._partials))
-        import pdb; pdb.set_trace()
-        expr = self._partials[None]
-      return expr 
+        expr = self._expr
+      return expr
 
     # Allow first argument to denote kwds
     if len(args) == 1 and isinstance(args[0], dict):
@@ -337,6 +337,7 @@ class Expression (Expr):
             "Unexpected entering of positional arguments: {}".format(args)
         return expr()
       elif args or all(isinstance(key, str) for key in kwds.keys()):
+        _args, _kwds = args, kwds
         return expr(*args, **kwds)
       else:
         return expr(dict(kwds))

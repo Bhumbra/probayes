@@ -142,7 +142,7 @@ class SP (SD):
       dist = summate(*samples)
       if not conditionalise:
         return dist
-      return dist.conditionalise(self._leafs.keys)
+      return dist.conditionalise(self._leafs.keyset)
 
     # If empty call or dictionary arguments, pass to SD
     if not samples or len(kwds) or \
@@ -190,7 +190,7 @@ class SP (SD):
       if opqrstuv[key] is not None:
         opqrstuv[key] = summate(*tuple(opqrstuv[key]))
         if conditionalise and key in ['o', 'p', 'v']:
-          opqrstuv[key] = opqrstuv[key].conditionalise(self._leafs.keys)
+          opqrstuv[key] = opqrstuv[key].conditionalise(self._leafs.keyset)
     return self.opqrstuv(**opqrstuv)
 
 #-------------------------------------------------------------------------------

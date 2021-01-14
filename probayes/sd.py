@@ -100,10 +100,14 @@ class SD (NX_DIRECTED_GRAPH, RF):
       if len(rfs) > 2:
         for rf in rfs[1:-1]:
           leafs_vars += list(rf.varlist)
-      for var in roots_vars:
-        NX_DIRECTED_GRAPH.add_node(self, var)
+
+      # Add leafs then roots
       for var in leafs_vars:
         NX_DIRECTED_GRAPH.add_node(self, var)
+      for var in roots_vars:
+        NX_DIRECTED_GRAPH.add_node(self, var)
+
+      # Add edges
       for roots_var in roots_vars:
         for leafs_var in leafs_vars:
           NX_DIRECTED_GRAPH.add_edge(self, roots_var, leafs_var)
@@ -393,12 +397,12 @@ class SD (NX_DIRECTED_GRAPH, RF):
           vals.update({key: None})
     marg_vals = collections.OrderedDict()
     if self._leafs:
-      for key in self._leafs.keys:
+      for key in self._leafs.keylist:
         if key in keys:
           marg_vals.update({key: vals[key]})
     cond_vals = collections.OrderedDict()
     if self._roots:
-      for key in self._roots.keys:
+      for key in self._roots.keylist:
         if key in keys:
           cond_vals.update({key: vals[key]})
     marg_dist_name = self._leafs.eval_dist_name(marg_vals)

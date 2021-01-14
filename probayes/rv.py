@@ -14,6 +14,7 @@ from probayes.pscales import div_prob, rescale, eval_pscale
 from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
+from probayes.distribution import Distribution
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
@@ -69,6 +70,7 @@ class RV (Variable, Prob):
 
     Variable.__init__(self, name, vtype, vset)
     Prob.__init__(self, prob, *args, **kwds)
+    self._tran, self._tfun = None, None
 
 #-------------------------------------------------------------------------------
   @property
@@ -92,7 +94,6 @@ class RV (Variable, Prob):
     'pscale' is a reserved keyword. See Prob.pscale for explanation of how 
     pscale is used.
     """
-    self._tran, self._tfun = None, None
     super().set_prob(prob, *args, **kwds)
     if self._prob is None:
       self._default_prob(self._pscale)
@@ -239,15 +240,15 @@ class RV (Variable, Prob):
 
     # Evaluate values from inverse cdf bounded within cdf limits
     number = list(values)[0]
-    assert np.all(np.isfinite(self._lims)), \
-        "Cannot evaluate {} values for bounds: {}".format(values, self._lims)
-    lims = self.pfun[0](self._lims)
+    assert self.isfinite, \
+        "Cannot evaluate {} values for bounds: {}".format(values, self._ulims)
+    lims = self.pfun[0](self._ulims)
     values = uniform(
                      lims[0], lims[1], number, 
                      isinstance(self._vset[0], tuple),
                      isinstance(self._vset[1], tuple)
                     )
-    return self.pfun[1](values)
+    return Distribution(self._name, {self.name: self.pfun[1](values)})
 
 #-------------------------------------------------------------------------------
   def eval_prob(self, values=None):
@@ -371,7 +372,7 @@ class RV (Variable, Prob):
             "Successor sampling only possible with scalar predecessors"
         succ_vals = list(succ_vals)[0]
         if type(succ_vals) in VTYPES[int] or type(succ_vals) in VTYPES[np.uint]:
-          lo, hi = min(self._lims), max(self._lims)
+          lo, hi = min(self._ulims), max(self._ulims)
           kwds.update({self._name+"'": np.array([lo, hi], dtype=float)})
           lohi = self._tfun[0](**kwds)
           lo, hi = float(min(lohi)), float(max(lohi))

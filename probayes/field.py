@@ -424,8 +424,9 @@ class Field (NX_UNDIRECTED_GRAPH):
         val_ref = values_ref[key]
         vals_val = values[val_ref[0]][val_ref[1]]
         if vals_val is None or isinstance(vals_val, set):
-          vals_val = var.evaluate(vals_val)
-        vals.update({key: vals_val})
+          vals.update(var.evaluate(vals_val))
+        else:
+          vals.update({key: vals_val})
       if reshape and not isscalar(vals[key]):
         re_shape = np.copy(ones_ndims)
         re_dim = dims[key]

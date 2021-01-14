@@ -30,3 +30,5 @@ p_sym = p_dis_and_sym.marginal('sym')
 p_dis_given_sym = p_dis_and_sym / p_sym
 inference = p_dis_given_sym({'dis': True, 'sym': True})
 print(inference)
+assert abs(inference.prob-0.09) < 0.01, \
+    "Expected around 0.09 but evaluated {}".format(inference.prob)
