@@ -1,4 +1,3 @@
-Fix bern_bayes operation
 Include testing all examples as fix errors.
 Refactor RF and SD to replace self.ret_attrib() functions with @property decorators.
 Support multiple parameters to assign a SymPy probability distribution.

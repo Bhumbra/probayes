@@ -334,7 +334,7 @@ class RF (Field, Prob):
     """ Returns adjusted succ_vals """
     if succ_vals is None:
       if self._delta is None:
-        if all([isscalar(pred_value) for pred_value in pred_values]):
+        if all([isscalar(pred_value) for pred_value in pred_vals]):
           succ_vals = {0}
 
     # If not sampling succeeding values, use deterministic call
