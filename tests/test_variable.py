@@ -5,7 +5,7 @@ import pytest
 import math
 import numpy as np
 import scipy.stats
-import sympy as sy
+import sympy
 import probayes as pb
 from probayes import NEARLY_POSITIVE_INF as inf
 from probayes import NEARLY_POSITIVE_ZERO as zero
@@ -28,7 +28,7 @@ def ismatch(x, y):
 def test_log(inp, out):
   # Sympy
   x = pb.Variable('x', vtype=float, vset=[zero, inf])
-  x.set_ufun(sy.log(x[:]))
+  x.set_ufun(sympy.log(~x))
   output = x.ufun[0](inp)
   assert ismatch(out, output), \
       "Observed/expected match {}/{}".format(output, out)
@@ -50,7 +50,7 @@ def test_log(inp, out):
 def test_inc(inp, out):
   # Sympy
   x = pb.Variable('x', vtype=float, vset=[zero, inf])
-  x.set_ufun(x[:]+1.)
+  x.set_ufun(~x+1.)
   output = x.ufun[0](inp)
   assert ismatch(out, output), \
       "Observed/expected match {}/{}".format(output, out)
@@ -72,7 +72,7 @@ def test_inc(inp, out):
 def test_ran(ran, val):
   # Sympy
   x = pb.Variable('x', vtype=float, vset=ran)
-  x.set_ufun(sy.log(x[:]))
+  x.set_ufun(sympy.log(~x))
   vals = x(val)[x.name]
   assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
   # Numpy

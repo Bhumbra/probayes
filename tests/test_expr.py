@@ -21,7 +21,7 @@ def test_log(inp, out):
       output = x_expr({'x': inp})
     else:
       y = pb.Variable('y', vtype=float)
-      y_expr = pb.Expr(sy.log(y[:]))
+      y_expr = pb.Expr(sy.log(~y))
       output = y_expr({'y': inp})
     close = np.isclose(output, out)
     if isinstance(inp, np.ndarray):

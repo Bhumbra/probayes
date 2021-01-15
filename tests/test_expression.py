@@ -5,7 +5,6 @@ import pytest
 import math
 import numpy as np
 import scipy.stats
-import sympy as sy
 import probayes as pb
 
 #-------------------------------------------------------------------------------
