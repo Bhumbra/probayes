@@ -27,14 +27,15 @@ class Icon:
   inheritance tricky so instead we wrap them in here as a class and copy over 
   the attributes.
 
-  The resulting instance can be treated as a SymPy object using the __getitem__
-  method (probayes.Symbol[:]):
+  The resulting instance can be treated as a SymPy object using the __invert__
+  method (~instance):
 
   :example
   >>> import probayes as pb
   >>> x = pb.Icon('x')
-  >>> x2 = 2 * x[:]
+  >>> x2 = 2 * ~x
   >>> print(x2.subs({x: 4.}))
+  2*x
   >>>
   """
   _icon = None
@@ -86,7 +87,8 @@ class Icon:
     return self._icon.__hash__()
 
 #-------------------------------------------------------------------------------
-  def __getitem__(self, *args):
+  def __invert__(self):
+    """ Bitwise invert operator overloaded to return icon object. """
     return self._icon
 
 #-------------------------------------------------------------------------------

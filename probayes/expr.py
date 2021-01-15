@@ -150,7 +150,8 @@ class Expr:
     return np.array(vals)
 
 #-------------------------------------------------------------------------------
-  def __getitem__(self, *args):
+  def __inv__(self):
+    """ Overload bitwise inverter operator to return symbol. """
     return self.symbol
 
 #-------------------------------------------------------------------------------

@@ -11,10 +11,10 @@ import operator
 
 #-------------------------------------------------------------------------------
 VTYPES = {
-          bool: (bool, np.dtype('bool')),
-          int:  (int, np.dtype('int'), np.dtype('int32'), np.dtype('int64'),
-                 np.uint, np.uint8, np.uint16, np.uint32, np.uint64),
-          float: (float, np.dtype('float'),  np.dtype('float32'), np.dtype('float64')),
+          bool: {bool, np.dtype('bool')},
+          int:  {int, np.dtype('int'), np.dtype('int32'), np.dtype('int64'),
+                 np.uint, np.uint8, np.uint16, np.uint32, np.uint64},
+          float: {float, np.dtype('float'),  np.dtype('float32'), np.dtype('float64')},
          }
 
 
@@ -38,16 +38,17 @@ def eval_vtype(vtype):
                                 for _vtype in vtype]).dtype
     else:
       vtype = np.array(vtype)
-  if isinstance(vtype, np.ndarray):
+  if hasattr(vtype, 'dtype'):
     vtype = vtype.dtype
-  elif hasattr(vtype, 'type'):
-    vtype = vtype.type
+  else:
+    _vtype = vtype
+    while _vtype != type:
+      vtype = _vtype
+      _vtype = type(vtype)
+  if vtype in VTYPES.keys():
+    return vtype
   for key, val in VTYPES.items():
-    try:
-      found = vtype in val
-    except TypeError:
-      vtype = type(vtype)
-      found = vtype in val
+    found = vtype in set(val)
     if found:
       vtype = key
       break
@@ -64,7 +65,7 @@ def isunitset(var, vtype=None):
     vtype = list(VTYPES.keys())
   elif not isinstance(vtype, (tuple,list)):
     vtype = [vtype]
-  vtypes = functools.reduce(operator.concat, [VTYPES[key] for key in vtype])
+  vtypes = functools.reduce(operator.concat, [list(VTYPES[key]) for key in vtype])
   if isinstance(var, set):
     if len(var) == 1:
       element_type = type(list(var)[0])

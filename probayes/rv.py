@@ -109,15 +109,13 @@ class RV (Variable, Prob):
   def _default_prob(self, pscale=None):
     """ Defaults unspecified probabilities to uniform over self._vset """
     self._pscale = eval_pscale(pscale) or self._pscale
-    if self._prob is None:
-      if self._vset is None:
-        return
-      else:
-        prob = div_prob(1., float(self._length))
-        if self._pscale != 1.:
-          prob = rescale(prob, 1., self._pscale)
-        super().set_prob(prob, pscale=self._pscale)
-        self.set_tran(prob)
+    if self._prob is not None or self._vset is None:
+      return
+    prob = div_prob(1., float(self._length))
+    if self._pscale != 1.:
+      prob = rescale(prob, 1., self._pscale)
+    super().set_prob(prob, pscale=self._pscale)
+    self.set_tran(prob)
 
 #-------------------------------------------------------------------------------
   def set_pfun(self, pfun=None, *args, **kwds):

@@ -411,13 +411,17 @@ class Expression (Expr):
    return self._partials[None](*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def __getitem__(self, spec=None):
+  def __getitem__(self, spec):
    r""" Returns the $i$th function from the expr tuple where if is $i$ is
    numeric, otherwise spec is treated as key returning the corresponding
    value in the expr dictionary. """
    if spec is not None: 
      assert self._ismulti, \
          "Cannot call with non-multiple expression, use Expression()"
+   if isinstance(spec, (tuple, list)) and not len(spec):
+     if isinstance(spec, tuple):
+       return self._partials
+     return self._partials[None]
    return self._partials[spec]
 
 #-------------------------------------------------------------------------------
