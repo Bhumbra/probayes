@@ -40,10 +40,11 @@ def eval_vtype(vtype):
       vtype = np.array(vtype)
   if hasattr(vtype, 'dtype'):
     vtype = vtype.dtype
-  _vtype = vtype
-  while _vtype != type:
-    vtype = _vtype
-    _vtype = type(vtype)
+  else:
+    _vtype = vtype
+    while _vtype != type:
+      vtype = _vtype
+      _vtype = type(vtype)
   if vtype in VTYPES.keys():
     return vtype
   for key, val in VTYPES.items():
