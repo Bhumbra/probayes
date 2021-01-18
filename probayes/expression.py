@@ -7,7 +7,7 @@ not all expressions are functions.
 import types
 import collections
 import functools
-import sympy as sy
+import sympy
 from probayes.vtypes import isscalar
 from probayes.icon import isiconic
 from probayes.expr import Expr
@@ -272,8 +272,8 @@ class Expression (Expr):
         self._partials.update({0: call})
         key = list(self._symbols.keys())[0]
         __key__ = "__{}__".format(key)
-        self.__inverse = sy.Symbol(__key__)
-        invexprs = sy.solve(self._expr - self.__inverse, self._symbols[key])
+        self.__inverse = sympy.Symbol(__key__)
+        invexprs = sympy.solve(self._expr - self.__inverse, self._symbols[key])
         n_exprs = len(invexprs)
         assert n_exprs, "No invertible solutions for expression {}".format(
             self._expr)

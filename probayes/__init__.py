@@ -1,4 +1,6 @@
 __version__ = '0.0.3.X'
+
+# Probayes namespace
 from probayes.constants import NEARLY_POSITIVE_ZERO, \
                                NEARLY_POSITIVE_INF, \
                                NEARLY_NEGATIVE_INF, \
@@ -22,3 +24,4 @@ from probayes.dist_utils import product, summate, iterdict
 from probayes.distribution import Distribution
 from probayes.likelihoods import bool_perm_freq
 from probayes.expression import Expression
+from probayes.sympy_stats import SYMPY_STATS as stats
