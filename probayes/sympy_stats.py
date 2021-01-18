@@ -1,85 +1,59 @@
 """
 Sympy distributions seem to tend to a functional rather than object interface.
-In order to have access to the distribution class instances, a wrapper is
-needed. This module provides such a wrapper with a common interface for
-continuous and discrete statistical distributions.
+In order to have access to the distribution class instances, a wrapper is needed.  
 """
-import collections
 import inspect
-import functools
-import operator
 import sympy.stats
-#-------------------------------------------------------------------------------
-"""
-Build [DISCRETE, CONTINUOUS] dictionary in the form:
-    {key: {'obj': class object,
-           'fun: distribution function}}
-"""
-SYMPY_STATS_DISTRIBUTION_TYPES = [sympy.stats.crv_types, sympy.stats.drv_types]
-SYMPY_STATS_DISTRIBUTION_DICTIONARIES = [collections.OrderedDict() for _ in
-    range(len(SYMPY_STATS_DISTRIBUTION_TYPES))]
-
-for i, dist_types in enumerate(SYMPY_STATS_DISTRIBUTION_TYPES):
-  # Extract class-defined distributions
-  mem_names = []
-  mem_objs = []
-  for mem_name, mem_obj in inspect.getmembers(dist_types):
-    mem_names.append(mem_name)
-    mem_objs.append(mem_obj)
-  for mem_name, mem_obj in zip(mem_names, mem_objs):
-    if 'Distribution' in mem_name:
-      dist_name = mem_name.replace('Distribution', '')
-      if dist_name in mem_names:
-        SYMPY_STATS_DISTRIBUTION_DICTIONARIES[i].update(
-            {dist_name: {'obj': mem_obj}})
-  for mem_name, mem_obj in zip(mem_names, mem_objs):
-    if mem_name in SYMPY_STATS_DISTRIBUTION_DICTIONARIES[i].keys():
-      SYMPY_STATS_DISTRIBUTION_DICTIONARIES[i][mem_name].update(
-          {'fun': mem_obj})
 
 #-------------------------------------------------------------------------------
-""" Combine discrete and continuous distributions into a common interface """
-class SympyStats:
+def collate_sympy_distributions(
+    dist_types=[sympy.stats.drv_types, sympy.stats.crv_types]):
+  """ Returns sympy distributions as a dict: {dist_name: dist_func} """
+  sympy_dists = {}
+  for dist_type in dist_types:
+    members = {}
+    for mem_name, mem_obj in inspect.getmembers(dist_type):
+      members.update({mem_name: mem_obj})
+    for mem_name, mem_obj in members.items():
+      if 'Distribution' in mem_name:
+        dist_name = mem_name.replace('Distribution', '')
+        if dist_name in members.keys():
+          sympy_dists.update({dist_name: members[dist_name]})
+  return sympy_dists
 
-  def __init__(self, name, obj, fun):
-    self._name = name
-    self._obj = obj
-    self._fun = fun
-
-#-------------------------------------------------------------------------------
-  def __repr__(self):
-    return self._name
-
-#-------------------------------------------------------------------------------
-  def __getitem__(self, arg=None):
-    """ Member getter:
-
-    :param arg: if None or slice operator, returns distribution class object
-                if empty string: returns distribution name
-                if empty list, tuple or dict: returns distribution function
-    """
-    if arg is None or arg == slice(None):
-      return self._obj
-    assert isinstance(arg, (str, list, tuple, dict)) and not len(arg),\
-        "Non-none get item argument must be empty str, list, tuple or dict"
-    if isinstance(arg, str): 
-      return self._name
-    return self._fun
+SYMPY_DISTRIBUTIONS = collate_sympy_distributions()
+SYMPY_DISTS = list(SYMPY_DISTRIBUTIONS.values())
 
 #-------------------------------------------------------------------------------
-SYMPY_STATS_DISTRIBUTION_NAMES = []
-SYMPY_STATS_DISTRIBUTIONS = []
+def sympy_obj_from_dist(dist):
+  """ Attempts to return the object class instance for sympy distribution.
+  :example:
+  >>> import sympy
+  >>> import sympy.stats
+  >>> import probayes as pb
+  >>> x = sympy.Symbol('x')
+  >>> p_x = sympy.stats.Normal(x, mean=0, std=1.)
+  >>> p_x_obj = pb.sympy_obj_from_dist(p_x)
+  >>> print(p_x_obj.pdf)
+  0.5*sqrt(2)*exp(-0.5*x**2)/sqrt(pi)
+  """
+  obj = dist
+  if hasattr(obj, 'pdf'):
+    return obj
+  if not hasattr(obj, 'args'):
+    return None
+  objs = [sympy_obj_from_dist(arg) for arg in obj.args]
+  if any(objs):
+    for obj in objs:
+      if obj:
+        return obj
+  return None
 
-for stats_dist_dict in SYMPY_STATS_DISTRIBUTION_DICTIONARIES:
-  for dist_name, dist_dict in stats_dist_dict.items():
-    SYMPY_STATS_DISTRIBUTION_NAMES.append(dist_name)
-    SYMPY_STATS_DISTRIBUTIONS.append(SympyStats(dist_name,
-                                                dist_dict['obj'],
-                                                dist_dict['fun']))
-SYMPY_STATS_DISTRIBUTION_NAMEDTUPLE = collections.namedtuple(
-    'SympyStats', SYMPY_STATS_DISTRIBUTION_NAMES)
-SYMPY_DISTS = SYMPY_STATS_DISTRIBUTIONS
-SYMPY_STATS = SYMPY_STATS_DISTRIBUTION_NAMEDTUPLE(
-    *tuple(SYMPY_STATS_DISTRIBUTIONS))
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+if __name__ == "__main__":
+  import doctest
+  doctest.testmod()
 
 #-------------------------------------------------------------------------------
