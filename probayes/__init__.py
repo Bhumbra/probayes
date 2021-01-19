@@ -25,3 +25,4 @@ from probayes.distribution import Distribution
 from probayes.likelihoods import bool_perm_freq
 from probayes.expression import Expression
 from probayes.sympy_stats import SYMPY_DISTS, sympy_obj_from_dist
+from probayes.sympy_prob import SympyProb

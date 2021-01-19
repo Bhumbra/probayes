@@ -8,7 +8,6 @@ import collections
 import functools
 import numpy as np
 import scipy.stats
-import sympy as sy
 import sympy.stats
 from probayes.icon import isiconic
 from probayes.pscales import eval_pscale, rescale, iscomplex
