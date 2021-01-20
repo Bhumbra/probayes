@@ -8,6 +8,7 @@ import numpy as np
 import networkx as nx
 
 from probayes.variable import Variable
+from probayes.variable_utils import parse_as_str_dict
 from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless
 from probayes.pscales import real_sqrt
 from probayes.expression import Expression
@@ -296,24 +297,8 @@ class Field (NX_UNDIRECTED_GRAPH):
 #-------------------------------------------------------------------------------
   def parse_args(self, *args, **kwds):
     """ Returns (values, iid) from *args and **kwds """
-    args = tuple(args)
-    kwds = dict(kwds)
     pass_all = False if 'pass_all' not in kwds else kwds.pop('pass_all')
-    
-    if not args and not kwds:
-      args = (None,)
-    if args:
-      assert len(args) == 1 and not kwds, \
-        "With order specified, calls argument must be a single " + \
-              "dictionary or keywords only"
-      kwds = dict(args[0]) if isinstance(args[0], dict) else \
-             ({key: args[0] for key in self._keylist})
-
-    elif kwds:
-      assert not args, \
-        "With order specified, calls argument must be a single " + \
-              "dictionary or keywords only"
-    values = dict(kwds)
+    values = parse_as_str_dict(*args, **kwds)
     seen_keys = []
     for key, val in values.items():
       count_comma = key.count(',')
@@ -328,9 +313,9 @@ class Field (NX_UNDIRECTED_GRAPH):
       else:
         seen_keys.append(key)
       if not pass_all:
-        assert seen_keys[-1] in self._keylist, \
+        assert seen_keys[-1] in self._keyset, \
             "Unrecognised key {} among available Variables {}".format(
-                seen_keys[-1], self._keylist)
+                seen_keys[-1], self._keyset)
     for key in self._keylist:
       if key not in seen_keys:
         values.update({key: None})

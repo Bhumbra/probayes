@@ -38,8 +38,8 @@ process.set_tran(paras)
 process.set_delta(paras)
 process.set_scores('hastings')
 process.set_update('metropolis')
-init_state = {'mu': np.mean(mu_lims), 'sigma': np.mean(sigma_lims)}
-sampler = process.sampler(init_state, {'x': x_obs}, stop=n_steps, iid=True, joint=True)
+init_state = {mu: np.mean(mu_lims), sigma: np.mean(sigma_lims)}
+sampler = process.sampler(init_state, {x: x_obs}, stop=n_steps, iid=True, joint=True)
 #samples = [sample for sample in sampler] # <- use list comprehension or process.walk
 samples = process.walk(sampler)
 summary = process(samples)

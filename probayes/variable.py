@@ -50,7 +50,6 @@ class Variable (Icon):
   >>> print(x.ulims)
   [ 0. inf]
   """
-
                     
   # Protected       
   _Delta = None      # A namedtuple generator for delta operations
@@ -460,7 +459,10 @@ class Variable (Icon):
   def evaluate(self, values=None):
     """ Evaluates the values ordered dictionary for __call__ """
 
+
     # If dictionary input type, values are keyed by variable name
+    values = parse_as_str_dict(values) if isinstance(values, dict) \
+             else {self.name: values}
     if isinstance(values, dict):
       values = values[self.name] 
 
@@ -539,8 +541,6 @@ class Variable (Icon):
     >>> print(freq({4}))
     freq: Distribution([('freq', array([1., 2., 4., 8.]))])
     """
-    values = parse_as_str_dict(values) if isinstance(values, dict) \
-             else {self.name: values}
     return self.evaluate(values)
 
 #-------------------------------------------------------------------------------

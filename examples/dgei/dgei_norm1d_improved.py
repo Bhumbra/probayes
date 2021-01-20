@@ -35,7 +35,7 @@ model.set_prob(scipy.stats.norm.logpdf,
                pscale='log')
 
 # Evaluate log probabilities
-posterior = model({'x': data, **resolution}, 
+posterior = model({x: data, **resolution}, 
                   iid=True, joint=True).conditionalise('x')
 
 # Return posterior probability mass
