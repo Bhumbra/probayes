@@ -9,7 +9,7 @@ from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from probayes.pscales import div_prob, rescale, eval_pscale
+from probayes.pscales import iscomplex, div_prob, rescale, eval_pscale
 from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
@@ -514,5 +514,22 @@ class RV (Variable, Prob):
     """ Conditional operator between RV and another RV, RF, or SD. """
     from probayes.sd import SD
     return SD(self, other)
+
+#-------------------------------------------------------------------------------
+  def __getitem__(self, arg):
+    if self.issympy and isinstance(arg, tuple) and not arg:
+      if iscomplex(self._pscale):
+        return self._exprs['logp'].expr
+      return self._exprs['prob'].expr
+    return super().__getitem__(arg)
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+def RVs(names, vtype=None, vset=None, prob=None, *args, **kwds):
+  if isinstance(names, str):
+    names = names.split(',')
+  varlist = [RV(name, vtype, vset, prob, *args, **kwds) for name in names]
+  return tuple(varlist)
 
 #-------------------------------------------------------------------------------

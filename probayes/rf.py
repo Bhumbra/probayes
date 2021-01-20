@@ -293,6 +293,10 @@ class RF (Field, Prob):
     # Otherwise distinguish between uncallable and callables
     if not self._callable:
       return self._call()
+    if self.issympy:
+      prob = self._partials['logp'](values) if iscomplex(self._pscale) else \
+             self._partials['prob'](values)
+      return prob
     if self._passdims:
       return super().eval_prob(values, dims=dims)
     return super().eval_prob(values)
@@ -637,5 +641,15 @@ class RF (Field, Prob):
     """ Conditional operator between RF and another RV, RF, or SD. """
     from probayes.sd import SD
     return SD(self, other)
+
+#-------------------------------------------------------------------------------
+  def __getitem__(self, arg):
+    if not self.issympy or isinstance(arg, (str, int)):
+      return Field.__getitem__(self, arg)
+    return Prob.__getitem__(self, arg)
+
+#-------------------------------------------------------------------------------
+  def __invert__(self):
+    return self[()]
 
 #-------------------------------------------------------------------------------

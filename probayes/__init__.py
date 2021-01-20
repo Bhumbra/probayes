@@ -9,9 +9,9 @@ from probayes.vtypes import OO
 from probayes.named_dict import NamedDict
 from probayes.icon import Icon
 from probayes.expr import Expr
-from probayes.variable import Variable
+from probayes.variable import Variable, variables
 from probayes.prob import Prob
-from probayes.rv import RV
+from probayes.rv import RV, RVs
 from probayes.field import Field
 from probayes.rf import RF
 from probayes.sd import SD
