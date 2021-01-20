@@ -8,10 +8,10 @@ import collections
 import functools
 import numpy as np
 import scipy.stats
-import sympy.stats
 from probayes.icon import isiconic
 from probayes.pscales import eval_pscale, rescale, iscomplex
 from probayes.expression import Expression
+from probayes.sympy_prob import SYMPY_STATS_DIST, SympyProb, sympy_sfun
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
@@ -42,48 +42,7 @@ def is_scipy_stats_dist(arg, scipy_stats_dist=SCIPY_STATS_DIST):
   return isinstance(arg, tuple(scipy_stats_dist))
 
 #-------------------------------------------------------------------------------
-SYMPY_STATS_DIST = {sympy.stats.rv.RandomSymbol}
-def is_sympy_stats_dist(arg, sympy_stats_dist=SYMPY_STATS_DIST):
-  """ Returns if arguments belongs to sympy.stats.continuous or discrete """
-  return isinstance(arg, tuple(sympy_stats_dist))
-
-#-------------------------------------------------------------------------------
-def sympy_prob(sympy_dist, vals, dtype=None, pfunc=sympy.stats.density, use_log=False):
-  if isinstance(vals, np.ndarray) and vals.ndim:
-    shape = vals.shape
-    vals = np.ravel(vals).tolist()
-    if dtype:
-      prob = [dtype(pfunc(sympy_dist)(val)) for val in vals]
-    else:
-      prob = [pfunc(sympy_dist)(val) for val in vals]
-    prob = np.array(prob).reshape(shape)
-    if dtype and use_log:
-      return np.log(prob)
-    return prob
-  prob = pfunc(sympy_dist)(vals)
-  if dtype:
-    prob = dtype(prob)
-    if use_log:
-      return np.log(prob)
-    return prob
-  return prob
-
-#-------------------------------------------------------------------------------
-def sympy_sfun(sympy_dist, size=0, dtype=None, sfunc=sympy.stats.sample):
-  if not size:
-    samples = sfunc(sympy_dist)
-    if dtype:
-      return (dtype)(samples)
-    return samples
-  if dtype:
-    samples = [dtype(sfunc(sympy_dist)) for _ in range(size)]
-    return np.array(samples)
-  else:
-    samples = [sfunc(sympy_dist) for _ in range(size)]
-    return samples
-
-#-------------------------------------------------------------------------------
-class Prob (Expression): 
+class Prob (Expression, SympyProb): 
   """ A probability is quantification of degrees of belief concerning outcomes.
   It is therefore an expression that can be defined with respect to no, one,
   or more variable.
@@ -190,6 +149,10 @@ class Prob (Expression):
 
     # Sympy sampler - CDFs require a Symbol and therefore are not set here
     elif self.__issympy:
+      if 'cdf' in self._keys and 'icdf' in self._keys:
+        self.set_pfun((self._partials['cdf'].cdf, self._partials['cdf']))
+      if 'sfun' in self._keys:
+        self._partials.update({'sfun': functools.partial(sympy_sfun, self._distr)})
       self.set_sfun(sympy_sfun, self._expr)
 
 #-------------------------------------------------------------------------------
@@ -222,21 +185,16 @@ class Prob (Expression):
 
       # Provide a common interface for PDF/PMF and LOGPDF/LOGPMF
       if 'pdf' in self._partials.keys():
-          self._partials.update({'prob': self._partials['pdf']})
-          self._partials.update({'logp': self._partials['logpdf']})
+        self._partials.update({'prob': self._partials['pdf']})
+        self._partials.update({'logp': self._partials['logpdf']})
       elif 'pmf' in self._partials.keys():
-          self._partials.update({'prob': self._partials['pmf']})
-          self._partials.update({'logp': self._partials['logpmf']})
+        self._partials.update({'prob': self._partials['pmf']})
+        self._partials.update({'logp': self._partials['logpmf']})
 
     # Extract prob for sympy objects
     elif self.__issympy:
-      kwds = dict(self._kwds)
-      if 'dtype' not in kwds:
-        kwds.update({'dtype':float})
-      self._prob = Expression(sympy_prob, self._expr, *self._args, **kwds)
-      if 'use_log' not in kwds:
-        kwds.update({'use_log': True})
-      self._logp = Expression(sympy_prob, self._expr, *self._args, **kwds)
+      self.distr = self._expr
+      self._partials.update(self.distr)
 
     self._keys = list(self._partials.keys())
 

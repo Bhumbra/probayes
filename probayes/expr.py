@@ -49,6 +49,10 @@ class Expr:
   def expr(self):
     return self._expr
 
+  @property
+  def symbols(self):
+    return self._symbols
+
   @expr.setter
   def expr(self, expr=None):
     """ Sets the expr object for this instance. Either pass a sy.Expr object 
@@ -91,6 +95,10 @@ class Expr:
     self._remap = remap
 
 #-------------------------------------------------------------------------------
+  @property
+  def efun(self):
+    return self._efun
+
   def add_efun(self, efun=None, *args, **kwds):
     """ Adds an expression evaluation function.
     :param efun: a single dictionary entry in the form {type: function}

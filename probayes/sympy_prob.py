@@ -125,7 +125,7 @@ class SympyProb:
       self._exprs.update({'logp': Expr(sympy.log(self._exprs['prob'].expr))})
     if hasattr(self._probj, '_cdf'):
       self._exprs.update({'cdf': Expr(self._probj._cdf(self._cterm))})
-      icdf_name = "{}_cdf".format(self._cterm.name)
+      icdf_name = "_{}_cdf".format(self._cterm.name)
       self.__icdf = sympy.Symbol(icdf_name)
       invexprs = sympy.solve(self._exprs['cdf'].expr - self.__icdf,  self._cterm)
       n_exprs = len(invexprs)
