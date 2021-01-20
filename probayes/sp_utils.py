@@ -2,7 +2,7 @@
 
 import numpy as np
 from probayes.vtypes import isscalar
-from probayes.pscales import iscomplex, rescale, log_prob, div_prob
+from probayes.pscales import rescale, div_prob
 
 #-------------------------------------------------------------------------------
 def sample_generator(sp, sampler_id, *args, stop=None, **kwds):

@@ -2,10 +2,8 @@
 
 #-------------------------------------------------------------------------------
 import collections
-import functools
 import sympy
 import numpy as np
-import scipy.special
 from sympy.utilities.autowrap import ufuncify
 from probayes.variable_utils import parse_as_str_dict
 

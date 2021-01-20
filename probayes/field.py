@@ -252,7 +252,6 @@ class Field (NX_UNDIRECTED_GRAPH):
 
     # Non tuples can be converted to deltas; can pre-scale here
     if not isinstance(self._delta, tuple):
-      scaling = self._lengths
       delta = self._delta 
       urand = isinstance(delta, list)
       if urand:
@@ -607,7 +606,6 @@ class Field (NX_UNDIRECTED_GRAPH):
     if type(iid) is bool and iid:
       iid = self._defiid
     values = self.parse_args(*args, **kwds)
-    dist_name = self.eval_dist_name(values)
     vals, dims = self.evaluate(values, _skip_parsing=True)
     return Manifold(vals, dims)
 

@@ -4,7 +4,6 @@ It is therefore implemented here using a sample generator that iteratively
 samples a directed graph.
 """
 #-------------------------------------------------------------------------------
-import numpy as np
 import collections
 import inspect
 import warnings

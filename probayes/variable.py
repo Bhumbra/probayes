@@ -6,10 +6,7 @@ variable type, and variable set.
 
 #-------------------------------------------------------------------------------
 import numpy as np
-import scipy.stats
-import sympy as sy
 import collections
-import sympy as sy
 from probayes.icon import Icon, isiconic
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP

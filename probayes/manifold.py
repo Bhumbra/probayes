@@ -186,7 +186,7 @@ class Manifold:
     for key in self._keys:
       if self.dims[key] is not None:
         assert key in dims, \
-            "Missing key for nonsingleton {} in dim".format(key, dims)
+            "Missing key for nonsingleton {} in dim {}".format(key, dims)
       elif key in dims:
         assert dims[key] is None, \
             "Dimension {} requested for singleton with key {}".\

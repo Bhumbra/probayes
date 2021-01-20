@@ -3,7 +3,6 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-import scipy.stats
 from probayes.vtypes import isscalar
 from probayes.pscales import iscomplex, rescale, prod_rule, prod_pscale
 

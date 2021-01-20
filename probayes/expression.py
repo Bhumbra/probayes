@@ -380,7 +380,6 @@ class Expression:
             "Unexpected entering of positional arguments: {}".format(args)
         return expr()
       elif args or all(isinstance(key, str) for key in kwds.keys()):
-        _args, _kwds = args, kwds
         return expr(*args, **kwds)
       else:
         return expr(dict(kwds))

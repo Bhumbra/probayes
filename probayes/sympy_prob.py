@@ -4,6 +4,7 @@ Note we eschew sympy.stats.density etc...
 '''
 import collections
 import functools
+import numpy as np
 import sympy
 import sympy.stats
 from probayes.expr import Expr
@@ -55,7 +56,7 @@ def sympy_sfun(distr, size=0, dtype=None, _sfunc=sympy.stats.sample):
       return (dtype)(samples)
     return samples
   if dtype:
-    samples = [dtype(sfunc(distr)) for _ in range(size)]
+    samples = [dtype(_sfunc(distr)) for _ in range(size)]
     return np.array(samples)
   samples = [_sfunc(distr) for _ in range(size)]
   return samples

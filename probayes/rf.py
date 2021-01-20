@@ -3,20 +3,17 @@ A random field is a collection of a random variables that participate in a joint
 probability distribution function without conditioning directions.
 """
 #-------------------------------------------------------------------------------
-import warnings
 import collections
 import numpy as np
-import scipy.stats
-import networkx as nx
 
-from probayes.rv import RV
 from probayes.field import Field
+from probayes.rv import RV
 from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.dist_utils import margcond_str
 from probayes.vtypes import isscalar, isunitsetint
-from probayes.pscales import iscomplex, real_sqrt, prod_pscale
-from probayes.rf_utils import rv_prod_rule, call_scipy_prob, sample_cond_cov
+from probayes.pscales import iscomplex, prod_pscale
+from probayes.rf_utils import rv_prod_rule, sample_cond_cov
 from probayes.expression import Expression
 from probayes.cf import CF
 from probayes.cond_cov import CondCov
@@ -604,7 +601,6 @@ class RF (Field, Prob):
 
 #-------------------------------------------------------------------------------
   def __and__(self, other):
-    from probayes.rv import RV
     from probayes.sd import SD
     if isinstance(other, SD):
       leafs = list(self._leafs.varlist) + \

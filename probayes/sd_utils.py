@@ -1,7 +1,7 @@
 # Utility module for SD objects
 
 import collections
-from probayes.pscales import iscomplex, prod_rule, prod_pscale
+from probayes.pscales import prod_rule
 
 #-------------------------------------------------------------------------------
 def desuffix(values, suffix="'"):

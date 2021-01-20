@@ -3,7 +3,7 @@ A covariance-matrix-based conditional sampling class.
 """
 import numpy as np
 import scipy.stats
-from probayes.vtypes import isunitsetint, isscalar, uniform
+from probayes.vtypes import isunitsetint, uniform
 
 #-------------------------------------------------------------------------------
 class CondCov:

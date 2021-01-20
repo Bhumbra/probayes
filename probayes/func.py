@@ -330,7 +330,6 @@ class Func:
     if self.__index is not None:
       index = self.__index
       self.__index = None
-    vals = args[0]
     if index < 4:
       if len(args) == 1 and isinstance(args[0], dict):
         args = [np.ravel(val) for val in args[0].values()]
