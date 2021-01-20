@@ -1,9 +1,7 @@
+Support variables as input values keys for field calls.
 Improve API for iconic probabilities.
-Default to iconic PDFs.
-Include testing all examples as fix errors.
-Refactor RF and SD to replace self.ret_attrib() functions with @property decorators.
 Support multiple parameters to assign a SymPy probability distribution.
-Support iconic CDFs.
+Default to iconic PDFs.
 Inherit Distributions for Probability Distribution class.
 Support Fields of Variables sharing Expressions collected as Functionals.
 Support Dependences between Domains with respect to Functionals.
