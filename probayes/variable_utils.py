@@ -29,12 +29,19 @@ def parse_as_str_dict(*args, **kwds):
           else:
             args_dict.update({key: val})
         else:
-          assert hasattr(key, 'name'), \
-              "Name attribute not found for key object: {}".format(key)
-          key_name = key.name
-          assert isinstance(key_name, str), \
-              "Non-string name attribute {} for key object: {}".format(
-                  key_name, key)
+          keys = key if isinstance(key, (list,tuple)) else [key]
+          key_name = [None] * len(keys)
+          for i, subkey in enumerate(keys):
+            if isinstance(subkey, str):
+              key_name[i] = subkey
+            elif hasattr(subkey, 'name'):
+              key_name[i] = subkey.name
+              assert isinstance(key_name[i], str), \
+                  "Non-string name attribute {} for key object: {}".format(
+                      key_name[i], key)
+            else:
+              raise KeyError("Uninterpretable key to parse: {}".format(key))
+          key_name = ','.join(key_name)
           if remap and key_name in remap:
             args_dict.update({remap[key_name]: val})
           else:

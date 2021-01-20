@@ -530,6 +530,9 @@ class RF (Field, Prob):
     iid = False if 'iid' not in kwds else kwds.pop('iid')
     if type(iid) is bool and iid:
       iid = self._defiid
+    if not kwds and len(args) == 1 and not isinstance(args[0], dict):
+      arg = {key: args[0] for key in self._keyset}
+      args = arg,
     values = self.parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values)
     vals, dims = self.evaluate(values, _skip_parsing=True)
@@ -540,6 +543,9 @@ class RF (Field, Prob):
   def propose(self, *args, **kwds):
     """ Returns a proposal distribution p(args[0]) for values """
     suffix = "'" if 'suffix' not in kwds else kwds.pop('suffix')
+    if not kwds and len(args) == 1 and not isinstance(args[0], dict):
+      arg = {key: args[0] for key in self._keyset}
+      args = arg,
     values = self.parse_args(*args, **kwds)
     dist_name = self.eval_dist_name(values, suffix)
     vals, dims = self.evaluate(values, _skip_parsing=True)
@@ -571,6 +577,8 @@ class RF (Field, Prob):
       pred_vals, succ_vals = args[0], args[1]
 
     # Evaluate predecessor values
+    if not isinstance(pred_vals, dict):
+      pred_vals = {key: pred_vals for key in self._keyset}
     pred_vals = self.parse_args(pred_vals, pass_all=True)
     dist_pred_name = self.eval_dist_name(pred_vals)
     pred_vals, pred_dims = self.evaluate(pred_vals)

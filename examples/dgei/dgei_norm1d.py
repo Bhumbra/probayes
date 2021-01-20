@@ -33,7 +33,7 @@ model.set_prob(scipy.stats.norm.pdf,
                order={'x':0, 'mu':'loc', 'sigma':'scale'})
 
 # Evaluate probabilities
-likelihood = model({'x': data, **resolution}, iid=True)
+likelihood = model({x: data, **resolution}, iid=True)
 para_vals = likelihood.ret_cond_vals()
 prior = paras(para_vals)
 prior_x_likelihood = prior * likelihood

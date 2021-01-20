@@ -32,7 +32,7 @@ xy.set_prop(norm2d)
 coef_max = float(norm2d(radius, 1.))
 coef = pb.RV('coef', {0., coef_max})
 coefs = coef(set_size)
-p_prop = xy.propose({'x,y': set_size}, suffix=False)
+p_prop = xy.propose({(x,y): set_size}, suffix=False)
 thresholds = coefs.vals['coef'] * p_prop.prob
 
 # CALL TARGET DENSITY AND APPLY REJECTION SAMPLING
