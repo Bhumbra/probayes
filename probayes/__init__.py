@@ -1,3 +1,4 @@
+# flake8: noqa
 __version__ = '0.0.3.X'
 from probayes.constants import NEARLY_POSITIVE_ZERO, \
                                NEARLY_POSITIVE_INF, \
@@ -22,3 +23,4 @@ from probayes.dist_utils import product, summate, iterdict
 from probayes.distribution import Distribution
 from probayes.likelihoods import bool_perm_freq
 from probayes.expression import Expression
+from probayes.sympy_prob import SympyProb

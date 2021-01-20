@@ -5,8 +5,8 @@
 import collections
 import functools
 import numpy as np
-from probayes.vtypes import isscalar, issingleton, isunitsetint, isunitset
-from probayes.pscales import rescale, prod_pscale, prod_rule, iscomplex
+from probayes.vtypes import isscalar, issingleton, isunitsetint
+from probayes.pscales import prod_pscale, prod_rule, iscomplex
 
 #-------------------------------------------------------------------------------
 def str2key(string):
@@ -187,7 +187,7 @@ def product(*args, **kwds):
         return Dist(prod_name, prod_vals, args[0].dims, prob, pscale)
       else:
         prod_prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-        return Dist(prod_name, prod_vals, {}, prob, pscale)
+        return Dist(prod_name, prod_vals, {}, prod_prob, pscale)
 
   # Check cond->marg accounts for all differences between conditionals
   prod_marg = [name for dist_marg_names in marg_names \
@@ -298,7 +298,6 @@ def product(*args, **kwds):
       prod_vals.update({key: values.reshape(re_shape)})
   
   # Match probability axes and shapes with axes swapping then reshaping
-  prod_probs = [None] * len(args)
   for i in range(len(args)):
     prob = probs[i]
     if not isscalar(prob):

@@ -3,7 +3,6 @@
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-import warnings
 from probayes.vtypes import issingleton
 from probayes.named_dict import NamedDict
 
@@ -208,7 +207,7 @@ class Distribution (NamedDict):
     for key in self._keylist:
       if self._dims[key] is not None:
         assert key in dims, \
-            "Missing key for nonsingleton {} in dim".format(key, dims)
+            "Missing key for nonsingleton {} in dim {}".format(key, dims)
       elif key in dims:
         assert dims[key] is None, \
             "Dimension {} requested for singleton with key {}".\

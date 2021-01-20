@@ -5,7 +5,6 @@ Likelihood function utility module.
 #-------------------------------------------------------------------------------
 import numpy as np
 import collections
-from probayes.vtypes import isscalar
 from probayes.rf_utils import slice_by_keyvals
 
 #-------------------------------------------------------------------------------
@@ -65,7 +64,6 @@ def bool_perm_freq(bool_2d, col_labels=None, base_freq=0):
       bool_2d.dtype == bool, "First input must be a 2D NumPy boolean array"
   
   rows, cols = bool_2d.shape
-  num_perms = 2 ** cols
   counts = np.zeros([2] * cols, dtype=int)
   sequences = bool_2d.astype(int).tolist()
   for sequence in sequences:

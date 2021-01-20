@@ -2,14 +2,15 @@
 
 #-------------------------------------------------------------------------------
 import collections
-import sympy as sy
+import sympy
 import numpy as np
 from sympy.utilities.autowrap import ufuncify
 from probayes.variable_utils import parse_as_str_dict
 
 DEFAULT_EFUNS = [
-                  #({np.ndarray: sy.lambdify}, ('numpy',), {})
-                  ({np.ndarray: ufuncify}, (), {})
+                  ({np.ndarray: ufuncify}, [], {})
+                  ,
+                  ({np.ndarray: sympy.lambdify}, ['numpy', 'scipy'], {})
                 ]
 
 #-------------------------------------------------------------------------------
@@ -34,15 +35,21 @@ class Expr:
   # Protected
   _symbols = None # Ordered dictionary of symbols keyed by name
   _efun = None    # Dictionary of evaluation functions
+  _remap = None   # Optional dictionary for remapping
 
 #-------------------------------------------------------------------------------
-  def __init__(self, expr, *args, **kwds):
+  def __init__(self, expr, **kwds):
     self.expr = expr
+    self.remap = None if 'remap' not in kwds else kwds.pop('remap')
 
 #-------------------------------------------------------------------------------
   @property
   def expr(self):
     return self._expr
+
+  @property
+  def symbols(self):
+    return self._symbols
 
   @expr.setter
   def expr(self, expr=None):
@@ -51,7 +58,7 @@ class Expr:
     """
     self._expr = expr
     self._symbols = collections.OrderedDict()
-    if isinstance(self._expr, sy.Expr):
+    if isinstance(self._expr, sympy.Expr):
       for putative_symbol in self._expr.free_symbols:
         symbol = putative_symbol
         while hasattr(symbol, 'symbol') and \
@@ -77,6 +84,19 @@ class Expr:
       self.add_efun(efun[0], *tuple(efun[1]), **dict(efun[2]))
 
 #-------------------------------------------------------------------------------
+  @property
+  def remap(self):
+    return self._remap
+
+  @remap.setter
+  def remap(self, remap=None):
+    self._remap = remap
+
+#-------------------------------------------------------------------------------
+  @property
+  def efun(self):
+    return self._efun
+
   def add_efun(self, efun=None, *args, **kwds):
     """ Adds an expression evaluation function.
     :param efun: a single dictionary entry in the form {type: function}
@@ -93,14 +113,11 @@ class Expr:
     assert isinstance(efun, dict), \
         "Input efun must be dictionary type, not {}".format(type(efun))
     for key, val in efun.items():
-      try:
-        self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
-      except TypeError:
-        if hasattr(self._expr, 'doit'):
-          self._efun.update({key: (self._expr.doit, *args)})
-        else:
-          raise TypeError("Cannot process method {} for {}".format(
-                          self._expr, key))
+      if key not in self._efun:
+        try:
+          self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
+        except (TypeError, ImportError, AttributeError): # Bypass sympy bugs
+          pass
     return self._efun
 
 #-------------------------------------------------------------------------------
@@ -115,6 +132,9 @@ class Expr:
         for i, key in enumerate(self._symbols.keys()):
           values.update({key: args[i]})
     if parse_values:
+      if self._remap:
+        kwds = dict(kwds)
+        kwds.update({'remap': self.remap})
       values = parse_as_str_dict(*args, **kwds)
 
     # Check values in symbols
@@ -130,24 +150,55 @@ class Expr:
     # While determining type, collect evalues in required order
     etype = None
     evalues = [None] * len(self._symbols)
+    single_numpy_key = None
     for i, key in enumerate(self._symbols.keys()):
       evalues[i] = values[key]
       _etype = type(evalues[i])
+      if _etype is np.ndarray:
+        if single_numpy_key:
+          single_numpy_key = False
+        elif single_numpy_key is None:
+          single_numpy_key = key
       if etype is None: 
         if _etype in self._efun.keys():
           etype = _etype
       elif _etype in self._efun.keys():
         assert etype == _etype, \
             "Cannot mix types {} vs {} ".format(etype, _etype)
+
+    # Support iterating a single-array even without a NumPy eval func
+    if single_numpy_key and np.ndarray not in self._efun:
+      key = single_numpy_key
+      efun = self._efun[None]
+      evalues = dict(values)
+      shape = values[key].shape
+      revalues = np.ravel(values[key])
+      reval = [None] * len(revalues)
+      for i, revalue in enumerate(revalues):
+        evalues.update({key: revalue})
+        val = efun(evalues)
+        if isinstance(val, sympy.Integer):
+          reval[i] = int(val)
+        else:
+          reval[i] = float(val)
+      return np.array(reval).reshape(shape)
+
+    # Otherwise rely on evaluation function
     efun = self._efun[etype]
     vals = efun(*evalues) if etype else efun(values)
-    if isinstance(vals, sy.Integer):
+    if isinstance(vals, sympy.Integer):
       return int(vals)
-    elif isinstance(vals, sy.Float):
+    elif isinstance(vals, sympy.Float):
       return float(vals)
     if etype != np.ndarray or isinstance(vals, np.ndarray):
       return vals
     return np.array(vals)
+
+#-------------------------------------------------------------------------------
+  def __repr__(self):
+    if self._expr is None:
+      return super().__repr__()
+    return self._expr.__repr__()
 
 #-------------------------------------------------------------------------------
   def __inv__(self):

@@ -6,8 +6,6 @@ import collections
 import networkx as nx
 from probayes.rv import RV
 from probayes.rf import RF
-from probayes.func import Func
-from probayes.dist import Dist
 from probayes.dist_utils import product
 from probayes.sd_utils import desuffix, get_suffixed, arch_prob
 from probayes.cf import CF
@@ -169,7 +167,6 @@ class SD (NX_DIRECTED_GRAPH, RF):
     leafs = set()
     roots = []
     if parallel:
-      sub_deps = []
       for i, arg in enumerate(args):
         roots += run_roots[i]
         if not leafs:
@@ -441,7 +438,8 @@ class SD (NX_DIRECTED_GRAPH, RF):
       else: 
         evals = output[0] 
         assert isinstance(evals, dict),\
-          "Unrecognised dependency evaluation output type".format(type(evals))
+            "Unrecognised dependency evaluation output type: {}".format(
+                type(evals))
         assert len(output) < 3, \
             "Maximum for 3 outputs from dependency evaluation"
         for argout in output:
@@ -547,9 +545,6 @@ class SD (NX_DIRECTED_GRAPH, RF):
 
 #-------------------------------------------------------------------------------
   def _sample_prop(self, *args, **kwds):
-
-    # Extract suffix status; it is latter popped by propose()
-    suffix = "'" if 'suffix' not in kwds else kwds['suffix'] 
 
     # Non-opqr argument requires no parsing
     if not isinstance(args[0], self.opqr):

@@ -46,8 +46,8 @@ SYMPY_PROB_TESTS = [
 def test_prob_sympy(dist, values, args):
   x = sympy.Symbol('x')
   expr = pb.Prob(dist(x, *args))
-  prob = expr.prob(values)
-  logp = expr.logp(values)
+  prob = expr['prob'](values)
+  logp = expr['logp'](values)
   assert len(prob) == len(values), "PDF not correct size"
   assert np.min(prob) >= 0., "Negative probabilities detected"
   assert np.allclose(prob, np.exp(logp)), \

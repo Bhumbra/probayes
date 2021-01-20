@@ -4,8 +4,7 @@ A module that handles variable data types.
 
 #-------------------------------------------------------------------------------
 import numpy as np
-import scipy
-import sympy as sy
+import sympy
 import functools
 import operator
 
@@ -18,7 +17,7 @@ VTYPES = {
          }
 
 
-OO = sy.oo
+OO = sympy.oo
 OO_TO_NP = {OO: np.inf, -OO: -np.inf}
 
 #-------------------------------------------------------------------------------

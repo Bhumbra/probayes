@@ -4,11 +4,10 @@
 import collections
 import warnings
 import numpy as np
-import scipy.stats
 from probayes.variable import Variable, DEFAULT_VNAME
-from probayes.prob import Prob, is_scipy_stats_cont
+from probayes.prob import Prob
 from probayes.dist import Dist
-from probayes.vtypes import eval_vtype, uniform, VTYPES, isscalar, \
+from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
 from probayes.pscales import div_prob, rescale, eval_pscale
 from probayes.expression import Expression

@@ -6,9 +6,9 @@ import collections
 import numpy as np
 from probayes.dist_utils import str_margcond, margcond_str, product, summate, \
                                 rekey_dict, ismonotonic
-from probayes.vtypes import issingleton, isscalar
+from probayes.vtypes import isscalar
 from probayes.pscales import eval_pscale, rescale, iscomplex
-from probayes.pscales import prod_pscale, prod_rule, div_prob
+from probayes.pscales import div_prob
 from probayes.distribution import Distribution
 
 #-------------------------------------------------------------------------------
@@ -132,7 +132,6 @@ class PD (Distribution):
     dim_delta = 0
     sum_axes = set()
     for i, key in enumerate(self._keys):
-      new_dim = None
       if key in keys:
         assert not self._aresingleton[i], \
             "Cannot marginalise along scalar for key {}".format(key)
@@ -344,7 +343,6 @@ class PD (Distribution):
     dim_delta = 0
     prod_axes = []
     for i, key in enumerate(self._keys):
-      new_dim = None
       if key in keys:
         assert not self._aresingleton[i], \
             "Cannot apply product along scalar for key {}".format(key)

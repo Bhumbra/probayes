@@ -1,7 +1,5 @@
 import numpy as np
-from probayes.vtypes import isunitsetint, isunitsetfloat, isunitset, isscalar, \
-                        uniform, eval_vtype, VTYPES
-
+from probayes.vtypes import isunitset, isscalar, uniform, eval_vtype, VTYPES
 from probayes.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_INF
 """
 A module to provide functional support to rv.py
@@ -112,7 +110,6 @@ def lookup_square_matrix(col_vals, row_vals, sq_matrix,
       rc_scalar = True
       row_idx = vset.index(row_vals)
     else:
-      row_shape = None
       if isinstance(row_vals, np.ndarray):
         row_vals = np.ravel(row_vals).tolist()
       row_idx = [vset.index(row_val) for row_val in row_vals]

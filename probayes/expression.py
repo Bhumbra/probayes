@@ -7,7 +7,7 @@ not all expressions are functions.
 import types
 import collections
 import functools
-import sympy as sy
+import sympy
 from probayes.vtypes import isscalar
 from probayes.icon import isiconic
 from probayes.expr import Expr
@@ -20,7 +20,7 @@ def islambda(func):
     return func.__name__ == '<lambda>'
 
 #-------------------------------------------------------------------------------
-class Expression (Expr):
+class Expression:
   """ A expression wrapper to enable object representations as an uncallable
   array, a callable function, or a tuple/dict of callable functions
 
@@ -48,13 +48,15 @@ class Expression (Expr):
   """
 
   # Protected
-  _args = None
-  _kwds = None
-  _keys = None
-  _partials = None
-  _ismulti = None
-  _callable = None
-  _islambda = None
+  _expr = None     # Expression set
+  _args = None     # Optional args
+  _kwds = None     # Optional kwds
+  _exprs = None    # Dict of iconic Expr objects
+  _partials = None # Dict of partial functions
+  _keys = None     # Keys of partials
+  _ismulti = None  # Flag to denote multiple expressions
+  _callable = None # Flag to denote callable expressios
+  _islambda = None # Flag to denote lambda callabales
 
   # Private
   __invertible = None
@@ -74,6 +76,10 @@ class Expression (Expr):
     self.set_expr(expr, *args, **kwds)
     
 #-------------------------------------------------------------------------------
+  @property
+  def expr(self):
+    return self._expr
+
   @property
   def args(self):
     return self._args
@@ -152,33 +158,38 @@ class Expression (Expr):
     self.__invexpr = None
     self.__invertible = False if 'invertible' not in kwds else \
                         self._kwds.pop('invertible')
+    self._exprs = collections.OrderedDict()
 
     # Sanity check func
     if self._expr is None:
       assert not args and not kwds, "No optional args without a function"
     self.__isiconic = isiconic(self._expr)
     self._ismulti = isinstance(self._expr, (dict, tuple))
+    if self.__invertible:
+      assert not self._ismulti,\
+          "Cannot invert for multiple expressions"
 
-    # Icon
+    # Non-multi iconic
     if self.__isiconic:
-      self.expr = expr # this invokes the inherited setter
-      self._ismulti = self.__invertible and len(self._symbols) == 1
+      self._exprs.update({None: Expr(self._expr, *self._args, **self._kwds)})
+      self._ismulti = self.__invertible and \
+                      len(self._exprs[None].symbols) == 1
       self._callable = True
       self._islambda = False
 
     # Unitary
     elif not self._ismulti:
-      self._callable = callable(self.expr)
-      self._islambda = islambda(self.expr)
+      self._callable = callable(self._expr)
+      self._islambda = islambda(self._expr)
       if not self._callable:
         assert not args and not kwds, \
             "No optional arguments with uncallable expressions"
-        self.__isscalar = isscalar(self.expr)
+        self.__isscalar = isscalar(self._expr)
 
     # Multi
     else:
-      exprs = self.expr if isinstance(self.expr, tuple) else \
-              self.expr.values()
+      exprs = self._expr if isinstance(self._expr, tuple) else \
+              self._expr.values()
       self._callable = False
       self._islambda = False
       self.__isscalar = False
@@ -193,20 +204,30 @@ class Expression (Expr):
           "Cannot mix lambda and non-lambda expressions"
       assert len(set(each_isscalar)) < 2, \
           "Cannot mix scalars and nonscalars"
-      assert not any(each_isiconic), \
-          "Symbolic expressions not supported for multiples"
-      if len(self.expr):
+      assert len(set(each_isiconic)) < 2, \
+          "Cannot mix iconics and non-iconics"
+      if len(self._expr):
         self._callable = each_callable[0]
         self._islambda = each_islambda[0]
         self.__isscalar = each_isscalar[0]
         self.__isiconic = each_isiconic[0]
       if not self._callable:
         assert not args and not kwds, "No optional args with uncallable function"
+      if self.__isiconic:
+        assert not args and not kwds, "No optional args with iconic function"
+      if self.__isiconic:
+        if isinstance(self._expr, tuple):
+          for i, expr in enumerate(self._expr):
+            self._exprs.update({i: Expr(expr, *self._args, **self._kwds)})
+        elif isinstance(self._expr, dict):
+          for key, val in self._expr.items():
+            self._exprs.update({key: Expr(val, *self._args, **self._kwds)})
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
       self.set_delta(self._kwds.pop('delta'))
     self._set_partials()
+    self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
   def set_order(self, order=None):
@@ -262,50 +283,69 @@ class Expression (Expr):
     # Protected function to update partial function dictionary of calls
     self._partials = collections.OrderedDict()
 
-    # Evaluate symbolic call if symbol expression
+    # Iconic partials calls are set to Expr.__call__
     if self.__isiconic:
-      call = functools.partial(Expr.__call__, self)
-      self._partials.update({None: call})
+      if not self._ismulti or self.__invertible:
+        call = functools.partial(Expr.__call__, self._exprs[None])
+        self._partials.update({None: call})
 
-      # If invertible, solve the expression
-      if self.__invertible:
-        self._partials.update({0: call})
-        key = list(self._symbols.keys())[0]
-        __key__ = "__{}__".format(key)
-        self.__inverse = sy.Symbol(__key__)
-        invexprs = sy.solve(self._expr - self.__inverse, self._symbols[key])
-        n_exprs = len(invexprs)
-        assert n_exprs, "No invertible solutions for expression {}".format(
-            self._expr)
-        invexpr = invexprs[0]
-        if n_exprs > 1:
-          for expr in invexprs[1:]:
-            if len(expr.__repr__()) < len(invexpr.__repr__()):
-              invexpr = expr
-        self.__invexpr = Expr(invexpr)
-        call = functools.partial(Expr.__call__, self.__invexpr)
-        self._partials.update({-1: call})
+        # If invertible, solve the expression
+        if self.__invertible:
+          self._partials.update({0: call})
+          expr = self._exprs[None]
+          key = list(expr.symbols.keys())[0]
+          inv_key = "_{}_inv".format(key)
+          self.__inverse = sympy.Symbol(inv_key)
+          invexprs = sympy.solve(self._expr - self.__inverse, self._exprs[None].symbols[key])
+          n_exprs = len(invexprs)
+          assert n_exprs, "No invertible solutions for expression {}".format(
+              self._expr)
+          invexpr = invexprs[0]
+          if n_exprs > 1:
+            for expr in invexprs[1:]:
+              if len(expr.__repr__()) < len(invexpr.__repr__()):
+                invexpr = expr
+          self.__invexpr = Expr(invexpr)
+          call = functools.partial(Expr.__call__, self.__invexpr)
+          self._partials.update({1: call})
+          self._partials.update({-1: call})
+      else:
+        if isinstance(self._exprs, tuple):
+          for i, expr in enumerate(self._exprs):
+            call = functools.partial(Expr.__call__, expr)
+            self._partials.update({i: call})
+          self._partials.update({-1: call})
+        elif isinstance(self._exprs, dict):
+          for key, val in self._exprs.items():
+            call = functools.partial(Expr.__call__, val)
+            self._partials.update({key: call})
 
     # Non-multiples are keyed by: None
     elif not self._ismulti:
-      call = functools.partial(Expression._partial_call, self, self.expr, 
-                               *self._args, **self._kwds)
-      self._partials.update({None: call})
+      if self.__isiconic:
+        call = functools.partial(Expr.__call__, self)
+        self._partials.update({None: call})
+      else:
+        call = functools.partial(Expression._partial_call, self, self._expr, 
+                                 *self._args, **self._kwds)
+        self._partials.update({None: call})
 
     # Tuples are keyed by index
-    elif isinstance(self.expr, tuple):
-      for i, expr in enumerate(self.expr):
+    elif isinstance(self._expr, tuple):
+      for i, expr in enumerate(self._expr):
         call = functools.partial(Expression._partial_call, self, expr, 
                                  *self._args, **self._kwds)
         self._partials.update({i: call})
       self._partials.update({-1: call})
 
     # Dictionaries keys are mapped directly
-    elif isinstance(self.expr, dict):
-      for key, val in self.expr.items():
+    elif isinstance(self._expr, dict):
+      for key, val in self._expr.items():
         call = functools.partial(Expression._partial_call, self, val, 
                                  *self._args, **self._kwds)
         self._partials.update({key: call})
+    else:
+      raise TypeError("Unknown expression type: {}".format(type(self._expr)))
     self._keys = list(self._partials.keys())
 
 #-------------------------------------------------------------------------------
@@ -313,10 +353,12 @@ class Expression (Expr):
     """ Private call used by the wrapped Func interface that is _ismulti-blind.
     (see __call__ and __getitem__).
     """
+    assert not self.__isiconic, \
+        "Iconic calls must be handled by Expr() objects"
     #argsin = args; kwdsin = kwds; import pdb; pdb.set_trace() # debugging
 
     # Non-callables
-    if not self._callable and not self.__isiconic:
+    if not self._callable:
       assert not args and not kwds, \
           "No optional args with uncallable or symbolic expressions"
       if self._ismulti:
@@ -328,31 +370,19 @@ class Expression (Expr):
     # Allow first argument to denote kwds
     if len(args) == 1 and isinstance(args[0], dict):
       args, kwds = (), {**kwds, **dict(args[0])}
-
     #argsmid = args; kwdsmid = kwds; import pdb; pdb.set_trace() # debugging
-    if not self.__isiconic and (not self.__order and not self.__delta):
+
+    # Callables with neither order nor delta are straightforwards
+    if not self.__order and not self.__delta:
       if self._islambda and hasattr(expr, '__code__') and \
           not expr.__code__.co_argcount: # Allow argument-free lambdas
         assert not len(args), \
             "Unexpected entering of positional arguments: {}".format(args)
         return expr()
       elif args or all(isinstance(key, str) for key in kwds.keys()):
-        _args, _kwds = args, kwds
         return expr(*args, **kwds)
       else:
         return expr(dict(kwds))
-
-    # Symbols are evaluated by substitution
-    if self.__isiconic:
-      subs = []
-      for atom in expr.atoms:
-        if hasattr(atom, 'name'):
-          key = atom.name
-          assert key in kwds, \
-              "Symbol name {} required as keyword input among".format(
-                  key, kwds.keys())
-          subs.append((atom, kwds[key],))
-      return expr.subs(expr)
 
     # Append None to args according to mapping index specification
     n_args = len(args)
@@ -435,7 +465,7 @@ class Expression (Expr):
   def __repr__(self):
     """ Print representation """
     if self.__isiconic or not self._callable:
-      return object.__repr__(self)+ ": '{}'".format(self.expr)
+      return object.__repr__(self)+ ": '{}'".format(self._expr)
     if self._keys is None:
       return object.__repr__(self) 
     return object.__repr__(self)+ ": '{}'".format(self._keys)
