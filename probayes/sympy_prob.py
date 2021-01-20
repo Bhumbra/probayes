@@ -155,7 +155,7 @@ class SympyProb:
       raise NotImplementedError("Tuple input for __getitem__ not supported")
     if arg is None or arg == slice(None):
       return self._exprs
-    if isinstance(arg, str) and not arg:
+    if isinstance(arg, str) and not len(arg):
       return list(self._exprs.keys())
     if isinstance(arg, (list, dict)):
       assert not len(arg), "Input argument of type {} must be empty".type(arg)

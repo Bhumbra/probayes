@@ -392,7 +392,7 @@ class Variable (Icon):
     if isinstance(icon, str) and not args and not kwds:
       kwds = dict(**kwds)
       if self._vtype in VTYPES[float]:
-        kwds.update({'integer': False})
+        kwds.update({'integer': False, 'real': True})
         kwds.update({'finite': np.all(np.isfinite(self._vlims))})
         if np.max(self._vlims) > 0. and np.min(self._vlims) < 0.:
           pass
@@ -689,6 +689,15 @@ class Variable (Icon):
         vals[outside] = values[outside]
         vals = np.maximum(self._vlims[0], vals)
     return vals
+
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+def variables(names, vtype=None, vset=None, *args, **kwds):
+  if isinstance(names, str):
+    names = names.split(',')
+  varlist = [Variable(name, vtype, vset, *args, **kwds) for name in names]
+  return tuple(varlist)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

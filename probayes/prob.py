@@ -348,6 +348,32 @@ class Prob (Expression, SympyProb):
     return Prob.eval_prob(self, *args, **kwds)
 
 #-------------------------------------------------------------------------------
+  def __getitem__(self, arg):
+    """ Returns class member or partials dictionary object according to arg:
+
+    If None or [:], the entire expression dictionary is returned.
+    If [], then the original distribution is returned.
+    If {}, then the distribution probability class object is returned.
+    If '', then the keys of the partials dictionary are returned.
+    Otherwise arg is treated as the key for the expressions dictionary.
+    """
+    if arg is None or arg == slice(None):
+      return self._exprs
+    if isinstance(arg, str) and not len(arg):
+      return list(self._exprs.keys())
+    if isinstance(arg, (list, dict, tuple)):
+      assert not len(arg), "Input argument of type {} must be empty".type(arg)
+      if isinstance(arg, tuple):
+        if iscomplex(self._pscale):
+          return self._exprs['logp'].expr
+        return self._exprs['prob'].expr
+      if isinstance(arg, dict):
+        return self._probj
+      if isinstance(arg, list):
+        return self._distr
+    return Expression.__getitem__(self, arg)
+
+#-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 if __name__ == "__main__":
