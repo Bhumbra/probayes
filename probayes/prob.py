@@ -11,7 +11,7 @@ import scipy.stats
 from probayes.icon import isiconic
 from probayes.pscales import eval_pscale, rescale, iscomplex
 from probayes.expression import Expression
-from probayes.sympy_prob import SYMPY_STATS_DIST, SympyProb, sympy_sfun
+from probayes.sympy_prob import is_sympy_stats_dist, SympyProb, sympy_sfun
 
 #-------------------------------------------------------------------------------
 SCIPY_STATS_CONT = {scipy.stats.rv_continuous}
@@ -122,7 +122,7 @@ class Prob (Expression, SympyProb):
       return
 
     # Scipy/SymPy expressions
-    if self.__issmvar: # Scipy self._expr is instantiated later as a frozen object
+    if self.__issmvar or self.__issympy: # Scipy/Sympy self._expr set later
       self._expr = prob
     else:
       self.set_expr(prob, *args, **kwds)
@@ -150,9 +150,10 @@ class Prob (Expression, SympyProb):
     # Sympy sampler - CDFs require a Symbol and therefore are not set here
     elif self.__issympy:
       if 'cdf' in self._keys and 'icdf' in self._keys:
-        self.set_pfun((self._partials['cdf'].cdf, self._partials['cdf']))
+        self.set_pfun((self._partials['cdf'], self._partials['icdf']))
       if 'sfun' in self._keys:
-        self._partials.update({'sfun': functools.partial(sympy_sfun, self._distr)})
+        self._partials.update({'sfun': 
+                               functools.partial(sympy_sfun, self._distr, dtype=float)})
       self.set_sfun(sympy_sfun, self._expr)
 
 #-------------------------------------------------------------------------------
@@ -193,8 +194,8 @@ class Prob (Expression, SympyProb):
 
     # Extract prob for sympy objects
     elif self.__issympy:
-      self.distr = self._expr
-      self._partials.update(self.distr)
+      self.distr = self._expr # This invokes the setter to define self._exprs
+      self._partials.update(self._exprs)
 
     self._keys = list(self._partials.keys())
 
