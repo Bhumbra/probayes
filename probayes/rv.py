@@ -9,7 +9,7 @@ from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from probayes.pscales import div_prob, rescale, eval_pscale
+from probayes.pscales import iscomplex, div_prob, rescale, eval_pscale
 from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
