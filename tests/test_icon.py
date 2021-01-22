@@ -15,7 +15,7 @@ INC_TESTS = [(3,4)]
 @pytest.mark.parametrize("inp,out", LOG_TESTS)
 def test_log(inp, out):
   x = pb.Icon('x')
-  expr = sympy.log(~x)
+  expr = sympy.log(x[:])
   output = float(expr.subs({'x': inp}))
   close = np.isclose(output, out)
   if isinstance(inp, np.ndarray):
@@ -27,7 +27,7 @@ def test_log(inp, out):
 @pytest.mark.parametrize("inp,out", INC_TESTS)
 def test_inc(inp, out):
   x = pb.Icon('x')
-  expr = ~x+1
+  expr = x[:]+1
   output = int(expr.subs({'x': inp}))
   close = np.isclose(output, out)
   if isinstance(inp, np.ndarray):

@@ -4,12 +4,13 @@
 import collections
 import warnings
 import numpy as np
+import sympy
 from probayes.variable import Variable, DEFAULT_VNAME
 from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from probayes.pscales import iscomplex, div_prob, rescale, eval_pscale
+from probayes.pscales import iscomplex, rescale, eval_pscale
 from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
@@ -83,6 +84,13 @@ class RV (Variable, Prob):
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
+  @property
+  def prob(self):
+    if not self.isscalar or not self.isiconic or not self._ufun:
+      return self._prob
+    return self._prob
+
+#-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 
@@ -110,10 +118,8 @@ class RV (Variable, Prob):
     self._pscale = eval_pscale(pscale) or self._pscale
     if self._prob is not None or self._vset is None:
       return
-    prob = div_prob(1., float(self._length))
-    if self._pscale != 1.:
-      prob = rescale(prob, 1., self._pscale)
-    super().set_prob(prob, pscale=self._pscale)
+    prob = rescale(-self._lhv, 'log', self._pscale)
+    super().set_prob(prob)
     self.set_tran(prob)
 
 #-------------------------------------------------------------------------------
@@ -258,7 +264,11 @@ class RV (Variable, Prob):
     :return: evaluated probabilities
     """
     values = values[self.name] if isinstance(values, dict) else values
-    if not self.isscalar:
+    if self.issympy:
+      prob = self._partials['logp'](values) if iscomplex(self._pscale) else \
+             self._partials['prob'](values)
+      return prob
+    elif not self.isscalar:
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
                                 prob=self._prob, 
@@ -517,11 +527,12 @@ class RV (Variable, Prob):
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
-    if self.issympy and isinstance(arg, tuple) and not arg:
-      if iscomplex(self._pscale):
-        return self._exprs['logp'].expr
-      return self._exprs['prob'].expr
-    return super().__getitem__(arg)
+    """ If arg is a slice (i.e. RV[:]) then Variable icon is returned,
+    otherwise the Prob.__getitem__ method is called.
+    """
+    if isinstance(arg, slice):
+      return Variable.__getitem__(self, arg)
+    return Prob.__getitem__(self, arg)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

@@ -8,10 +8,8 @@ import collections
 import functools
 import numpy as np
 import scipy.stats
-import sympy
 from probayes.icon import isiconic
 from probayes.pscales import eval_pscale, rescale, iscomplex
-from probayes.vtypes import isscalar
 from probayes.expression import Expression
 from probayes.sympy_prob import is_sympy_stats_dist, SympyProb, sympy_sfun
 
@@ -116,15 +114,12 @@ class Prob (Expression, SympyProb):
     self.__issympy = is_sympy_stats_dist(prob)
     self.__issmvar = is_scipy_stats_mvar(prob)
 
-    # Probabilities can be defined as regular expressions, but iconise scalars
+    # Probabilities can be defined as regular expressions
     if not self.__isscipy and not self.__issympy:
-      prob_scalar = isscalar(prob)
-      self._prob = prob if not prob_scalar else sympy.Float(prob)
-      self.set_expr(self._prob, *args, **kwds)
+      self.set_expr(prob, *args, **kwds)
+      self._prob = self._expr
       self.pscale = pscale
-      if not prob_scalar:
-        self._prob = self._expr if not self.isiconic else self._expr.expr
-      return # Expression() looks after all partials
+      return
 
     # Scipy/SymPy expressions
     if self.__issmvar or self.__issympy: # Scipy/Sympy self._expr set later

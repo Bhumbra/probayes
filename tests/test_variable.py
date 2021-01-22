@@ -50,7 +50,7 @@ def test_log(inp, out):
 def test_inc(inp, out):
   # Sympy
   x = pb.Variable('x', vtype=float, vset=[zero, inf])
-  x.set_ufun(~x+1.)
+  x.set_ufun(x[:]+1.)
   output = x.ufun[0](inp)
   assert ismatch(out, output), \
       "Observed/expected match {}/{}".format(output, out)
@@ -72,7 +72,7 @@ def test_inc(inp, out):
 def test_ran(ran, val):
   # Sympy
   x = pb.Variable('x', vtype=float, vset=ran)
-  x.set_ufun(sympy.log(~x))
+  x.set_ufun(sympy.log(x[:]))
   vals = x(val)[x.name]
   assert np.max(vals) <= x.vlims[1] and np.min(vals) >= x.vlims[0]
   # Numpy

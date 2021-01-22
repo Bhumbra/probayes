@@ -11,6 +11,7 @@ from probayes.icon import Icon, isiconic
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP
 from probayes.variable_utils import parse_as_str_dict
+from probayes.pscales import log_prob
 from probayes.expression import Expression
 from probayes.distribution import Distribution
 
@@ -60,6 +61,7 @@ class Variable (Icon):
   _ulims = None      # Transformed self._vlims
   _isfinite = None   # all(isfinite(ulims))
   _length = None     # Difference in self._ulims
+  _lhv = None        # Log hypervolume
   _inside = None     # Lambda function for defining inside vset
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
@@ -282,6 +284,11 @@ class Variable (Icon):
     """ Length of the variable according to its (transformed) limits """
     return self._length
 
+  @property
+  def lhv(self):
+    """ Log hypervolume (=log(length)) of the variable """
+    return self._length
+
   def __len__(self):
     """ Length of the variable according to its (transformed) limits """
     return self._length
@@ -298,6 +305,7 @@ class Variable (Icon):
     """
     self._ulims = None
     self._length = None
+    self._lhv = None
     self._inside = None
     self._isfinite = None
     if self._vlims is None:
@@ -307,7 +315,8 @@ class Variable (Icon):
     if self._vtype not in VTYPES[float]:
       self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
       self._ulims = self._vlims
-      self._length = True if self._vtype in VTYPES[bool] else len(self._vset)
+      self._length = 2 if self._vtype in VTYPES[bool] else len(self._vset)
+      self._lhv = log_prob(self._length)
       self._isfinite = False
       return self._length
 
@@ -316,6 +325,7 @@ class Variable (Icon):
                    else self.ufun[0](self._vlims)
     self._isfinite = np.all(np.isfinite(self._ulims))
     self._length = max(self._ulims) - min(self._ulims)
+    self._lhv = log_prob(self._length) if self._isfinite else np.inf
 
     # Now set inside function
     if not isinstance(self._vset[0], tuple) and \
@@ -689,6 +699,20 @@ class Variable (Icon):
         vals[outside] = values[outside]
         vals = np.maximum(self._vlims[0], vals)
     return vals
+
+#-------------------------------------------------------------------------------
+  def inverse(self):
+    """ Returns the icon unless an invertible Sympy ufun has been set, in which
+    case the corresponding inverse icon is returned.
+    """
+    if self._ufun and self._ufun.inverse is not None:
+      return self._ufun.inverse
+    return self._icon
+
+#-------------------------------------------------------------------------------
+  def __invert__(self):
+    """ See Variable.inverse() """
+    return self.inverse()
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
