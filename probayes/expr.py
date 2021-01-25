@@ -14,6 +14,21 @@ DEFAULT_EFUNS = [
                 ]
 
 #-------------------------------------------------------------------------------
+def collate_symbols(expr):
+  """ Collates symbols from expression expr as an ordered dictionary """
+  assert isinstance(expr, sympy.Expr), \
+    "Input type not Expr type but: {}".format(expr)
+  symbols = collections.OrderedDict()
+  for putative_symbol in expr.free_symbols:
+    symbol = putative_symbol
+    while hasattr(symbol, 'symbol') and \
+        hasattr(symbol, 'name'):
+      symbol = symbol.symbol
+    if hasattr(symbol, 'name'):
+      symbols.update({symbol.name: symbol})
+  return symbols
+
+#-------------------------------------------------------------------------------
 class Expr:
   """ This class wraps sy.Expr. Sympy's dependence on __new__ to return
   modified class objects at instantiation doesn't play nicely with multiple
@@ -57,17 +72,7 @@ class Expr:
     directly or in accordance with the calling conventions for sy.Expr.__new__
     """
     self._expr = expr
-    self._symbols = collections.OrderedDict()
-    if isinstance(self._expr, sympy.Expr):
-      for putative_symbol in self._expr.free_symbols:
-        symbol = putative_symbol
-        while hasattr(symbol, 'symbol') and \
-            hasattr(symbol, 'name'):
-          symbol = symbol.symbol
-        if hasattr(symbol, 'name'):
-          self._symbols.update({symbol.name: symbol})
-    else:
-      raise TypeError("Input type not Expr type but: {}".format(expr))
+    self._symbols = collate_symbols(self._expr)
 
     # Make instance play nicely with Sympy by copying attributes and hash content
     members = dir(self._expr)
@@ -186,13 +191,17 @@ class Expr:
     # Otherwise rely on evaluation function
     efun = self._efun[etype]
     vals = efun(*evalues) if etype else efun(values)
-    if isinstance(vals, sympy.Integer):
+    if isinstance(vals, np.ndarray):
+      return vals
+    elif isinstance(vals, sympy.Integer):
       return int(vals)
     elif isinstance(vals, sympy.Float):
       return float(vals)
-    if etype != np.ndarray or isinstance(vals, np.ndarray):
-      return vals
-    return np.array(vals)
+    elif isinstance(vals, sympy.Expr) and not len(collate_symbols(vals)):
+      return float(vals)
+    elif etype == np.ndarray:
+      return np.array(vals)
+    return vals
 
 #-------------------------------------------------------------------------------
   def __repr__(self):
@@ -204,6 +213,14 @@ class Expr:
   def __inv__(self):
     """ Overload bitwise inverter operator to return symbol. """
     return self.symbol
+
+#-------------------------------------------------------------------------------
+  def __getitem__(self, arg):
+    """ Returns the expression object if arg is slice(None) i.e. [:] """
+    assert arg == slice(None), \
+        "Expr[arg] must bec called using slice operator i.e. Expr[:], not: " + \
+        "{}".format(arg)
+    return self._expr
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

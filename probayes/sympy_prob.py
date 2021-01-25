@@ -16,7 +16,7 @@ def is_sympy_stats_dist(arg, sympy_stats_dist=SYMPY_STATS_DIST):
   return isinstance(arg, tuple(sympy_stats_dist))
 
 #-------------------------------------------------------------------------------
-def sympy_obj_from_dist(dist):
+def sympy_obj_from_dist(dist, _recursive=False):
   """ Attempts to return the object class instance for sympy distribution.
   :example:
   >>> import sympy
@@ -32,12 +32,16 @@ def sympy_obj_from_dist(dist):
   if hasattr(obj, '_cdf'):
     return obj
   if not hasattr(obj, 'args'):
+    if not _recursive:
+      raise ValueError('Unsupported distribution: {}'.format(dist))
     return None
-  objs = [sympy_obj_from_dist(arg) for arg in obj.args]
+  objs = [sympy_obj_from_dist(arg, True) for arg in obj.args]
   if any(objs):
     for obj in objs:
       if obj:
         return obj
+  if not _recursive:
+    raise ValueError('Unsupported distribution: {}'.format(dist))
   return None
 
 #-------------------------------------------------------------------------------
@@ -125,7 +129,12 @@ class SympyProb:
       self._exprs.update({'prob': Expr(self._probj.pdf(self._cterm))})
       self._exprs.update({'logp': Expr(sympy.log(self._exprs['prob'].expr))})
     if hasattr(self._probj, '_cdf'):
-      self._exprs.update({'cdf': Expr(self._probj._cdf(self._cterm))})
+      try:
+        cdf_expr = Expr(self._probj._cdf(self._cterm))
+        self._exprs.update({'cdf': cdf_expr})
+      except:
+        pass
+    if 'cdf' in self._exprs.keys():
       icdf_name = "_{}_cdf".format(self._cterm.name)
       self.__icdf = sympy.Symbol(icdf_name)
       invexprs = sympy.solve(self._exprs['cdf'].expr - self.__icdf,  self._cterm)

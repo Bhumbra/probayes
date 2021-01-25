@@ -1,7 +1,5 @@
 # Example of a 2D normal probability density function with covariance
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import probayes as pb
 

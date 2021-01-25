@@ -54,16 +54,17 @@ class Expression:
   _exprs = None    # Dict of iconic Expr objects
   _partials = None # Dict of partial functions
   _keys = None     # Keys of partials
-  _ismulti = None  # Flag to denote multiple expressions
-  _callable = None # Flag to denote callable expressios
-  _islambda = None # Flag to denote lambda callabales
+  _ismulti = None  # Flag to denote multiple expression
+  _callable = None # Flag to denote callable expression
+  _islambda = None # Flag to denote lambda callable
+  _isscalar = None # Flag to denote uncallable scalar
+  _isiconic = None # Flag to denote sympy expression
 
   # Private
   __invertible = None
   __inverse = None
   __invexpr = None
-  __isscalar = None
-  __isiconic = None
+  __derinv = None # derivative of value with respect to inverse
   __order = None
   __delta = None
 
@@ -110,11 +111,11 @@ class Expression:
 
   @property
   def isscalar(self):
-    return self.__isscalar
+    return self._isscalar
 
   @property
   def isiconic(self):
-    return self.__isiconic
+    return self._isiconic
 
   @property
   def inverse(self):
@@ -123,6 +124,10 @@ class Expression:
   @property
   def invexpr(self):
     return self.__invexpr
+
+  @property
+  def derinv(self):
+    return self.__derinv
 
   @property
   def invertible(self):
@@ -150,12 +155,13 @@ class Expression:
     self._callable = None
     self._islambda = None
     self._ismulti = None
+    self._isscalar = None
+    self._isiconic = None
     self.__order = None
     self.__delta = None
-    self.__isscalar = None
-    self.__isiconic = None
     self.__inverse = None
     self.__invexpr = None
+    self.__invderi = None
     self.__invertible = False if 'invertible' not in kwds else \
                         self._kwds.pop('invertible')
     self._exprs = collections.OrderedDict()
@@ -163,14 +169,15 @@ class Expression:
     # Sanity check func
     if self._expr is None:
       assert not args and not kwds, "No optional args without a function"
-    self.__isiconic = isiconic(self._expr)
+    self._isscalar = isscalar(self._expr)
+    self._isiconic = isiconic(self._expr)
     self._ismulti = isinstance(self._expr, (dict, tuple))
     if self.__invertible:
       assert not self._ismulti,\
           "Cannot invert for multiple expressions"
 
     # Non-multi iconic
-    if self.__isiconic:
+    if self._isiconic:
       self._exprs.update({None: Expr(self._expr, *self._args, **self._kwds)})
       self._ismulti = self.__invertible and \
                       len(self._exprs[None].symbols) == 1
@@ -184,7 +191,7 @@ class Expression:
       if not self._callable:
         assert not args and not kwds, \
             "No optional arguments with uncallable expressions"
-        self.__isscalar = isscalar(self._expr)
+        self._isscalar = isscalar(self._expr)
 
     # Multi
     else:
@@ -192,8 +199,8 @@ class Expression:
               self._expr.values()
       self._callable = False
       self._islambda = False
-      self.__isscalar = False
-      self.__isiconic = False
+      self._isscalar = False
+      self._isiconic = False
       each_callable = [callable(expr) for expr in exprs]
       each_islambda = [islambda(expr) for expr in exprs]
       each_isscalar = [isscalar(expr) for expr in exprs]
@@ -209,13 +216,13 @@ class Expression:
       if len(self._expr):
         self._callable = each_callable[0]
         self._islambda = each_islambda[0]
-        self.__isscalar = each_isscalar[0]
-        self.__isiconic = each_isiconic[0]
+        self._isscalar = each_isscalar[0]
+        self._isiconic = each_isiconic[0]
       if not self._callable:
         assert not args and not kwds, "No optional args with uncallable function"
-      if self.__isiconic:
+      if self._isiconic:
         assert not args and not kwds, "No optional args with iconic function"
-      if self.__isiconic:
+      if self._isiconic:
         if isinstance(self._expr, tuple):
           for i, expr in enumerate(self._expr):
             self._exprs.update({i: Expr(expr, *self._args, **self._kwds)})
@@ -284,7 +291,7 @@ class Expression:
     self._partials = collections.OrderedDict()
 
     # Iconic partials calls are set to Expr.__call__
-    if self.__isiconic:
+    if self._isiconic:
       if not self._ismulti or self.__invertible:
         call = functools.partial(Expr.__call__, self._exprs[None])
         self._partials.update({None: call})
@@ -294,6 +301,8 @@ class Expression:
           self._partials.update({0: call})
           expr = self._exprs[None]
           key = list(expr.symbols.keys())[0]
+          derinv = sympy.Derivative(expr, self._exprs[None].symbols[key]).doit()
+          self.__derinv = Expr(derinv)
           inv_key = "_{}_inv".format(key)
           self.__inverse = sympy.Symbol(inv_key)
           invexprs = sympy.solve(self._expr - self.__inverse, self._exprs[None].symbols[key])
@@ -322,7 +331,7 @@ class Expression:
 
     # Non-multiples are keyed by: None
     elif not self._ismulti:
-      if self.__isiconic:
+      if self._isiconic:
         call = functools.partial(Expr.__call__, self)
         self._partials.update({None: call})
       else:
@@ -353,7 +362,7 @@ class Expression:
     """ Private call used by the wrapped Func interface that is _ismulti-blind.
     (see __call__ and __getitem__).
     """
-    assert not self.__isiconic, \
+    assert not self._isiconic, \
         "Iconic calls must be handled by Expr() objects"
     #argsin = args; kwdsin = kwds; import pdb; pdb.set_trace() # debugging
 
@@ -441,18 +450,21 @@ class Expression:
    return self._partials[None](*args, **kwds)
 
 #-------------------------------------------------------------------------------
-  def __getitem__(self, spec):
+  def __getitem__(self, arg):
    r""" Returns the $i$th function from the expr tuple where if is $i$ is
    numeric, otherwise spec is treated as key returning the corresponding
    value in the expr dictionary. """
-   if spec is not None: 
+   if arg is not None: 
      assert self._ismulti, \
          "Cannot call with non-multiple expression, use Expression()"
-   if isinstance(spec, (tuple, list)) and not len(spec):
-     if isinstance(spec, tuple):
+   if isinstance(arg, slice):
+     if arg == slice(None):
+       return self._expr
+   if isinstance(arg, (tuple, list)) and not len(arg):
+     if isinstance(arg, tuple):
        return self._partials
      return self._partials[None]
-   return self._partials[spec]
+   return self._partials[arg]
 
 #-------------------------------------------------------------------------------
   def __len__(self):
@@ -464,7 +476,7 @@ class Expression:
 #-------------------------------------------------------------------------------
   def __repr__(self):
     """ Print representation """
-    if self.__isiconic or not self._callable:
+    if self._isiconic or not self._callable:
       return object.__repr__(self)+ ": '{}'".format(self._expr)
     if self._keys is None:
       return object.__repr__(self) 

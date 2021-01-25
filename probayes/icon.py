@@ -1,15 +1,17 @@
 """ Symbolic representation wrapping SymPy's Symbol and Expr. """
 
 #-------------------------------------------------------------------------------
-import sympy as sy
+import sympy
 import sympy.stats
 
 #-------------------------------------------------------------------------------
 def isiconic(var):
-  """ Returns whether object is a Sympy object """
-  # Non-callables objects derive from sy.Basic
+  """ Returns whether object is a Sympy object. This function is purposefull not
+  called issymbolic because he use 'icon' to denote any symbolic object]
+  including sympy Integer and Float types. """
+  # Non-callables objects derive from sympy.Basic
   if not callable(var):
-    return isinstance(var, sy.Basic)
+    return isinstance(var, sympy.Basic)
   return False
 
   """
@@ -21,7 +23,9 @@ def isiconic(var):
 
 #-------------------------------------------------------------------------------
 class Icon:
-  """ This class wraps sy.Symbol and sy.Expr. Sympy's dependence on __new__ 
+  """ This class wraps sympy.Symbol and sympy.Expr denoting an 'icon' as any
+  object derived from sym
+  . Sympy's dependence on __new__ 
   to return modified class objects at instantiation is makes multiple
   inheritance tricky so instead we wrap them in here as a class and copy over 
   the attributes.
@@ -32,9 +36,9 @@ class Icon:
   :example
   >>> import probayes as pb
   >>> x = pb.Icon('x')
-  >>> x2 = 2 * ~x
-  >>> print(x2.subs({x: 4.}))
-  2*x
+  >>> x2 = 2 * x[:]
+  >>> print(x2.subs({x[:]: 4}))
+  8
   >>>
   """
   _icon = None
@@ -50,8 +54,8 @@ class Icon:
 
   def set_icon(self, icon, *args, **kwds):
     """ Sets the icon object for this instance with optional args and kwds.
-    Either pass a Sympy expression or sy.Symbol object directly or in accordance 
-    with the calling conventions for sy.Symbol.__new__
+    Either pass a Sympy expression or sympy.Symbol object directly or in accordance 
+    with the calling conventions for sympy.Symbol.__new__
     """
 
     # Pass symbolic or create symbolc named according to string
@@ -59,7 +63,7 @@ class Icon:
     if isiconic(self._icon):
       pass
     elif isinstance(self._icon, str):
-      self._icon = sy.Symbol(self._icon, *args, **kwds)
+      self._icon = sympy.Symbol(self._icon, *args, **kwds)
     else:
       raise TypeError("Symbol name must be string; {} entered".format(self._icon))
 
@@ -86,8 +90,11 @@ class Icon:
     return self._icon.__hash__()
 
 #-------------------------------------------------------------------------------
-  def __invert__(self):
-    """ Bitwise invert operator overloaded to return icon object. """
+  def __getitem__(self, arg):
+    """ Method [:] overloaded to return icon object. """
+    assert arg == slice(None), \
+        "Only ':' input accepted for __getitem__ method  Icon[:], not: {}".\
+        format(arg)
     return self._icon
 
 #-------------------------------------------------------------------------------

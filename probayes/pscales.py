@@ -105,15 +105,14 @@ def rescale(prob, *args):
          else np.array(prob, dtype=float)
   if len(args) == 0: 
     return prob
-  elif len(args) ==  1: 
+  elif len(args) == 1: 
     rtype = args[0]
   else: 
     pscale, rtype = args[0], args[1]
   pscale, rtype = eval_pscale(pscale), eval_pscale(rtype)
-  if pscale == rtype:
-    return prob
-  
   p_log, r_log = iscomplex(pscale), iscomplex(rtype)
+  if p_log == r_log and pscale == rtype:
+    return prob
 
   # Support non-logarithmic conversion (maybe used to avoid logging zeros)
   if not p_log and not r_log:

@@ -11,6 +11,7 @@ from probayes.icon import Icon, isiconic
 from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP
 from probayes.variable_utils import parse_as_str_dict
+from probayes.pscales import log_prob
 from probayes.expression import Expression
 from probayes.distribution import Distribution
 
@@ -57,13 +58,18 @@ class Variable (Icon):
   _vset = None       # Variable set (array or 2-length tuple range)
   _vlims = None      # Numpy array of bounds of vset
   _ufun = None       # Univariate function for variable transformation
-  _ulims = None      # Transformed self._vlims
+  _ulims = None      # self._vlims if not no_ucov else transformed self._vlims
   _isfinite = None   # all(isfinite(ulims))
   _length = None     # Difference in self._ulims
+  _lhv = None        # Log hypervolume
+  _nlhv = None       # Negative log hypervolume - always of transformed space
   _inside = None     # Lambda function for defining inside vset
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
   _delta_kwds = None # Optional delta keywords 
+
+  # Private       
+  __no_ucov = None   # Boolean flag to denote no univariate change of variables
 
 #-------------------------------------------------------------------------------
   def __init__(self, name=None,
@@ -282,6 +288,11 @@ class Variable (Icon):
     """ Length of the variable according to its (transformed) limits """
     return self._length
 
+  @property
+  def lhv(self):
+    """ Log hypervolume (=log(length)) of the variable """
+    return self._length
+
   def __len__(self):
     """ Length of the variable according to its (transformed) limits """
     return self._length
@@ -298,6 +309,7 @@ class Variable (Icon):
     """
     self._ulims = None
     self._length = None
+    self._lhv = None
     self._inside = None
     self._isfinite = None
     if self._vlims is None:
@@ -307,15 +319,26 @@ class Variable (Icon):
     if self._vtype not in VTYPES[float]:
       self._inside = lambda x: np.isin(x, self._vset, assume_unique=True)
       self._ulims = self._vlims
-      self._length = True if self._vtype in VTYPES[bool] else len(self._vset)
+      self._length = 2 if self._vtype in VTYPES[bool] else len(self._vset)
+      self._lhv = log_prob(self._length)
+      self._nlhv = -self._lhv
       self._isfinite = False
       return self._length
 
-    # Floating point limits are susceptible to transormation
-    self._ulims = self._vlims if self._ufun is None \
-                   else self.ufun[0](self._vlims)
+    # Floating point limits are subject to transformation
+    self._ulims = self._vlims if self._ufun is None else \
+                  self.ufun[0](self._vlims)
     self._isfinite = np.all(np.isfinite(self._ulims))
     self._length = max(self._ulims) - min(self._ulims)
+    self._lhv = log_prob(self._length) if self._isfinite else np.inf
+    self._nlhv = -self._lhv # This value serves as the coefficient for no_ucov
+
+    # If not change of variables, restore all lims-related members except nlhv
+    if self.__no_ucov:
+      self._ulims = self._vlims
+      self._isfinite = np.all(np.isfinite(self._ulims))
+      self._length = max(self._ulims) - min(self._ulims)
+      self._lhv = log_prob(self._length) if self._isfinite else np.inf
 
     # Now set inside function
     if not isinstance(self._vset[0], tuple) and \
@@ -426,6 +449,12 @@ class Variable (Icon):
   def ufun(self):
     return self._ufun
 
+  @property
+  def no_ucov(self):
+    """ Flag to denote no univariate change of variables for iconic ufuns. """
+    return self.__no_ucov
+
+
   def set_ufun(self, ufun=None, *args, **kwds):
     """ Sets a monotonic invertible tranformation for the domain as a tuple of
     two functions in the form (transforming_function, inverse_function) 
@@ -440,6 +469,7 @@ class Variable (Icon):
     self._ufun = ufun
     if self._ufun is None:
       return
+    self.__no_ucov = False if 'no_ucov' not in kwds else kwds.pop('no_ucov')
 
     # Non-iconic ufun inputs must a two-length-tuple
     if not isiconic(self._ufun):
@@ -453,6 +483,9 @@ class Variable (Icon):
     elif 'invertible' not in kwds:
       kwds.update({'invertible': True})
     self._ufun = Expression(self._ufun, *args, **kwds)
+    if self.__no_ucov:
+      assert self._ufun.isiconic, \
+          "Can only set no_ucon=True for iconic univariate functions"
     self._eval_ulims()
 
 #-------------------------------------------------------------------------------
@@ -502,7 +535,7 @@ class Variable (Icon):
                         )
 
       # Only use ufun when isunitsetint(values)
-      if self._ufun:
+      if self._ufun and not self.__no_ucov:
         return Distribution(self._name, {self.name: self.ufun[-1](values)})
     return Distribution(self._name, {self.name: values})
 
@@ -642,7 +675,7 @@ class Variable (Icon):
       else:
         vals = np.array(values, dtype=int) + np.array(delta, dtype=int)
         vals = np.array(np.mod(vals, 2), dtype=bool)
-    elif self._ufun is None:
+    elif self._ufun is None or self.__no_ucov:
       vals = values + delta
     else:
       transformed_vals = self.ufun[0](values) + delta
@@ -689,6 +722,20 @@ class Variable (Icon):
         vals[outside] = values[outside]
         vals = np.maximum(self._vlims[0], vals)
     return vals
+
+#-------------------------------------------------------------------------------
+  def inverse(self):
+    """ Returns the icon unless an invertible Sympy ufun has been set, in which
+    case the corresponding inverse icon is returned.
+    """
+    if self._ufun and self._ufun.inverse is not None:
+      return self._ufun.inverse
+    return self._icon
+
+#-------------------------------------------------------------------------------
+  def __invert__(self):
+    """ See Variable.inverse() """
+    return self.inverse()
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

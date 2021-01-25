@@ -10,6 +10,9 @@ ex/
 # C extensions
 *.so
 
+# FUSE hidden files
+.fuse_hidden*
+
 # Distribution / packaging
 .Python
 build/

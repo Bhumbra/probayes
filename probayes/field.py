@@ -131,6 +131,10 @@ class Field (NX_UNDIRECTED_GRAPH):
 
 #-------------------------------------------------------------------------------
   @property
+  def vars(self):
+    return self._vars
+
+  @property
   def nvars(self):
     return self._nvars
 

@@ -21,8 +21,6 @@ Simple Metropolis Hastings sampler taken from Hogg and Foreman-MacKey(2018):
 import probayes as pb
 import numpy as np
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 n_steps = 12288

@@ -1,8 +1,5 @@
 # Example of a 3D normal probability density function with covariance
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
-from pylab import *; ion()
 import probayes as pb
 
 set_lims = (-3., 3.)

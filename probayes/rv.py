@@ -4,12 +4,13 @@
 import collections
 import warnings
 import numpy as np
+import sympy
 from probayes.variable import Variable, DEFAULT_VNAME
 from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from probayes.pscales import iscomplex, div_prob, rescale, eval_pscale
+from probayes.pscales import rescale, eval_pscale
 from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
@@ -83,6 +84,11 @@ class RV (Variable, Prob):
     self.__prime_key = self._name + "'"
 
 #-------------------------------------------------------------------------------
+  @property
+  def prob(self):
+    return self._prob
+
+#-------------------------------------------------------------------------------
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 
@@ -105,15 +111,18 @@ class RV (Variable, Prob):
               len(self._prob), len(self._vset))
 
 #-------------------------------------------------------------------------------
-  def _default_prob(self, pscale=None):
+  def _default_prob(self, pscale=None, force=False):
     """ Defaults unspecified probabilities to uniform over self._vset """
     self._pscale = eval_pscale(pscale) or self._pscale
+    if force:
+      self._prob = None
     if self._prob is not None or self._vset is None:
       return
-    prob = div_prob(1., float(self._length))
-    if self._pscale != 1.:
-      prob = rescale(prob, 1., self._pscale)
-    super().set_prob(prob, pscale=self._pscale)
+    prob = rescale(self._nlhv, 'log', self._pscale)
+    if self._ufun is not None and self.no_ucov:
+      prob = prob + self._ufun.derinv.expr if self._logp else \
+             prob * self._ufun.derinv.expr
+    super().set_prob(prob)
     self.set_tran(prob)
 
 #-------------------------------------------------------------------------------
@@ -151,16 +160,12 @@ class RV (Variable, Prob):
       return
 
     # Recalibrate scalar probabilities for floating point vtypes
-    if self.isscalar and \
-        self._vtype in VTYPES[float]:
-      self._default_prob(self._pscale)
+    self._default_prob(self._pscale, 
+                       force=self.isscalar and self._vtype in VTYPES[float])
 
-    # Check pfun is unspecified or uniform
-    if self._pfun is None:
-      return
+    # Assert pfun is unspecified
     assert self._pfun is None, \
-      "Cannot assign values tranformation function alongside " + \
-      "non-uniform distribution"
+      "Cannot assign univariate function alongside CDF/ICDF specification"
 
 #-------------------------------------------------------------------------------
   @property
@@ -261,7 +266,7 @@ class RV (Variable, Prob):
     if not self.isscalar:
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
-                                prob=self._prob, 
+                                prob=float(self._prob), 
                                 inside=self._inside,
                                 pscale=self._pscale)
 
@@ -517,11 +522,12 @@ class RV (Variable, Prob):
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
-    if self.issympy and isinstance(arg, tuple) and not arg:
-      if iscomplex(self._pscale):
-        return self._exprs['logp'].expr
-      return self._exprs['prob'].expr
-    return super().__getitem__(arg)
+    """ If arg is a slice (i.e. RV[:]) then Variable icon is returned,
+    otherwise the Prob.__getitem__ method is called.
+    """
+    if isinstance(arg, slice):
+      return Variable.__getitem__(self, arg)
+    return Prob.__getitem__(self, arg)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

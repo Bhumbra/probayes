@@ -3,8 +3,6 @@
 import collections
 import probayes as pb
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 num_samples = 500

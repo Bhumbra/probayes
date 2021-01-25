@@ -92,12 +92,15 @@ def isunitsetfloat(var):
 
 #-------------------------------------------------------------------------------
 def isscalar(var):
-  """ If var is a dimensionless numpy array of size, this function returns True
-  otherwise np.isscalar(var) is returned.
+  """ If var is a dimensionless numpy array of size 1 or if the var is a Sympy 
+  Float or Integer, this function returns True, otherwise it returns 
+  np.isscalar(var).
   """
   if isinstance(var, np.ndarray):
     if var.ndim == 0 and var.size == 1:
       return True
+  if isinstance(var, (sympy.Float, sympy.Integer)):
+    return True
   return np.isscalar(var)
 
 #-------------------------------------------------------------------------------

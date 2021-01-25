@@ -8,8 +8,10 @@ import collections
 import functools
 import numpy as np
 import scipy.stats
+import sympy
 from probayes.icon import isiconic
 from probayes.pscales import eval_pscale, rescale, iscomplex
+from probayes.vtypes import isscalar
 from probayes.expression import Expression
 from probayes.sympy_prob import is_sympy_stats_dist, SympyProb, sympy_sfun
 
@@ -67,8 +69,8 @@ class Prob (Expression, SympyProb):
 
   # Protected
   _prob = None       # Probability distribution function
-  _logp = None       # Log probability distribution function (for SymPy only)
   _pscale = None     # Probability type (can be a scipy.stats.dist object)
+  _logp = None       # Boolean flag to denote log probability from pscale
   _pfun = None       # 2-length tuple of cdf/icdf
   _sfun = None       # Random-variate sampling function
 
@@ -114,12 +116,16 @@ class Prob (Expression, SympyProb):
     self.__issympy = is_sympy_stats_dist(prob)
     self.__issmvar = is_scipy_stats_mvar(prob)
 
-    # Probabilities can be defined as regular expressions
+    # Probabilities can be defined as regular expressions, but iconise scalars
     if not self.__isscipy and not self.__issympy:
-      self.set_expr(prob, *args, **kwds)
-      self._prob = self._expr
+      prob_scalar = isscalar(prob)
+      self._prob = prob if not prob_scalar else sympy.Float(prob)
+      self.set_expr(self._prob, *args, **kwds)
       self.pscale = pscale
-      return
+      if not prob_scalar:
+        self._prob = self._expr if not hasattr(self._expr, 'expr') else \
+                     self._expr.expr
+      return # Expression() takes care of all partials
 
     # Scipy/SymPy expressions
     if self.__issmvar or self.__issympy: # Scipy/Sympy self._expr set later
@@ -131,6 +137,7 @@ class Prob (Expression, SympyProb):
     self._prob = self._expr
     self._ismulti = True
     self._callable = True
+    self._isscalar = False
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
@@ -138,17 +145,16 @@ class Prob (Expression, SympyProb):
     self.pscale = pscale
     self._set_partials()
 
-    # Scipy dist
+    # Scipy dist - set pfun and sfun calls
     if self.__isscipy:
-
-      # Set pfun and sfun objects
       if 'cdf' in self._keys and 'ppf' in self._keys:
         self.set_pfun((self._expr.cdf, self._expr.ppf), *self._args, **self._kwds)
       if 'rvs' in self._keys and hasattr(self._expr, 'rvs'):
         self.set_sfun(self._expr.rvs, *self._args, **self._kwds)
 
-    # Sympy sampler - CDFs require a Symbol and therefore are not set here
+    # Sympy dist - set pfun and sfun calls
     elif self.__issympy:
+      self._prob = self._partials['logp'] if self._logp else self._partials['prob']
       if 'cdf' in self._keys and 'icdf' in self._keys:
         self.set_pfun((self._partials['cdf'], self._partials['icdf']))
       if 'sfun' in self._keys:
@@ -157,13 +163,10 @@ class Prob (Expression, SympyProb):
       self.set_sfun(sympy_sfun, self._expr)
 
 #-------------------------------------------------------------------------------
-  @property
-  def logp(self):
-    return self._logp
-
   def _set_partials(self):
+    """ Overload Expression._set_partials() for Scipy and Sympy expressions """
 
-    # Regular expressions
+    # Non-Scipy/Sympy expressions
     self._partials = collections.OrderedDict()
     if not self.__isscipy and not self.__issympy:
       super()._set_partials()
@@ -204,6 +207,10 @@ class Prob (Expression, SympyProb):
   def pscale(self):
     return self._pscale
 
+  @property
+  def logp(self):
+    return self._logp
+
   @pscale.setter
   def pscale(self, pscale=None):
     """ Sets the probability scaling constant used for probabilities.
@@ -218,6 +225,7 @@ class Prob (Expression, SympyProb):
     :return: pscale (either as a real or complex number)
     """
     self._pscale = eval_pscale(pscale)
+    self._logp = iscomplex(self._pscale)
     return self._pscale
 
 #-------------------------------------------------------------------------------
@@ -308,8 +316,7 @@ class Prob (Expression, SympyProb):
 
       # Scipy
       if self.__isscipy:
-        prob = self._partials['logp'] if iscomplex(self._pscale) \
-                else self._partials['prob']
+        prob = self._partials['logp'] if self._logp else self._partials['prob']
         if self.issmvar: # for mvar, convert dictionaries to arrays
           vals = list(args[0].values())
           if len(vals) == 1:
@@ -323,19 +330,19 @@ class Prob (Expression, SympyProb):
         else:
           prob = prob(*args)
 
-      # Sympy
+      # Sympy distributions are looked after by SympyProb
       elif self.__issympy:
-        prob = self._logp if iscomplex(self._pscale) else self._prob
-        prob = prob(*args)
+        prob = self._prob(*args, **kwds)
 
-      # Call via expression partials interface
+      # Expression callables handled by expression partials interface
       else:
         prob = self._partials[None](*args, **kwds)
 
+    # Non-callables must not have any arguments
     else:
-      assert not len(args), \
+      assert not len(args) and not len(kwds), \
           "Cannot evaluate from values from an uncallable probability function"
-      prob = self._prob() if callable(self._prob) else self._prob
+      prob = self._prob
 
     # Optionally rescale
     if pscale:
@@ -349,28 +356,34 @@ class Prob (Expression, SympyProb):
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
-    """ Returns class member or partials dictionary object according to arg:
-
-    If None or [:], the entire expression dictionary is returned.
-    If [], then the original distribution is returned.
-    If {}, then the distribution probability class object is returned.
+    """ Returns partial function for arg. For Sympy statistical distributions,
+    additional returns are supported:
+    If set(), then the original distribution is returned.
+    If [], then the distribution probability class object is returned.
+    If {}, the full expression dictionary is returned.
+    If (), the logp or prob expression (depending on pscale) is returned
     If '', then the keys of the partials dictionary are returned.
-    Otherwise arg is treated as the key for the expressions dictionary.
+    Note arg cannot be a slice object.
     """
-    if arg is None or arg == slice(None):
-      return self._exprs
-    if isinstance(arg, str) and not len(arg):
-      return list(self._exprs.keys())
-    if isinstance(arg, (list, dict, tuple)):
-      assert not len(arg), "Input argument of type {} must be empty".type(arg)
+    if isinstance(arg, slice):
+      raise TypeError("Argument input cannot be slice or tuple type")
+    if isinstance(arg, (list, dict, set, tuple)):
+      assert self.__issympy, \
+          "Input argument of type {} supported only Sympy distributions".type(arg)
+      assert not len(arg), \
+          "Input argument of type {} must be empty".type(arg)
+      if isinstance(arg, set):
+        return self._distr
+      if isinstance(arg, list):
+        return self._probj
+      if isinstance(arg, dict):
+        return self._exprs
       if isinstance(arg, tuple):
-        if iscomplex(self._pscale):
+        if self._logp:
           return self._exprs['logp'].expr
         return self._exprs['prob'].expr
-      if isinstance(arg, dict):
-        return self._probj
-      if isinstance(arg, list):
-        return self._distr
+    if isinstance(arg, str) and not len(arg):
+      return list(self._exprs.keys())
     return Expression.__getitem__(self, arg)
 
 #-------------------------------------------------------------------------------

@@ -10,8 +10,6 @@ p(1/y_sigma^2) = Gamma(y_sigma_alpha, 1/y_sigma_beta)
 import numpy as np
 import scipy.stats
 import probayes as pb
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 n_steps = 1000

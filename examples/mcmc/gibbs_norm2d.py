@@ -5,8 +5,6 @@ Gibbs sampler for a 2D Gaussian PDF.
 import probayes as pb
 import numpy as np
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 lims = (-10., 10.)

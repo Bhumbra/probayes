@@ -3,8 +3,6 @@
 import numpy as np
 import scipy.stats
 import probayes as pb
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 # Settings
