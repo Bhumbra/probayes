@@ -88,14 +88,14 @@ class Prob (Expression, SympyProb):
 #-------------------------------------------------------------------------------
   @property
   def prob(self):
-    """ Returns probability value or object depending on set_prob(arg) argument:
+    """ Returns probability value/object depending on set_prob(prob) argument:
 
-    - if arg is an array, then its NumPy ndarray representation is returned.
-    - if arg is a scalar, then its iconic Sympy representation is returned
-    - if arg is a Sympy statistical distribution, then its corresponding Expr
-      expression object (whether linear of logarithmic probability) is returned.
-    - if arg is a Scipy distribution (e.g. scipy.stats.multivariate_normal) then
-      its corresponding generator object is returned.
+    - if prob was an array, then its NumPy ndarray representation is returned.
+    - if prob was a scalar, then its iconic Sympy representation is returned
+    - if prob was a callable, then the corresponding function is returned.
+    - if prob was a Sympy distribution/expression its expression is returned.
+    - if prob was a Scipy distribution (e.g. scipy.stats.multivariate_normal), 
+      then a partial call to its correponding probability function is returned.
     """
     return self._prob
 
@@ -156,16 +156,19 @@ class Prob (Expression, SympyProb):
       self.set_delta(self._kwds.pop('delta'))
     self._set_partials()
 
-    # Scipy dist - set pfun and sfun calls
+    # Scipy dist - set pfun and sfun calls - self._prob is updated but not used
     if self.__isscipy:
+      self._prob = self._partials['logp'] if self._logp \
+                   else self._partials['prob']
       if 'cdf' in self._keys and 'ppf' in self._keys:
         self.set_pfun((self._expr.cdf, self._expr.ppf), *self._args, **self._kwds)
       if 'rvs' in self._keys and hasattr(self._expr, 'rvs'):
         self.set_sfun(self._expr.rvs, *self._args, **self._kwds)
 
-    # Sympy dist - set pfun and sfun calls
+    # Sympy dist - set pfun and sfun calls - self._prob is updated but not used
     elif self.__issympy:
-      self._prob = self._partials['logp'] if self._logp else self._partials['prob']
+      self._prob = self._partials['logp'].expr if self._logp \
+                   else self._partials['prob'].expr
       if 'cdf' in self._keys and 'icdf' in self._keys:
         self.set_pfun((self._partials['cdf'], self._partials['icdf']))
       if 'sfun' in self._keys:
@@ -343,7 +346,8 @@ class Prob (Expression, SympyProb):
 
       # Sympy distributions are looked after by SympyProb
       elif self.__issympy:
-        prob = self._prob(*args, **kwds)
+        prob = self._partials['logp'] if self._logp else self._partials['prob']
+        prob = prob(*args, **kwds)
 
       # Expression callables handled by expression partials interface
       else:
