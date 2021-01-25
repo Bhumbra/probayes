@@ -1,7 +1,5 @@
 # Example of sampling from a normal probability density function
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import probayes as pb
 

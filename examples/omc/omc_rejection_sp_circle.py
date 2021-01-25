@@ -1,8 +1,6 @@
 """ Example of ordinary Monte Carlo with rejection sampling integrating circle area """
 import numpy as np
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from matplotlib.colors import Normalize
 from pylab import *; ion()
 import probayes as pb

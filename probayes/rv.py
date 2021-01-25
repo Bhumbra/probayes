@@ -118,7 +118,7 @@ class RV (Variable, Prob):
       self._prob = None
     if self._prob is not None or self._vset is None:
       return
-    prob = rescale(-self._lhv, 'log', self._pscale)
+    prob = rescale(self._nlhv, 'log', self._pscale)
     if self._ufun is not None and self.no_ucov:
       prob = prob + self._ufun.derinv.expr if self._logp else \
              prob * self._ufun.derinv.expr
@@ -266,7 +266,7 @@ class RV (Variable, Prob):
     if not self.isscalar:
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
-                                prob=self._prob, 
+                                prob=float(self._prob), 
                                 inside=self._inside,
                                 pscale=self._pscale)
 

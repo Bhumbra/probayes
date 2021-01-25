@@ -5,8 +5,6 @@ on Example 1.1.6 from J.R. Norris (1997): Markov chains. CUP. p.6-8.
 """
 import probayes as pb
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 # Prob convention: successor dimension (row) > predecessor dimension (col)

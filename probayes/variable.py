@@ -62,6 +62,7 @@ class Variable (Icon):
   _isfinite = None   # all(isfinite(ulims))
   _length = None     # Difference in self._ulims
   _lhv = None        # Log hypervolume
+  _nlhv = None       # Negative log hypervolume - always of transformed space
   _inside = None     # Lambda function for defining inside vset
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
@@ -320,15 +321,24 @@ class Variable (Icon):
       self._ulims = self._vlims
       self._length = 2 if self._vtype in VTYPES[bool] else len(self._vset)
       self._lhv = log_prob(self._length)
+      self._nlhv = -self._lhv
       self._isfinite = False
       return self._length
 
     # Floating point limits are subject to transformation
-    self._ulims = self._vlims if self._ufun is None or self.__no_ucov else \
+    self._ulims = self._vlims if self._ufun is None else \
                   self.ufun[0](self._vlims)
     self._isfinite = np.all(np.isfinite(self._ulims))
     self._length = max(self._ulims) - min(self._ulims)
     self._lhv = log_prob(self._length) if self._isfinite else np.inf
+    self._nlhv = -self._lhv # This value serves as the coefficient for no_ucov
+
+    # If not change of variables, restore all lims-related members except nlhv
+    if self.__no_ucov:
+      self._ulims = self._vlims
+      self._isfinite = np.all(np.isfinite(self._ulims))
+      self._length = max(self._ulims) - min(self._ulims)
+      self._lhv = log_prob(self._length) if self._isfinite else np.inf
 
     # Now set inside function
     if not isinstance(self._vset[0], tuple) and \
@@ -442,7 +452,7 @@ class Variable (Icon):
   @property
   def no_ucov(self):
     """ Flag to denote no univariate change of variables for iconic ufuns. """
-    return self._vtype
+    return self.__no_ucov
 
 
   def set_ufun(self, ufun=None, *args, **kwds):
@@ -459,6 +469,7 @@ class Variable (Icon):
     self._ufun = ufun
     if self._ufun is None:
       return
+    self.__no_ucov = False if 'no_ucov' not in kwds else kwds.pop('no_ucov')
 
     # Non-iconic ufun inputs must a two-length-tuple
     if not isiconic(self._ufun):
@@ -471,7 +482,6 @@ class Variable (Icon):
       assert callable(self._ufun[1]), message
     elif 'invertible' not in kwds:
       kwds.update({'invertible': True})
-    self.__no_ucov = False if 'no_ucov' in kwds else kwds.pop('no_ucov')
     self._ufun = Expression(self._ufun, *args, **kwds)
     if self.__no_ucov:
       assert self._ufun.isiconic, \
@@ -525,7 +535,7 @@ class Variable (Icon):
                         )
 
       # Only use ufun when isunitsetint(values)
-      if self._ufun:
+      if self._ufun and not self.__no_ucov:
         return Distribution(self._name, {self.name: self.ufun[-1](values)})
     return Distribution(self._name, {self.name: values})
 

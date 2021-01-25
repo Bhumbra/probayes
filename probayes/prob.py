@@ -342,7 +342,7 @@ class Prob (Expression, SympyProb):
     else:
       assert not len(args) and not len(kwds), \
           "Cannot evaluate from values from an uncallable probability function"
-      prob = self._prob()
+      prob = self._prob
 
     # Optionally rescale
     if pscale:

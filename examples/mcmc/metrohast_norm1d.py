@@ -5,8 +5,6 @@ Simple Metropolis Hastings sampler for evaluating posterior for mean and stdv
 import probayes as pb
 import numpy as np
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 
 # PARAMETERS

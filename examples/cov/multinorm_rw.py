@@ -1,7 +1,5 @@
 # Example of a 2D multivariate random walk
 import scipy.stats
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import probayes as pb
 

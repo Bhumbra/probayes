@@ -1,7 +1,5 @@
 # Example of sampling from a Zipfian probability density function
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
 from pylab import *; ion()
 import probayes as pb
 

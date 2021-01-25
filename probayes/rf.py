@@ -14,6 +14,7 @@ from probayes.dist_utils import margcond_str
 from probayes.vtypes import isscalar, isunitsetint
 from probayes.pscales import iscomplex, prod_pscale
 from probayes.rf_utils import rv_prod_rule, sample_cond_cov
+from probayes.expr import Expr
 from probayes.expression import Expression
 from probayes.cf import CF
 from probayes.cond_cov import CondCov
@@ -105,7 +106,19 @@ class RF (Field, Prob):
 
 #-------------------------------------------------------------------------------
   def _default_prob(self):
-    pass
+    return 
+    """
+    if all([var.isiconic for var in self._varlist]):
+      prob = None
+      for var in self._varlist:
+        var_prob = var.prob
+        mul = var_prob if not isinstance(var_prob, Expr) else var_prob._expr
+        if prob is not None:
+          prob = prob * mul
+        else:
+          prob = mul
+      self.set_prob(prob, pscale=self._pscale)
+    """
 
 #-------------------------------------------------------------------------------
   @property
@@ -180,7 +193,6 @@ class RF (Field, Prob):
       assert isinstance(tran, np.ndarray), message
       assert tran.ndim == 2, message
       assert np.all(np.array(tran.shape) == self._nvars), message
-      self._tran = tran
       self.set_tfun(np.linalg.cholesky(tran))
       assert self._tsteps is None, \
           "Setting tsteps not supported for covariance transitions"
