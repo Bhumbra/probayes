@@ -64,6 +64,7 @@ class Expression:
   __invertible = None
   __inverse = None
   __invexpr = None
+  __derinv = None # derivative of value with respect to inverse
   __order = None
   __delta = None
 
@@ -125,6 +126,10 @@ class Expression:
     return self.__invexpr
 
   @property
+  def derinv(self):
+    return self.__derinv
+
+  @property
   def invertible(self):
     return self.__invertible
 
@@ -156,6 +161,7 @@ class Expression:
     self.__delta = None
     self.__inverse = None
     self.__invexpr = None
+    self.__invderi = None
     self.__invertible = False if 'invertible' not in kwds else \
                         self._kwds.pop('invertible')
     self._exprs = collections.OrderedDict()
@@ -295,6 +301,8 @@ class Expression:
           self._partials.update({0: call})
           expr = self._exprs[None]
           key = list(expr.symbols.keys())[0]
+          derinv = sympy.Derivative(expr, self._exprs[None].symbols[key]).doit()
+          self.__derinv = Expr(derinv)
           inv_key = "_{}_inv".format(key)
           self.__inverse = sympy.Symbol(inv_key)
           invexprs = sympy.solve(self._expr - self.__inverse, self._exprs[None].symbols[key])

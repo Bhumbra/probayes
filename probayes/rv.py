@@ -10,7 +10,7 @@ from probayes.prob import Prob
 from probayes.dist import Dist
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from probayes.pscales import iscomplex, rescale, eval_pscale
+from probayes.pscales import rescale, eval_pscale
 from probayes.expression import Expression
 from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
@@ -86,8 +86,6 @@ class RV (Variable, Prob):
 #-------------------------------------------------------------------------------
   @property
   def prob(self):
-    if not self.isscalar or not self.isiconic or not self._ufun:
-      return self._prob
     return self._prob
 
 #-------------------------------------------------------------------------------
@@ -113,12 +111,17 @@ class RV (Variable, Prob):
               len(self._prob), len(self._vset))
 
 #-------------------------------------------------------------------------------
-  def _default_prob(self, pscale=None):
+  def _default_prob(self, pscale=None, force=False):
     """ Defaults unspecified probabilities to uniform over self._vset """
     self._pscale = eval_pscale(pscale) or self._pscale
+    if force:
+      self._prob = None
     if self._prob is not None or self._vset is None:
       return
     prob = rescale(-self._lhv, 'log', self._pscale)
+    if self._ufun is not None and self.no_ucov:
+      prob = prob + self._ufun.derinv.expr if self._logp else \
+             prob * self._ufun.derinv.expr
     super().set_prob(prob)
     self.set_tran(prob)
 
@@ -157,16 +160,12 @@ class RV (Variable, Prob):
       return
 
     # Recalibrate scalar probabilities for floating point vtypes
-    if self.isscalar and \
-        self._vtype in VTYPES[float]:
-      self._default_prob(self._pscale)
+    self._default_prob(self._pscale, 
+                       force=self.isscalar and self._vtype in VTYPES[float])
 
-    # Check pfun is unspecified or uniform
-    if self._pfun is None:
-      return
+    # Assert pfun is unspecified
     assert self._pfun is None, \
-      "Cannot assign values tranformation function alongside " + \
-      "non-uniform distribution"
+      "Cannot assign univariate function alongside CDF/ICDF specification"
 
 #-------------------------------------------------------------------------------
   @property
@@ -264,11 +263,7 @@ class RV (Variable, Prob):
     :return: evaluated probabilities
     """
     values = values[self.name] if isinstance(values, dict) else values
-    if self.issympy:
-      prob = self._partials['logp'](values) if iscomplex(self._pscale) else \
-             self._partials['prob'](values)
-      return prob
-    elif not self.isscalar:
+    if not self.isscalar:
       return super().eval_prob(values)
     return nominal_uniform_prob(values, 
                                 prob=self._prob, 

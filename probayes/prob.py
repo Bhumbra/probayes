@@ -69,8 +69,8 @@ class Prob (Expression, SympyProb):
 
   # Protected
   _prob = None       # Probability distribution function
-  _logp = None       # Log probability distribution function (for SymPy only)
   _pscale = None     # Probability type (can be a scipy.stats.dist object)
+  _logp = None       # Boolean flag to denote log probability from pscale
   _pfun = None       # 2-length tuple of cdf/icdf
   _sfun = None       # Random-variate sampling function
 
@@ -123,8 +123,9 @@ class Prob (Expression, SympyProb):
       self.set_expr(self._prob, *args, **kwds)
       self.pscale = pscale
       if not prob_scalar:
-        self._prob = self._expr if not self.isiconic else self._expr.expr
-      return # Expression() looks after all partials
+        self._prob = self._expr if not hasattr(self._expr, 'expr') else \
+                     self._expr.expr
+      return # Expression() takes care of all partials
 
     # Scipy/SymPy expressions
     if self.__issmvar or self.__issympy: # Scipy/Sympy self._expr set later
@@ -136,6 +137,7 @@ class Prob (Expression, SympyProb):
     self._prob = self._expr
     self._ismulti = True
     self._callable = True
+    self._isscalar = False
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
@@ -143,17 +145,16 @@ class Prob (Expression, SympyProb):
     self.pscale = pscale
     self._set_partials()
 
-    # Scipy dist
+    # Scipy dist - set pfun and sfun calls
     if self.__isscipy:
-
-      # Set pfun and sfun objects
       if 'cdf' in self._keys and 'ppf' in self._keys:
         self.set_pfun((self._expr.cdf, self._expr.ppf), *self._args, **self._kwds)
       if 'rvs' in self._keys and hasattr(self._expr, 'rvs'):
         self.set_sfun(self._expr.rvs, *self._args, **self._kwds)
 
-    # Sympy sampler - CDFs require a Symbol and therefore are not set here
+    # Sympy dist - set pfun and sfun calls
     elif self.__issympy:
+      self._prob = self._partials['logp'] if self._logp else self._partials['prob']
       if 'cdf' in self._keys and 'icdf' in self._keys:
         self.set_pfun((self._partials['cdf'], self._partials['icdf']))
       if 'sfun' in self._keys:
@@ -162,13 +163,10 @@ class Prob (Expression, SympyProb):
       self.set_sfun(sympy_sfun, self._expr)
 
 #-------------------------------------------------------------------------------
-  @property
-  def logp(self):
-    return self._logp
-
   def _set_partials(self):
+    """ Overload Expression._set_partials() for Scipy and Sympy expressions """
 
-    # Regular expressions
+    # Non-Scipy/Sympy expressions
     self._partials = collections.OrderedDict()
     if not self.__isscipy and not self.__issympy:
       super()._set_partials()
@@ -209,6 +207,10 @@ class Prob (Expression, SympyProb):
   def pscale(self):
     return self._pscale
 
+  @property
+  def logp(self):
+    return self._logp
+
   @pscale.setter
   def pscale(self, pscale=None):
     """ Sets the probability scaling constant used for probabilities.
@@ -223,6 +225,7 @@ class Prob (Expression, SympyProb):
     :return: pscale (either as a real or complex number)
     """
     self._pscale = eval_pscale(pscale)
+    self._logp = iscomplex(self._pscale)
     return self._pscale
 
 #-------------------------------------------------------------------------------
@@ -313,8 +316,7 @@ class Prob (Expression, SympyProb):
 
       # Scipy
       if self.__isscipy:
-        prob = self._partials['logp'] if iscomplex(self._pscale) \
-                else self._partials['prob']
+        prob = self._partials['logp'] if self._logp else self._partials['prob']
         if self.issmvar: # for mvar, convert dictionaries to arrays
           vals = list(args[0].values())
           if len(vals) == 1:
@@ -328,19 +330,19 @@ class Prob (Expression, SympyProb):
         else:
           prob = prob(*args)
 
-      # Sympy
+      # Sympy distributions are looked after by SympyProb
       elif self.__issympy:
-        prob = self._logp if iscomplex(self._pscale) else self._prob
-        prob = prob(*args)
+        prob = self._prob(*args, **kwds)
 
-      # Call via expression partials interface
+      # Expression callables handled by expression partials interface
       else:
         prob = self._partials[None](*args, **kwds)
 
+    # Non-callables must not have any arguments
     else:
-      assert not len(args), \
+      assert not len(args) and not len(kwds), \
           "Cannot evaluate from values from an uncallable probability function"
-      prob = self._prob() if callable(self._prob) else self._prob
+      prob = self._prob()
 
     # Optionally rescale
     if pscale:
@@ -377,7 +379,7 @@ class Prob (Expression, SympyProb):
       if isinstance(arg, dict):
         return self._exprs
       if isinstance(arg, tuple):
-        if iscomplex(self._pscale):
+        if self._logp:
           return self._exprs['logp'].expr
         return self._exprs['prob'].expr
     if isinstance(arg, str) and not len(arg):

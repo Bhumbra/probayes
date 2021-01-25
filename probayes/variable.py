@@ -58,7 +58,7 @@ class Variable (Icon):
   _vset = None       # Variable set (array or 2-length tuple range)
   _vlims = None      # Numpy array of bounds of vset
   _ufun = None       # Univariate function for variable transformation
-  _ulims = None      # Transformed self._vlims
+  _ulims = None      # self._vlims if not no_ucov else transformed self._vlims
   _isfinite = None   # all(isfinite(ulims))
   _length = None     # Difference in self._ulims
   _lhv = None        # Log hypervolume
@@ -66,6 +66,9 @@ class Variable (Icon):
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
   _delta_kwds = None # Optional delta keywords 
+
+  # Private       
+  __no_ucov = None   # Boolean flag to denote no univariate change of variables
 
 #-------------------------------------------------------------------------------
   def __init__(self, name=None,
@@ -320,9 +323,9 @@ class Variable (Icon):
       self._isfinite = False
       return self._length
 
-    # Floating point limits are susceptible to transormation
-    self._ulims = self._vlims if self._ufun is None \
-                   else self.ufun[0](self._vlims)
+    # Floating point limits are subject to transformation
+    self._ulims = self._vlims if self._ufun is None or self.__no_ucov else \
+                  self.ufun[0](self._vlims)
     self._isfinite = np.all(np.isfinite(self._ulims))
     self._length = max(self._ulims) - min(self._ulims)
     self._lhv = log_prob(self._length) if self._isfinite else np.inf
@@ -436,6 +439,12 @@ class Variable (Icon):
   def ufun(self):
     return self._ufun
 
+  @property
+  def no_ucov(self):
+    """ Flag to denote no univariate change of variables for iconic ufuns. """
+    return self._vtype
+
+
   def set_ufun(self, ufun=None, *args, **kwds):
     """ Sets a monotonic invertible tranformation for the domain as a tuple of
     two functions in the form (transforming_function, inverse_function) 
@@ -462,7 +471,11 @@ class Variable (Icon):
       assert callable(self._ufun[1]), message
     elif 'invertible' not in kwds:
       kwds.update({'invertible': True})
+    self.__no_ucov = False if 'no_ucov' in kwds else kwds.pop('no_ucov')
     self._ufun = Expression(self._ufun, *args, **kwds)
+    if self.__no_ucov:
+      assert self._ufun.isiconic, \
+          "Can only set no_ucon=True for iconic univariate functions"
     self._eval_ulims()
 
 #-------------------------------------------------------------------------------
@@ -652,7 +665,7 @@ class Variable (Icon):
       else:
         vals = np.array(values, dtype=int) + np.array(delta, dtype=int)
         vals = np.array(np.mod(vals, 2), dtype=bool)
-    elif self._ufun is None:
+    elif self._ufun is None or self.__no_ucov:
       vals = values + delta
     else:
       transformed_vals = self.ufun[0](values) + delta
