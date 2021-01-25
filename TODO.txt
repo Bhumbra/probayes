@@ -1,8 +1,6 @@
 Support discrete Sympy PDFs.
-Support variables as input values keys for field calls.
+Support iconic multiplication of independent RVs to default RF probs.
 Improve API for iconic probabilities.
-Support multiple parameters to assign a SymPy probability distribution.
-Default to iconic PDFs.
 Inherit Distributions for Probability Distribution class.
 Support Fields of Variables sharing Expressions collected as Functionals.
 Support Dependences between Domains with respect to Functionals.
