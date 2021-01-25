@@ -43,12 +43,13 @@ class RV (Variable, Prob):
   """
 
   # Protected
-  _tran = None      # Transitional prob - can be a matrix
-  _tfun = None      # Like pfun for transitional conditionals
+  _tran = None        # Transitional prob - can be a matrix
+  _tfun = None        # Like pfun for transitional conditionals
 
   # Private
-  __sym_tran = None
-  __prime_key = None
+  __def_prob = None   # Flag to denote prob is defaulted
+  __sym_tran = None   # Flag to denote symmetric transitional
+  __prime_key = None  # Modified-string to denote prime key for variable
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
@@ -88,7 +89,10 @@ class RV (Variable, Prob):
   def prob(self):
     return self._prob
 
-#-------------------------------------------------------------------------------
+  @property
+  def def_prob(self):
+    return self.__def_prob
+
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 
@@ -101,7 +105,9 @@ class RV (Variable, Prob):
     """
     super().set_prob(prob, *args, **kwds)
     if self._prob is None:
-      self._default_prob(self._pscale)
+      self._default_prob()
+    else:
+      self.__def_prob = False
 
     # Check uncallable probabilities commensurate with self._vset
     if self._vset is not None and \
@@ -111,19 +117,20 @@ class RV (Variable, Prob):
               len(self._prob), len(self._vset))
 
 #-------------------------------------------------------------------------------
-  def _default_prob(self, pscale=None, force=False):
-    """ Defaults unspecified probabilities to uniform over self._vset """
-    self._pscale = eval_pscale(pscale) or self._pscale
-    if force:
-      self._prob = None
-    if self._prob is not None or self._vset is None:
+  def _default_prob(self):
+    """ Defaults unspecified probabilities to uniform over self._vset.
+    This will not override a previously specified non-default probability.
+    """
+
+    if self._prob is not None and not self.__def_prob:
       return
     prob = rescale(self._nlhv, 'log', self._pscale)
     if self._ufun is not None and self.no_ucov:
-      prob = prob + self._ufun.derinv.expr if self._logp else \
+      prob = prob + sympy.log(self._ufun.derinv.expr) if self._logp else \
              prob * self._ufun.derinv.expr
     super().set_prob(prob)
     self.set_tran(prob)
+    self.__def_prob = True
 
 #-------------------------------------------------------------------------------
   def set_pfun(self, pfun=None, *args, **kwds):
@@ -159,9 +166,9 @@ class RV (Variable, Prob):
     if self._ufun is None:
       return
 
-    # Recalibrate scalar probabilities for floating point vtypes
-    self._default_prob(self._pscale, 
-                       force=self.isscalar and self._vtype in VTYPES[float])
+    # Recalibrate defaulted probabilities for floating point vtypes
+    if self._vtype in VTYPES[float]:
+      self._default_prob()
 
     # Assert pfun is unspecified
     assert self._pfun is None, \

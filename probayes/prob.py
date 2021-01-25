@@ -82,11 +82,21 @@ class Prob (Expression, SympyProb):
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, *args, **kwds):
     """ Initialises the probability and pscale (see set_prob). """
+    self._pscale = None
     self.set_prob(prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   @property
   def prob(self):
+    """ Returns probability value or object depending on set_prob(arg) argument:
+
+    - if arg is an array, then its NumPy ndarray representation is returned.
+    - if arg is a scalar, then its iconic Sympy representation is returned
+    - if arg is a Sympy statistical distribution, then its corresponding Expr
+      expression object (whether linear of logarithmic probability) is returned.
+    - if arg is a Scipy distribution (e.g. scipy.stats.multivariate_normal) then
+      its corresponding generator object is returned.
+    """
     return self._prob
 
   @property
@@ -112,6 +122,7 @@ class Prob (Expression, SympyProb):
     pscale is used.
     """
     pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
+    self.pscale = pscale or self._pscale
     self.__isscipy = is_scipy_stats_dist(prob)
     self.__issympy = is_sympy_stats_dist(prob)
     self.__issmvar = is_scipy_stats_mvar(prob)
@@ -121,10 +132,11 @@ class Prob (Expression, SympyProb):
       prob_scalar = isscalar(prob)
       self._prob = prob if not prob_scalar else sympy.Float(prob)
       self.set_expr(self._prob, *args, **kwds)
-      self.pscale = pscale
+
+      # Sett probability callers to expression
       if not prob_scalar:
-        self._prob = self._expr if not hasattr(self._expr, 'expr') else \
-                     self._expr.expr
+        self._prob = self._expr
+
       return # Expression() takes care of all partials
 
     # Scipy/SymPy expressions
@@ -142,7 +154,6 @@ class Prob (Expression, SympyProb):
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
       self.set_delta(self._kwds.pop('delta'))
-    self.pscale = pscale
     self._set_partials()
 
     # Scipy dist - set pfun and sfun calls

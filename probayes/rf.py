@@ -69,7 +69,7 @@ class RF (Field, Prob):
     super()._refresh()
     if self._nvars:
       pscales = [var.pscale for var in self._vars.values()]
-      self._pscale = prod_pscale(pscales)
+      self.pscale = prod_pscale(pscales)
     self.eval_length()
     self._prop = None
     self._tran = None

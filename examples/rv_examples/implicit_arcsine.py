@@ -29,7 +29,3 @@ subplot(2, 1, 2)
 hist(rx['x'], 50)
 xlabel('x (random samples)')
 ylabel('Freq / counts')
-
-
-
-
