@@ -8,7 +8,7 @@ variable type, and variable set.
 import numpy as np
 import collections
 from probayes.icon import Icon, isiconic
-from probayes.vtypes import eval_vtype, isunitsetint, isscalar, \
+from probayes.vtypes import eval_vtype, isunitset, isscalar, \
                         revtype, uniform, VTYPES, OO, OO_TO_NP
 from probayes.variable_utils import parse_as_str_dict
 from probayes.pscales import log_prob
@@ -490,6 +490,45 @@ class Variable (Icon):
 
 #-------------------------------------------------------------------------------
   def evaluate(self, values=None):
+    r""" Evaluates value(s) belonging to the variable.
+
+    :param values: None, set of a single integer, array, or scalar.
+
+    :return: a distribution dictionary {key: val} in which key is the variable 
+             name and val is a NumPy array of values in accordance to the 
+             following:
+
+    If values is a NumPy array, it is returned unchanged.
+
+    If values is None, it defaults to the entire variable set (vset) if not
+    the variable type vtype is not float; otherwise a single scalar within the
+    vset is randomly evaluated (see below for $n=0$).
+
+    If values is a set containing a single integer (i.e. $\{n\}$), then the 
+    output depends on the number $n$:
+
+    If positive ($n$), then $n$ values are uniformly sampled.
+    If zero ($n=0$), then a scalar value is randomly sampled.
+    if negative($-n$), then $n$ values are randomly sampled.
+
+    For non-float types, the values are evaluated from vset according to $n$:
+
+    If positive ($n$), then $n$ values are serially sampled from ordered vset.
+    If zero ($n=0$), then a scalar value is randomly sampled.
+    if negative($-n$), then $n$ values are sampled from random vset permutations.
+    
+    For float types, then any uniformly sampled is performed in accordance of 
+    any transformations set by Variable.set_ufun(), except for iconic ufun
+    specifications with no change of variables (i.e. no_ucov=False).
+
+    :example:
+    >>> import numpy as np
+    >>> import probayes as pb
+    >>> freq = pb.Variable('freq', vtype=float, vset=[1., 8.])
+    >>> freq.set_ufun((np.log, np.exp))
+    >>> print(freq.evaluate({4}))
+    freq: Distribution([('freq', array([1., 2., 4., 8.]))])
+    """
     """ Evaluates the values ordered dictionary for __call__ """
 
 
@@ -508,7 +547,7 @@ class Variable (Icon):
                    np.array(list(self._vset), dtype=self._vtype)})
 
     # Sets may be used to sample from support sets
-    if isunitsetint(values):
+    if isunitset(values):
       number = list(values)[0]
 
       # Non-continuous
@@ -520,7 +559,7 @@ class Variable (Icon):
           if number > 0:
             indices = np.arange(number, dtype=int) % self._length
           else:
-            indices = np.random.permutation(-number, dtype=int) % self._length
+            indices = np.random.permutation(-number) % self._length
           values = values[indices]
         return Distribution(self._name, {self.name: values})
        
@@ -541,39 +580,7 @@ class Variable (Icon):
 
 #-------------------------------------------------------------------------------
   def __call__(self, values=None):
-    r""" Evaluates value(s) belonging to the variable.
-
-    :param values: None, set of a single integer, array, or scalar.
-
-    :return: an ordered dictionary {key: val} in which key is the variable name
-             and val is a NumPy array of values in accordance to the following:
-
-    If values is a NumPy array, it is returned unchanged.
-
-    If values is None, it defaults to the entire variable set (vset) if not
-    the variable type vtype is not float; otherwise a single scalar within the
-    vset is randomly evaluated (see below).
-
-    If values is a set containing a single integer (i.e. $\{n\}$), , then the 
-    output depends on the number $n$:
-
-    If positive ($n$), then $n$ values are uniformly sampled.
-    If zero ($n=0$), then a scalar value is randomly sampled.
-    if negative($-n$), then $n$ values are randomly sampled.
-
-    For non-float types, the values are evaluated from by ordered (if $n>0) or 
-    random permutations of vset. For float types, then uniformly sampled is
-    performed in accordance for any transformations set by Variable.set_ufun().
-
-    :example:
-
-    >>> import numpy as np
-    >>> import probayes as pb
-    >>> freq = pb.Variable('freq', vtype=float, vset=[1., 8.])
-    >>> freq.set_ufun((np.log, np.exp))
-    >>> print(freq({4}))
-    freq: Distribution([('freq', array([1., 2., 4., 8.]))])
-    """
+    """ See Variable.evaluate() """
     return self.evaluate(values)
 
 #-------------------------------------------------------------------------------

@@ -142,8 +142,13 @@ class Expr:
         kwds.update({'remap': self.remap})
       values = parse_as_str_dict(*args, **kwds)
 
-    # Check values in symbols
+    # Convert bools to ints (Sympy doesn't like bool type)
     keys = list(values.keys())
+    for key in keys:
+      if isinstance(values[key], bool):
+        values[key] = int(values[key])
+
+    # Check values in symbols
     for key in keys:
       if key not in self._symbols.keys():
         __key__ = "__{}__".format(key) # Convention for invertibles

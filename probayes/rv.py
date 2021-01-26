@@ -12,7 +12,8 @@ from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
 from probayes.pscales import rescale, eval_pscale
 from probayes.expression import Expression
-from probayes.rv_utils import nominal_uniform_prob, matrix_cond_sample, \
+from probayes.sympy_prob import bernoulli_prob, bernoulli_sfun
+from probayes.rv_utils import uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
 from probayes.distribution import Distribution
 
@@ -115,6 +116,13 @@ class RV (Variable, Prob):
       assert len(self._prob) == len(self._vset), \
           "Probability of length {} incommensurate with Vset of length {}".format(
               len(self._prob), len(self._vset))
+
+    # Reassign non-0.5 Bernoulli probabilities to a formal distribution
+    if self._vtype in VTYPES[bool] and self.isscalar:
+      prob = float(self._prob)
+      if not np.isclose(prob, 0.5):
+        super().set_prob(bernoulli_prob(self.icon, bias=prob))
+        super().set_sfun(bernoulli_sfun, bias=prob)
 
 #-------------------------------------------------------------------------------
   def _default_prob(self):
@@ -235,16 +243,25 @@ class RV (Variable, Prob):
     assert self._tfun.ismulti, "Tuple of two functions required"
 
 #-------------------------------------------------------------------------------
-  def eval_vals(self, values, use_pfun=True):
+  def evaluate(self, values, use_pfun=True):
     """ Evaluates value(s) belonging to the domain of the variable.
 
     :param values: None, set of a single integer, array, or scalar.
     :param use_pfun: boolean flag to make use of pfun if previously set.
 
-    :return: a NumPy array of the values (see Variable.eval_vals()):
+    :return: a NumPy array of the values (see Variable.evaluate()):
     """
     use_pfun = use_pfun and self._pfun is not None and isunitsetint(values)
+
+    # If not using pfun while random sampling, we use sfun for booleans
     if not use_pfun:
+      if self._vtype in VTYPES[bool] and hasattr(self._sfun, 'expr'):
+        if isunitsetint(values) and self._sfun.expr == bernoulli_sfun:
+          number = list(values)[0]
+          if not number or number < 0:
+            number = number if not number else -number
+            return Distribution(self._name, 
+                                {self.name: self._sfun[None](number)})
       return super().evaluate(values)
 
     # Evaluate values from inverse cdf bounded within cdf limits
@@ -272,10 +289,10 @@ class RV (Variable, Prob):
     values = values[self.name] if isinstance(values, dict) else values
     if not self.isscalar:
       return super().eval_prob(values)
-    return nominal_uniform_prob(values, 
-                                prob=float(self._prob), 
-                                inside=self._inside,
-                                pscale=self._pscale)
+    return uniform_prob(values, 
+                        prob=float(self._prob), 
+                        inside=self._inside,
+                        pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def eval_dist_name(self, values, suffix=None):
@@ -343,7 +360,7 @@ class RV (Variable, Prob):
     # Scalar treatment is the most trivial and ignores reverse
     if self._tran is None or self._tran.isscalar:
       if isunitsetint(succ_vals):
-        succ_vals = self.eval_vals(succ_vals, use_pfun=False)[self._name]
+        succ_vals = self.evaluate(succ_vals, use_pfun=False)[self._name]
       elif isunitsetfloat(succ_vals):
         assert self._vtype in VTYPES[float], \
             "Inverse CDF sampling for scalar probabilities unavailable for " + \
@@ -421,10 +438,10 @@ class RV (Variable, Prob):
     # Scalar treatment is the most trivial and ignores reverse
     elif self._tran.isscalar:
       prob = None if self._tran is None else self._tran()
-      cond = nominal_uniform_prob(pred_vals,
-                                  succ_vals, 
-                                  prob=prob, 
-                                  inside=self._inside) 
+      cond = uniform_prob(pred_vals,
+                          succ_vals, 
+                          prob=float(prob), 
+                          inside=self._inside) 
                   
 
     # Handle discrete non-callables
@@ -453,7 +470,7 @@ class RV (Variable, Prob):
   def __call__(self, values=None):
     """ Return a probability distribution for the quantities in values. """
     dist_name = self.eval_dist_name(values)
-    vals = self.eval_vals(values)
+    vals = self.evaluate(values)
     prob = self.eval_prob(vals)
     dims = {self._name: None} if isscalar(vals[self.name]) else {self._name: 0}
     return Dist(dist_name, vals, dims, prob, self._pscale)
@@ -480,7 +497,7 @@ class RV (Variable, Prob):
     if pred_vals is None and succ_vals is None and \
         self._vtype not in VTYPES[float]:
       dist_succ_name = self.eval_dist_name(succ_vals, "'")
-    pred_vals = self.eval_vals(pred_vals)
+    pred_vals = self.evaluate(pred_vals)
     vals, dims, kwargs = self.eval_step(pred_vals, succ_vals, reverse=reverse)
     cond = self.eval_tran(vals, **kwargs)
     if dist_succ_name is None:

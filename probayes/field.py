@@ -29,6 +29,7 @@ class Field (NX_UNDIRECTED_GRAPH):
   _vars = None       # OrderedDict of variables
   _nvars = None      # Number of variables
   _unitvar = None    # Boolean flag for one variable
+  _anyfloat = None   # Boolean flag to denote if any variables are float type
   _varlist = None    # List of variable objects
   _keylist = None    # List of keys of variable names
   _keyset = None     # Unordered set of keys of random variable names
@@ -142,6 +143,10 @@ class Field (NX_UNDIRECTED_GRAPH):
   def unitvar(self):
     return self._unitvar
 
+  @property
+  def anyfloat(self):
+    return self._anyfloat
+
   def __len__(self):
     return self._nvars
 
@@ -175,6 +180,7 @@ class Field (NX_UNDIRECTED_GRAPH):
     self._nvars = self.number_of_nodes()
     self._unitvar = self._nvars == 1
     self._varlist = list(self._vars.values())
+    self._anyfloat = any([var.vtype is float for var in self._varlist])
     self._keylist = list(self._vars.keys())
     self._keyset = frozenset(self._keylist)
     self._defiid = self._leafs.keylist
@@ -320,9 +326,10 @@ class Field (NX_UNDIRECTED_GRAPH):
         assert seen_keys[-1] in self._keyset, \
             "Unrecognised key {} among available Variables {}".format(
                 seen_keys[-1], self._keyset)
+    val = {0} if self._anyfloat else None # Randomly sample if any float
     for key in self._keylist:
       if key not in seen_keys:
-        values.update({key: None})
+        values.update({key: val})
     if pass_all:
       list_keys = list(values.keys())
       for key in list_keys:

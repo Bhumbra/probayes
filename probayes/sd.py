@@ -532,7 +532,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     of values beyond outside the proposition distribution required to evaluate
     the probability distribution.
     """
-    if not args:
+    if not args: # Default to randomly sampling variable scalars
       args = {0},
     assert len(args) < 3, "Maximum of two positional arguments"
     if self._tran is None and self._tfun is None and not self._unit_tran:

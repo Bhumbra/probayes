@@ -1,4 +1,3 @@
-Support discrete Sympy PDFs.
 Support iconic multiplication of independent RVs to default RF probs.
 Improve API for iconic probabilities.
 Inherit Distributions for Probability Distribution class.
