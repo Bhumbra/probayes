@@ -1,4 +1,5 @@
 Support iconic multiplication of independent RVs to default RF probs.
+Test the above with Sympy examples.
 Improve API for iconic probabilities.
 Inherit Distributions for Probability Distribution class.
 Support Fields of Variables sharing Expressions collected as Functionals.

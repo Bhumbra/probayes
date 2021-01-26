@@ -133,23 +133,23 @@ class Prob (Expression, SympyProb):
       self._prob = prob if not prob_scalar else sympy.Float(prob)
       self.set_expr(self._prob, *args, **kwds)
 
-      # Sett probability callers to expression
+      # Set probability callers to expression
       if not prob_scalar:
         self._prob = self._expr
-
       return # Expression() takes care of all partials
 
-    # Scipy/SymPy expressions
-    if self.__issmvar or self.__issympy: # Scipy/Sympy self._expr set later
+    # Scipy/SymPy expressions (self._expr set by _set_partials() later)
+    if self.__issmvar or self.__issympy:
       self._expr = prob
+      self._ismulti = True
+      self._callable = True
+      self._islambda = False
+      self._isscalar = False
     else:
       self.set_expr(prob, *args, **kwds)
     self._args = tuple(args)
     self._kwds = dict(kwds)
     self._prob = self._expr
-    self._ismulti = True
-    self._callable = True
-    self._isscalar = False
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
@@ -187,6 +187,9 @@ class Prob (Expression, SympyProb):
     
     # Extract SciPy object member functions
     elif self.__isscipy:
+
+      # Set remaining scipy-specific flag
+      self._isiconic = False
 
       # Instantiate multivariate scipy objects with pre-specified arguments
       if self.__issmvar and is_scipy_stats_mvar(self._expr):

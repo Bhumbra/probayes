@@ -29,6 +29,40 @@ def collate_symbols(expr):
   return symbols
 
 #-------------------------------------------------------------------------------
+def sort_ordered_dict(ordereddict, order, reverse=False):
+  """ Resorts a an ordered directionary by order (Nones are ignored) """
+  assert isinstance(ordereddict, collections.OrderedDict), \
+      "First input must be an ordered dictionary"
+  keys = list(ordereddict.keys())
+  if isinstance(order, (tuple, list)):
+    assert len(ordereddict) == len(order), \
+        "Inputs not commensurate"
+    order = {key: val for key, val in zip(keys, order)}
+  else:
+    assert set(keys) == set(order.keys()), \
+        "Mismatch between keys and order: {} vs {}".format(keys, order.keys())
+  not_none_keys = [key for key in keys if order[key] is not None]
+  if len(not_none_keys) < 2:
+    return ordereddict
+  not_none_vals = [order[key] for key in not_none_keys]
+  sort_order = np.argsort(not_none_vals)
+  sort_order = sort_order.tolist() if not reverse else \
+               sort_order[::-1].tolist()
+  if np.min(np.diff(sort_order)) > 0:
+    return ordereddict
+  sorted_keys = [not_none_keys[index] for index in sort_order]
+  index = -1 
+  sorted_dict = collections.OrderedDict()
+  for i, key in enumerate(keys):
+    if key not in not_none_keys:
+      sorted_dict.update({key: ordereddict[key]})
+    else:
+      index += 1
+      sorted_key = sorted_keys[index]
+      sorted_dict.update({sorted_key: ordereddict[sorted_key]})
+  return sorted_dict
+
+#-------------------------------------------------------------------------------
 class Expr:
   """ This class wraps sy.Expr. Sympy's dependence on __new__ to return
   modified class objects at instantiation doesn't play nicely with multiple
@@ -38,8 +72,7 @@ class Expr:
   >>> import sympy as sy
   >>> from probayes.expr import Expr
   >>> x = sy.Symbol('x')
-  >>> x_inc = Expr(x + 1)
-  >>> print(x_inc.subs({x:1}))
+  >>> x_inc = Expr(x + 1) >>> print(x_inc.subs({x:1}))
   2
   >>>
   """
@@ -148,27 +181,23 @@ class Expr:
       if isinstance(values[key], bool):
         values[key] = int(values[key])
 
-    # Check values in symbols
-    for key in keys:
-      if key not in self._symbols.keys():
-        __key__ = "__{}__".format(key) # Convention for invertibles
-        if __key__ not in self._symbols.keys():
-          raise KeyError("Key {} not found among symbols {}".format(
-            key, self._symbols.keys()))
-        values[__key__] = values.pop(key)
-
     # While determining type, collect evalues in required order
     etype = None
-    evalues = [None] * len(self._symbols)
-    single_numpy_key = None
-    for i, key in enumerate(self._symbols.keys()):
+    evalues = [None] * len(keys)
+    isarray = [None] * len(keys)
+    vec_dim = [None] * len(keys)
+    found_multidimensional = False
+    for i, key in enumerate(keys):
       evalues[i] = values[key]
       _etype = type(evalues[i])
-      if _etype is np.ndarray:
-        if single_numpy_key:
-          single_numpy_key = False
-        elif single_numpy_key is None:
-          single_numpy_key = key
+      isarray[i] = _etype is np.ndarray
+      if isarray[i]:
+        non_sing = np.array(evalues[i].shape) > 1
+        non_sing_sum = non_sing.sum()
+        if non_sing_sum > 0:
+          if non_sing_sum > 1:
+            found_multidimensional = True
+          vec_dim[i] = int(np.nonzero(non_sing)[0][0])
       if etype is None: 
         if _etype in self._efun.keys():
           etype = _etype
@@ -176,21 +205,39 @@ class Expr:
         assert etype == _etype, \
             "Cannot mix types {} vs {} ".format(etype, _etype)
 
-    # Support iterating a single-array even without a NumPy eval func
-    if single_numpy_key and np.ndarray not in self._efun:
-      key = single_numpy_key
+    # Support iterating numpy-array even without a NumPy eval func
+    if any(isarray) and np.ndarray not in self._efun:
       efun = self._efun[None]
-      evalues = dict(values)
-      shape = values[key].shape
-      revalues = np.ravel(values[key])
-      reval = [None] * len(revalues)
-      for i, revalue in enumerate(revalues):
-        evalues.update({key: revalue})
-        val = efun(evalues)
-        if isinstance(val, sympy.Integer):
-          reval[i] = int(val)
+
+      vec_dims = np.array([dim for dim in vec_dim if dim is not None])
+      # Is a sort required (meshgrid seems to prefer reverse order)?
+      if len(vec_dims) > 1 and np.max(np.diff(vec_dims)) > 0:
+        values = sort_ordered_dict(values, vec_dim, reverse=True)
+        evalues = list(values.values())
+      mesh_values = [val for i, val in enumerate(evalues) if isarray[i]]
+      mesh_grid = np.meshgrid(*tuple(mesh_values), copy=False)
+      revalues = collections.OrderedDict()
+      shape = None
+      mesh_idx = -1
+      for i, key in enumerate(keys):
+        if isarray[i]:
+          mesh_idx += 1
+          shape = mesh_grid[mesh_idx].shape
+          revalues.update({key: np.ravel(mesh_grid[mesh_idx])})
         else:
-          reval[i] = float(val)
+          revalues.update({key: values[key]})
+      size = int(np.prod(shape))
+      vals = dict(values)
+      reval = [None] * size
+      for k in range(size):
+        for i, key in enumerate(keys):
+          if isarray[i]:
+            vals.update({key: revalues[key][k]})
+        val = efun(vals)
+        if isinstance(val, sympy.Integer):
+          reval[k] = int(val)
+        else:
+          reval[k] = float(val)
       return np.array(reval).reshape(shape)
 
     # Otherwise rely on evaluation function
