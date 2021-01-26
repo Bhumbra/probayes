@@ -5,9 +5,8 @@ from probayes.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_IN
 A module to provide functional support to rv.py
 """
 #-------------------------------------------------------------------------------
-def nominal_uniform_prob(*args, prob=None, inside=None, pscale=1.):
-  """ Also handles categorical data types if inside is a list. Inside can
-  (and should) be a callable function """
+def uniform_prob(*args, prob=None, inside=None, pscale=1.):
+  """ Uniform probability function for discrete and continuous vtypes. """
 
   # Detect ptype, default to prob if no values, otherwise detect vtype  
   assert len(args) >= 1, "Minimum of a single positional argument"
@@ -22,9 +21,7 @@ def nominal_uniform_prob(*args, prob=None, inside=None, pscale=1.):
 
   # Set inside function by vtype if not specified
   if not callable(inside):
-    if vtype in VTYPES[bool]:
-      pass
-    elif vtype in VTYPES[float]:
+    if vtype in VTYPES[float]:
       inside = lambda x: np.logical_and(x >= min(inside), x <= max(inside))
     else:
       inside = lambda x: np.isin(x, inside)
@@ -32,36 +29,21 @@ def nominal_uniform_prob(*args, prob=None, inside=None, pscale=1.):
   # If scalar, check within variable set
   p_zero = NEARLY_NEGATIVE_INF if use_logs else 0.
   if isscalar(vals):
-    if vtype in VTYPES[bool]:
-      prob = prob if vals else \
-             rescale(1. - rescale(prob, pscale, 1.), 1., pscale)
-    else:
-      prob = prob if inside(vals) else p_zero
+    prob = prob if inside(vals) else p_zero
 
-  # Otherwise perform array operations
+  # Otherwise treat as uniform within range
   else:
-
-    # Handle nominal probabilities, that ignores inside
-    if vtype in VTYPES[bool]:
-      prob = rescale(prob, pscale, 1.)
-      p_false = 1. - prob
-      prob = np.tile(prob, vals.shape)
-      prob[np.logical_not(vals)] = p_false
-      prob = rescale(prob, 1., pscale)
-
-    # Otherwise treat as uniform within range
-    else:
-      p_true = prob
-      prob = np.tile(p_zero, vals.shape)
-      prob[inside(vals)] = p_true
+    p_true = prob
+    prob = np.tile(p_zero, vals.shape)
+    prob[inside(vals)] = p_true
 
   # This section below is there just to play nicely with conditionals
   if len(args) > 1:
     for arg in args[1:]:
       if use_logs:
-        prob = prob + nominal_uniform_prob(arg, inside=inside, pscale=0.j)
+        prob = prob + uniform_prob(arg, inside=inside, pscale=0.j)
       else:
-        prob = prob * nominal_uniform_prob(arg, inside=inside)
+        prob = prob * uniform_prob(arg, inside=inside)
   return prob
 
 #-------------------------------------------------------------------------------

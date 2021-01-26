@@ -257,7 +257,7 @@ class SP (SD):
     if self.__samplers is None:
       self.reset()
     if not args:
-      args = {0},
+      args = {0}, # Default to randomly sampling variables as scalars
     elif len(args) == 1 and type(args[0]) is int and 'stop' not in kwds:
       kwds.update({'stop': args[0]})
       args = {0},

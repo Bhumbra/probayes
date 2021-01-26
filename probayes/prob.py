@@ -82,11 +82,21 @@ class Prob (Expression, SympyProb):
 #-------------------------------------------------------------------------------
   def __init__(self, prob=None, *args, **kwds):
     """ Initialises the probability and pscale (see set_prob). """
+    self._pscale = None
     self.set_prob(prob, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   @property
   def prob(self):
+    """ Returns probability value/object depending on set_prob(prob) argument:
+
+    - if prob was an array, then its NumPy ndarray representation is returned.
+    - if prob was a scalar, then its iconic Sympy representation is returned
+    - if prob was a callable, then the corresponding function is returned.
+    - if prob was a Sympy distribution/expression its expression is returned.
+    - if prob was a Scipy distribution (e.g. scipy.stats.multivariate_normal), 
+      then a partial call to its correponding probability function is returned.
+    """
     return self._prob
 
   @property
@@ -112,6 +122,7 @@ class Prob (Expression, SympyProb):
     pscale is used.
     """
     pscale = None if 'pscale' not in kwds else kwds.pop('pscale')
+    self.pscale = pscale or self._pscale
     self.__isscipy = is_scipy_stats_dist(prob)
     self.__issympy = is_sympy_stats_dist(prob)
     self.__issmvar = is_scipy_stats_mvar(prob)
@@ -121,10 +132,11 @@ class Prob (Expression, SympyProb):
       prob_scalar = isscalar(prob)
       self._prob = prob if not prob_scalar else sympy.Float(prob)
       self.set_expr(self._prob, *args, **kwds)
-      self.pscale = pscale
+
+      # Sett probability callers to expression
       if not prob_scalar:
-        self._prob = self._expr if not hasattr(self._expr, 'expr') else \
-                     self._expr.expr
+        self._prob = self._expr
+
       return # Expression() takes care of all partials
 
     # Scipy/SymPy expressions
@@ -142,19 +154,21 @@ class Prob (Expression, SympyProb):
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:
       self.set_delta(self._kwds.pop('delta'))
-    self.pscale = pscale
     self._set_partials()
 
-    # Scipy dist - set pfun and sfun calls
+    # Scipy dist - set pfun and sfun calls - self._prob is updated but not used
     if self.__isscipy:
+      self._prob = self._partials['logp'] if self._logp \
+                   else self._partials['prob']
       if 'cdf' in self._keys and 'ppf' in self._keys:
         self.set_pfun((self._expr.cdf, self._expr.ppf), *self._args, **self._kwds)
       if 'rvs' in self._keys and hasattr(self._expr, 'rvs'):
         self.set_sfun(self._expr.rvs, *self._args, **self._kwds)
 
-    # Sympy dist - set pfun and sfun calls
+    # Sympy dist - set pfun and sfun calls - self._prob is updated but not used
     elif self.__issympy:
-      self._prob = self._partials['logp'] if self._logp else self._partials['prob']
+      self._prob = self._partials['logp'].expr if self._logp \
+                   else self._partials['prob'].expr
       if 'cdf' in self._keys and 'icdf' in self._keys:
         self.set_pfun((self._partials['cdf'], self._partials['icdf']))
       if 'sfun' in self._keys:
@@ -332,7 +346,8 @@ class Prob (Expression, SympyProb):
 
       # Sympy distributions are looked after by SympyProb
       elif self.__issympy:
-        prob = self._prob(*args, **kwds)
+        prob = self._partials['logp'] if self._logp else self._partials['prob']
+        prob = prob(*args, **kwds)
 
       # Expression callables handled by expression partials interface
       else:

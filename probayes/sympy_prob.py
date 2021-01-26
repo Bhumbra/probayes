@@ -7,6 +7,7 @@ import functools
 import numpy as np
 import sympy
 import sympy.stats
+import scipy.stats
 from probayes.expr import Expr
 
 #-------------------------------------------------------------------------------
@@ -64,6 +65,26 @@ def sympy_sfun(distr, size=0, dtype=None, _sfunc=sympy.stats.sample):
     return np.array(samples)
   samples = [_sfunc(distr) for _ in range(size)]
   return samples
+
+#-------------------------------------------------------------------------------
+def bernoulli_prob(var, bias=0.5):
+  """ Returns Sympy-expression of a Bernoulli PMF for var at specified bias.
+
+  :param var: boolean symbol to express pmf
+  :param bias: bias probability (float ranging from 0 to 1).
+
+  :return bias*var + (1-bias)*(1-var)
+  """
+  # bv + (1-b)(1-v) = bv + 1 - v - b + bv = 2bv - v - b + 1 = v(2b-1) + (1-b)
+  return var * (2*bias - 1) + (1 - bias)
+
+#-------------------------------------------------------------------------------
+def bernoulli_sfun(size=None, bias=0.5):
+  """ Returns Bernoulli random variates of given size for given bias """
+  bern = scipy.stats.bernoulli(p=float(bias))
+  if not size:
+    return bool(bern.rvs())
+  return bern.rvs(size).astype(bool)
 
 #-------------------------------------------------------------------------------
 class SympyProb:
