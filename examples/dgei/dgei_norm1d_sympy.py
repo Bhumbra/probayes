@@ -7,6 +7,7 @@ import probayes as pb
 from pylab import *; ion()
 
 # Settings
+#rand_size = 60
 rand_size = 60
 rand_mean = 50.
 rand_stdv = 10.
@@ -20,21 +21,27 @@ data = np.random.normal(loc=rand_mean, scale=rand_stdv, size=rand_size)
 # Declare RVs
 mu = pb.RV('mu', vtype=float, vset=mu_lims)
 sigma = pb.RV('sigma', vtype=float, vset=sigma_lims)
-x = pb.RV('x', vtype=float, vset={-np.inf, np.inf})
+x = pb.RV('x', vtype=float, vset={-pb.OO, pb.OO})
 
 # Set reciprocal prior for  sigma
-sigma.set_ufun(sympy.log(sigma[:]))
+#sigma.set_ufun(sympy.log(sigma[:]))
 
 # Set up params and models
 paras = pb.RF(mu, sigma)
 stats = pb.RF(x)
 model = pb.SD(stats, paras)
-model.set_prob(sympy.stats.Normal(x[:], mean=mu[:], std=sigma[:]),
+"""
+model.set_prob(sympy.stats.Normal(x[:], mean=mu[:], std=sigma[:]))
                pscale='log')
+model.set_prob(sympy.stats.Normal(x[:], mean=mu[:], std=sigma[:]))
+"""
+#model.set_prob(sympy.exp( ((x[:] - mu[:])**2)/(-2 * sigma[:]**2))/sigma[:])
+#model.set_prob(((x[:] - mu[:])**2)/(-2 * sigma[:]**2) - 0.5*sympy.log(2 * sympy.pi) - sympy.log(sigma[:]), pscale='log')
+model.set_prob((x[:]*mu[:] - 0.5*mu[:]**2 - 0.5*x[:]**2)/sigma[:]**2 - 0.5*sympy.log(2 * sympy.pi) - sympy.log(sigma[:]), pscale='log')
 
 # Evaluate log probabilities
-posterior = model({x: data, **resolution}, 
-                  iid=True, joint=True).conditionalise('x')
+joint = model({x: data, **resolution}, iid=True, joint=True)
+posterior = joint.conditionalise('x')
 
 # Return posterior probability mass
 post_expt = posterior.expectation()

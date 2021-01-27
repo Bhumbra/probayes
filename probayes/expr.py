@@ -156,6 +156,7 @@ class Expr:
           self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
         except (TypeError, ImportError, AttributeError): # Bypass sympy bugs
           pass
+          # import pdb; pdb.set_trace()
     return self._efun
 
 #-------------------------------------------------------------------------------
