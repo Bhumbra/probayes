@@ -158,6 +158,7 @@ class Prob (Expression, SympyProb):
 
     # Scipy dist - set pfun and sfun calls - self._prob is updated but not used
     if self.__isscipy:
+      self._ismulti = True
       self._prob = self._partials['logp'] if self._logp \
                    else self._partials['prob']
       if 'cdf' in self._keys and 'ppf' in self._keys:
