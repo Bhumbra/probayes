@@ -47,6 +47,7 @@ class RF (Field, Prob):
   _sym_tran = None   # Flag for symmetrical transitional conditional functions
 
   # Private
+  __def_prob = None   # Flag to denote prob is defaulted
   __cond_mod = None  # conditional RV index modulus
   __cond_cov = None  # conditional covariance matrix
 
@@ -84,6 +85,10 @@ class RF (Field, Prob):
   def passdims(self):
     return self.passdims
 
+  @property
+  def def_prob(self):
+    return self.__def_prob
+
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the joint probability with optional arguments and keywords.
 
@@ -103,11 +108,13 @@ class RF (Field, Prob):
     super().set_prob(prob, *args, **kwds)
     if self._prob is None:
       self._default_prob()
+    else:
+      self.__def_prob = False
 
 #-------------------------------------------------------------------------------
   def _default_prob(self):
-    return 
-    """
+    if self._prob is not None and not self.__def_prob:
+      return
     if all([var.isiconic for var in self._varlist]):
       prob = None
       for var in self._varlist:
@@ -118,7 +125,7 @@ class RF (Field, Prob):
         else:
           prob = mul
       self.set_prob(prob, pscale=self._pscale)
-    """
+      self.__def_prob = True
 
 #-------------------------------------------------------------------------------
   @property
@@ -294,7 +301,7 @@ class RF (Field, Prob):
           values.keys(), self._keylist)
 
     # If not specified, treat as independent variables
-    if self._prob is None:
+    if self._prob is None or self.__def_prob:
       rvs = self._varlist
       if len(rvs) == 1 and rvs[0]._prob is not None:
         prob = rvs[0].eval_prob(values[rvs[0].name])
@@ -309,6 +316,8 @@ class RF (Field, Prob):
       prob = self._partials['logp'](values) if iscomplex(self._pscale) else \
              self._partials['prob'](values)
       return prob
+
+    # Pass-dims is to replaced when passing Distributions()
     if self._passdims:
       return super().eval_prob(values, dims=dims)
     return super().eval_prob(values)

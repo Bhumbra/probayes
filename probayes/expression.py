@@ -59,6 +59,7 @@ class Expression:
   _islambda = None # Flag to denote lambda callable
   _isscalar = None # Flag to denote uncallable scalar
   _isiconic = None # Flag to denote sympy expression
+  _symbols = None  # Dict of iconic symbols used
 
   # Private
   __invertible = None
@@ -137,6 +138,10 @@ class Expression:
   def keys(self):
     return self._keys
 
+  @property
+  def symbols(self):
+    return self._symbols
+
   def set_expr(self, expr=None, *args, **kwds):
     """ Set the Func instance's function object.
 
@@ -165,6 +170,7 @@ class Expression:
     self.__invertible = False if 'invertible' not in kwds else \
                         self._kwds.pop('invertible')
     self._exprs = collections.OrderedDict()
+    self._symbols = collections.OrderedDict()
 
     # Sanity check func
     if self._expr is None:
@@ -179,6 +185,7 @@ class Expression:
     # Non-multi iconic
     if self._isiconic:
       self._exprs.update({None: Expr(self._expr, *self._args, **self._kwds)})
+      self._symbols.update(self._exprs[None].symbols)
       self._ismulti = self.__invertible and \
                       len(self._exprs[None].symbols) == 1
       self._callable = True
@@ -226,9 +233,11 @@ class Expression:
         if isinstance(self._expr, tuple):
           for i, expr in enumerate(self._expr):
             self._exprs.update({i: Expr(expr, *self._args, **self._kwds)})
+            self._symbols.update(self._exprs[i].symbols)
         elif isinstance(self._expr, dict):
           for key, val in self._expr.items():
             self._exprs.update({key: Expr(val, *self._args, **self._kwds)})
+            self._symbols.update(self._exprs[key].symbols)
     if 'order' in self._kwds:
       self.set_order(self._kwds.pop('order'))
     if 'delta' in self._kwds:

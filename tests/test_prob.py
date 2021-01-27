@@ -1,4 +1,4 @@
-# Module to test Expressions
+# Test Prob defined using probability expressions
 
 #-------------------------------------------------------------------------------
 import pytest
