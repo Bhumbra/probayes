@@ -1,4 +1,4 @@
-""" Expric representation wrapping SymPy's Expr. """
+""" Expr representation wrapping SymPy's Expr. """
 
 #-------------------------------------------------------------------------------
 import collections
@@ -8,9 +8,9 @@ from sympy.utilities.autowrap import ufuncify
 from probayes.variable_utils import parse_as_str_dict
 
 DEFAULT_EFUNS = [
-                  ({np.ndarray: ufuncify}, [], {})
+                  ({np.ndarray: ufuncify}, [], {'backend':'numpy'})
                   ,
-                  ({np.ndarray: sympy.lambdify}, ['numpy', 'scipy'], {})
+                  ({np.ndarray: sympy.lambdify}, ['numpy', 'scipy'], {} )
                 ]
 
 #-------------------------------------------------------------------------------
@@ -156,6 +156,7 @@ class Expr:
           self._efun.update({key: val(symbols, self._expr, *args, **kwds)})
         except (TypeError, ImportError, AttributeError): # Bypass sympy bugs
           pass
+          # import pdb; pdb.set_trace()
     return self._efun
 
 #-------------------------------------------------------------------------------
@@ -163,6 +164,7 @@ class Expr:
     """ Performs evaluation of expression inputting symbols as a dictionary 
     (see sympy.Symbol.subs() input specificion using dictionaries. """
     parse_values = True
+    keys, symbols = list(self._symbols.keys()), list(self._symbols.values())
     if not(len(kwds)) and len(args) == len(self._symbols):
       if not any([isinstance(arg, dict) for arg in args]):
         values = collections.OrderedDict()
@@ -175,19 +177,17 @@ class Expr:
         kwds.update({'remap': self.remap})
       values = parse_as_str_dict(*args, **kwds)
 
-    # Convert bools to ints (Sympy doesn't like bool type)
-    keys = list(values.keys())
-    for key in keys:
-      if isinstance(values[key], bool):
-        values[key] = int(values[key])
-
     # While determining type, collect evalues in required order
     etype = None
     evalues = [None] * len(keys)
+    ekeys = [None] * len(keys)
     isarray = [None] * len(keys)
     vec_dim = [None] * len(keys)
     found_multidimensional = False
     for i, key in enumerate(keys):
+      if isinstance(values[key], bool): # Sympy doesn't like bool types
+        values[key] = int(values[key])
+      ekeys[i] = self._symbols[key]
       evalues[i] = values[key]
       _etype = type(evalues[i])
       isarray[i] = _etype is np.ndarray
@@ -205,7 +205,24 @@ class Expr:
         assert etype == _etype, \
             "Cannot mix types {} vs {} ".format(etype, _etype)
 
-    # Support iterating numpy-array even without a NumPy eval func
+    # If supported efun found or not array, then use it
+    if not(any(isarray)) or np.ndarray in self._efun:
+      efun = self._efun[etype]
+      vals = efun(*evalues) if etype else efun(values)
+      if isinstance(vals, np.ndarray):
+        return vals
+      elif isinstance(vals, sympy.Integer):
+        return int(vals)
+      elif isinstance(vals, sympy.Float):
+        return float(vals)
+      elif isinstance(vals, sympy.Expr) and not len(collate_symbols(vals)):
+        return float(vals)
+      elif etype == np.ndarray:
+        return np.array(vals)
+      return vals
+
+
+    # Try to support iterating numpy-array even without a NumPy eval func
     if any(isarray) and np.ndarray not in self._efun:
       efun = self._efun[None]
 
@@ -241,19 +258,6 @@ class Expr:
       return np.array(reval).reshape(shape)
 
     # Otherwise rely on evaluation function
-    efun = self._efun[etype]
-    vals = efun(*evalues) if etype else efun(values)
-    if isinstance(vals, np.ndarray):
-      return vals
-    elif isinstance(vals, sympy.Integer):
-      return int(vals)
-    elif isinstance(vals, sympy.Float):
-      return float(vals)
-    elif isinstance(vals, sympy.Expr) and not len(collate_symbols(vals)):
-      return float(vals)
-    elif etype == np.ndarray:
-      return np.array(vals)
-    return vals
 
 #-------------------------------------------------------------------------------
   def __repr__(self):

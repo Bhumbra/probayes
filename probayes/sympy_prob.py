@@ -10,6 +10,7 @@ import sympy.stats
 import scipy.stats
 from probayes.expr import Expr
 
+
 #-------------------------------------------------------------------------------
 SYMPY_STATS_DIST = {sympy.stats.rv.RandomSymbol}
 def is_sympy_stats_dist(arg, sympy_stats_dist=SYMPY_STATS_DIST):
