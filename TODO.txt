@@ -1,4 +1,3 @@
-Work out why Sympy miscalculates gaussians.
 Support iconic multiplication of independent RVs to default RF probs.
 Test the above with Sympy examples.
 Improve API for iconic probabilities.
