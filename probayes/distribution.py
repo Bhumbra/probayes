@@ -110,7 +110,7 @@ class Distribution (NamedDict):
     self._shape = []
     self._size = None
     self._keylist = list(self.keys())
-    self._keyset = set(self._keylist)
+    self._keyset = frozenset(self._keylist)
     self._aresingleton = []
     self._issingleton = None
     eval_dims = self._dims is None
