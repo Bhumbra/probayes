@@ -8,12 +8,12 @@ from probayes.named_dict import NamedDict
 
 #-------------------------------------------------------------------------------
 class Distribution (NamedDict):
-  """ A distribution is a topological space defined over specific values for
-  one or more variables. Those values are defined a the dictionary
-  {variable_name: values} [Manifold.values()] with dimensions {variable_name: 
-  dim} [Distribuion.dims]. The dimensionality defines a finite space of sizes 
-  with it permissable for variables to share dimensions and in such cases 
-  reducing the shape dimensions.
+  """ A distribution is a anmed topological space defined over specific values 
+  for one or more variables. Those values are defined by the dictionary
+  {variable_name: values} [Distribution.values()] with dimensions 
+  {variable_name: dim} [Distribution.dims]. The dimensionality defines a finite 
+  space of sizes with it permissable for variables to share dimensions and in 
+  such cases  reducing the shape dimensions.
 
   :example:
   >>> import numpy as np

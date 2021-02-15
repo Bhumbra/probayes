@@ -1,5 +1,4 @@
-# A module for realised probability distributions, a triple comprising 
-# variable names, their values (vals), and respective probabilities (prob).
+""" Provides probability distribution funciontlaity based on Distribution """
 
 #-------------------------------------------------------------------------------
 import collections
@@ -13,35 +12,89 @@ from probayes.distribution import Distribution
 
 #-------------------------------------------------------------------------------
 class PD (Distribution):
+  """ A probability distribution is a distribution with corresponding 
+  probabilities. The dimensions of the probability scalar or array must be
+  commensurate with the values of the distribution according to their assigned
+  dimensions. 
 
-  # Public
-  prob = None   # Numpy array
-  name = None   # Name of distribution
-  marg = None   # Ordered dictionary of marginals: {key: name}
-  cond = None   # Ordered dictionary of conditionals: key: name}
-
+  While it is intended for PD instances to come from RV, RF, SD, or SP calls,
+  PDs can be instantiated directly.
+  """
   # Protected
-  _keyset = None         # Keys as set according to name
-  _pscale = None         # Same convention as _Prob
+  _prob = None    # Probability
+  _pscale = None  # Same convention as Prob()
+  _marg = None    # Ordered dictionary of marginals: {key: name}
+  _cond = None    # Ordered dictionary of conditionals: key: name}
 
 #-------------------------------------------------------------------------------
-  def __init__(self, name=None, vals=None, dims=None, prob=None, pscale=None):
-    if dims is not None and prob is None and not isinstance(dims, dict):
-      dims, prob = prob, dims
-    self.set_name(name)
-    self.set_vals(vals, dims)
-    self.set_prob(prob, pscale)
+  def __init__(self, name, *args, **kwds):
+    """ Initialises the PD with a name, args, and kwds in the same way as 
+    Distribution(), except with the following reserved keywords:
+      
+      'dims': sets the dimensionality. 
+      'prob': sets the probability scalar or array. 
+      'pscale': sets the pscale
+    """
+    args = tuple(args)
+    kwds = dict(kwds)
+    prob = None 'prob' in kwds else kwds.pop('prob')
+    pscale = None 'pscale' in kwds else kwds.pop('pscale')
+    super().__init__(name, *args, **kwds)
+    self.pscale = pscale
+    self.prob = prob
 
 #-------------------------------------------------------------------------------
-  def set_name(self, name=None):
+  @property
+  def name(self):
+    return self._name
+
+  @property
+  def marg(self):
+    return self._marg
+
+  @property
+  def cond(self):
+    return self._cond
+
+  @name.setter
+  def name(self, name):
     # Only the name is sensitive to what are marginal and conditional variables
-    self.name = name
-    self.marg, self.cond = str_margcond(self.name)
-    self._keyset = set(self.marg).union(set(self.cond))
-    return self._keyset
+    NamedDict.name.fset(self, name)
+    self._marg, self._cond = str_margcond(self.name)
+
+#-------------------------------------------------------------------------------
+  @property
+  def pscale(self):
+    return self._pscale
+
+  @pscale.setter
+  def pscale(self, pscale=None):
+    self._pscale = eval_pscale(pscale)
+
+#-------------------------------------------------------------------------------
+  @property
+  def prob(self):
+    return self._prob
+
+  @prob.setter
+  def prob(self, prob=None):
+    self._prob = prob
+    if self._prob is None:
+      return
+    if self._issingleton:
+      assert isscalar(self._prob), "Singleton vals with non-scalar prob"
+    else:
+      assert not isscalar(self._prob), "Non singleton values with scalar prob"
+      assert self._ndim == self._prob.ndim, \
+        "Mismatch in dimensionality between values {} and probabilities {}".\
+        format(self.ndim, self._prob.ndim)
+      assert np.all(np.array(self._shape) == np.array(self._prob.shape)), \
+        "Mismatch in dimensions between values {} and probabilities {}".\
+        format(self._shape, self._prob.shape)
 
 #-------------------------------------------------------------------------------
   def set_vals(self, vals=None, dims=None):
+    # RESUME HERE
     argout = super().set_vals(vals, dims)
     if not self._keys or not any(self._aresingleton):
       return argout
@@ -58,26 +111,8 @@ class PD (Distribution):
         else:
           raise ValueError("Variable {} not accounted for in name {}".format(
                             key, self.name))
-    self.name = margcond_str(self.marg, self.cond)
+    self._name = margcond_str(self.marg, self.cond)
     return argout
-
-#-------------------------------------------------------------------------------
-  def set_prob(self, prob=None, pscale=None):
-    self.prob = prob
-    self._pscale = eval_pscale(pscale)
-    if self.prob is None:
-      return self._pscale
-    if self._issingleton:
-      assert isscalar(self.prob), "Singleton vals with non-scalar prob"
-    else:
-      assert not isscalar(self.prob), "Non singleton values with scalar prob"
-      assert self.ndim == self.prob.ndim, \
-        "Mismatch in dimensionality between values {} and probabilities {}".\
-        format(self.ndim, self.prob.ndim)
-      assert np.all(np.array(self.shape) == np.array(self.prob.shape)), \
-        "Mismatch in dimensions between values {} and probabilities {}".\
-        format(self.shape, self.prob.shape)
-    return self._pscale
 
 #-------------------------------------------------------------------------------
   def ret_vals(self, keys=None):
