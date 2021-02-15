@@ -85,6 +85,31 @@ class RV (Variable, Prob):
     self._Delta = collections.namedtuple('ð', [self._name])
     self.__prime_key = self._name + "'"
 
+
+#-------------------------------------------------------------------------------
+  @property
+  def vtype(self):
+    return self._vtype
+
+  @Variable.vtype.setter
+  def vtype(self, vtype=None):
+    Variable.vtype.fset(self, vtype)
+    if self.__def_prob:
+      self._prob = None
+      self._default_prob()
+
+#-------------------------------------------------------------------------------
+  @property
+  def vset(self):
+    return self._vset
+
+  @Variable.vset.setter
+  def vset(self, vset=None):
+    Variable.vset.fset(self, vset)
+    if self.__def_prob:
+      self._prob = None
+      self._default_prob()
+
 #-------------------------------------------------------------------------------
   @property
   def prob(self):
