@@ -24,7 +24,7 @@ class Distribution (NamedDict):
   [3, 2]
 
   Scalars can be included among vals, but must possess dimensionality None and
-  do not contribute to the size or shape of the manifold.
+  do not contribute to the size or shape of the distribution.
   """
 
   # Protected
@@ -201,20 +201,43 @@ class Distribution (NamedDict):
     return self._issingleton[key]
 
 #-------------------------------------------------------------------------------
-  def lookup(self, keys):
+  def lookup(self, keys, as_dist=False):
     """ Returns the values of Distribution filtering by keys """ 
-    if isinstance(keys, str):
-      keys = [keys]
-    for key in keys:
-      assert key in self._keyset, "Key {} not found among {}".\
-          format(key, self._keylist)
+    keys = keys or self._keyset
     keys = set(keys)
     vals = collections.OrderedDict()
-    for key in self._keylist:
-      if key in keys:
-        vals.update({key: self[key]})
+    if as_dist:
+      dims = collections.OrderedDict()
+      keylist = []
+      for key in self._keylist:
+        if key in keys:
+          keylist.append(key)
+          vals.update({key: self[key]})
+          dims.update({key: self._dims[key]})
+      return Distribution(','.join(names), vals, dims=dims)
+    seen_keys = set()
+    for i, key in enumerate(self._keylist):
+      if key in keys and key not in seen_keys:
+        if self._aresingleton[i]:
+          seen_keys.add(key)
+          vals.update({key: self[key]})
+        else:
+          shared_keys = [key]
+          for j, cand_key in enumerate(self._keylist):
+            if j > i and cand_key in keys and not self._aresingleton[j]:
+              if self.dims[key] == self.dims[cand_key]:
+                shared_keys.append(cand_key)
+          if len(shared_keys) == 1:
+            vals.update({key: np.ravel(self[key])})
+            seen_keys.add(key)
+          else:
+            val = [None] * len(shared_keys)
+            for j, shared_key in enumerate(shared_keys):
+              val[j] = np.ravel(self[shared_key])
+              seen_keys.add(shared_key)
+            vals.update({','.join(shared_keys): tuple(val)})
     return vals
-    
+
 #-------------------------------------------------------------------------------
   def redim(self, dims):
     """  Returns a Distribution according to redimensionised values in dims, 

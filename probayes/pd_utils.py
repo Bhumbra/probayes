@@ -102,7 +102,7 @@ def product(*args, **kwds):
 
 
   # Collate vals, probs, marg_names, and cond_names as lists
-  vals = [list(arg.values()) for arg in args]
+  vals = [collections.OrderedDict(arg) for arg in args]
   probs = [arg.prob for arg in args]
   marg_names = [list(arg.marg.values()) for arg in args]
   cond_names = [list(arg.cond.values()) for arg in args]
@@ -126,7 +126,7 @@ def product(*args, **kwds):
         marg_keys = None
         break
       if marg_keys:  
-        are_marg_sets = np.array([isunitsetint(arg.vals[marg_key]) for
+        are_marg_sets = np.array([isunitsetint(arg[marg_key]) for
                                   marg_key in marg_keys])
         if marg_sets is None:
           if np.any(are_marg_sets):
@@ -358,7 +358,7 @@ def summate(*args):
 
   # If all singleton, concatenate in dimension 0
   if all([arg.issingleton for arg in args]):
-    unitsets = {key: isunitsetint(args[0].vals[key]) for key in sum_keys}
+    unitsets = {key: isunitsetint(args[0][key]) for key in sum_keys}
     sum_dims = {key: None if unitsets[key] else 0 for key in sum_keys}
     sum_vals = {key: 0 if unitsets[key] else [] for key in sum_keys}
     sum_prob = []
@@ -383,7 +383,7 @@ def summate(*args):
 
   # 2. all identical but in one dimension: concatenate in that dimension
   # TODO: fix the remaining code of this function below
-  sum_vals = collections.OrderedDict(args[0].vals)
+  sum_vals = collections.OrderedDict(args[0])
   sum_dims = [None] * (len(args) - 1)
   for i, arg in enumerate(args):
     if i == 0:

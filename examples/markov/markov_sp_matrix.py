@@ -35,7 +35,7 @@ for i in range(n_sims):
   samples = X.walk(sampler)
   summary = X(samples)
   cond[i] = summary.q.prob
-  succ[i] = summary.q.vals["x'"]
+  succ[i] = summary.q["x'"]
 print('...done')
 obsp = np.sum(succ==0, axis=0) / n_sims
 

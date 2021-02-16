@@ -6,7 +6,7 @@ import collections
 import networkx as nx
 from probayes.rv import RV
 from probayes.rf import RF
-from probayes.dist_utils import product
+from probayes.pd_utils import product
 from probayes.sd_utils import desuffix, get_suffixed, arch_prob
 from probayes.cf import CF
 
@@ -466,7 +466,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
     dist = super().__call__(*args, **kwds)
     if not joint:
       return dist
-    vals = dist.ret_cond_vals()
+    vals = dist('cond')
     cond_dist = self._roots(vals)
     joint_dist = product(cond_dist, dist)
     return joint_dist
@@ -554,11 +554,11 @@ class SD (NX_DIRECTED_GRAPH, RF):
     else:
       assert args[0].q is not None, \
           "An input opqr argument must contain a non-None value for opqr.q"
-      vals = desuffix(args[0].q.vals)
+      vals = desuffix(args[0].q)
       prop = self.propose(vals, **kwds)
 
     # Evaluation of probability
-    vals = desuffix(prop.vals)
+    vals = desuffix(prop)
     if len(args) > 1:
       assert isinstance(args[1], dict),\
           "Second argument must be dictionary type, not {}".format(
@@ -588,7 +588,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       orig = args[0].p
       assert dist is not None, \
           "An input opqr argument must contain a non-None value for opqr.q"
-      vals = get_suffixed(dist.vals)
+      vals = get_suffixed(dist)
       prop = self.step(vals, **kwds)
 
     # Evaluate reverse proposal if transition function not symmetric
@@ -596,7 +596,7 @@ class SD (NX_DIRECTED_GRAPH, RF):
       revp = self.reval_tran(prop)
 
     # Extract values evaluating probability
-    vals = get_suffixed(prop.vals)
+    vals = get_suffixed(prop)
     if len(args) > 1:
       assert isinstance(args[1], dict),\
           "Second argument must be dictionary type, not {}".format(

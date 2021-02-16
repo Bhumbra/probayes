@@ -1,5 +1,4 @@
-Inherit Distributions for Probability Distribution class.
-Output PD instances from RV, RF, SD, and SP calls.
+Fix OMC Examples
 Support deterministic dependence classes inheriting from Field.
 Support iconic posterior evaluation from semi conjugate priors.
 Support Fields of Variables sharing Expressions collected as Functionals.

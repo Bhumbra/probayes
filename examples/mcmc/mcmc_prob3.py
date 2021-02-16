@@ -41,7 +41,7 @@ process.set_update('metropolis')
 sampler = process.sampler({'x': 5.}, stop=n_steps)
 samples = [sample for sample in sampler]
 summary = process(samples)
-xvals = summary.v.vals['x']
+xvals = summary.v['x']
 
 figure()
 xbins = np.linspace(np.min(xvals), np.max(xvals), 128)

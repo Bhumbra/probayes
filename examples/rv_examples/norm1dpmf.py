@@ -10,4 +10,4 @@ rv = pb.RV("norm", set_lims, prob=scipy.stats.norm,
 logpdf = rv(set_size)
 pdf = logpdf.rescaled()
 figure()
-plot(pdf.vals['norm'], pdf.prob)
+plot(pdf['norm'], pdf.prob)

@@ -32,8 +32,8 @@ sampler = X.sampler({0}, stop=n_steps)
 samples = X.walk(sampler)
 summary = X(samples)
 cond = summary.q.prob
-pred = summary.q.vals["x"]
-succ = summary.q.vals["x'"]
+pred = summary.q["x"]
+succ = summary.q["x'"]
 
 
 # PLOT DATA

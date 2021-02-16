@@ -39,7 +39,7 @@ posterior = prior_x_likelihood.conditionalise('x')
 
 # Return posterior probability mass and infer hat values using median
 inference = posterior.rescaled()
-mu_vals, sigma_vals, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
+mu_vals, sigma_vals, post = inference['mu'], inference['sigma'], inference.prob
 mu_sort = inference.sorted('mu')
 sigma_sort = inference.sorted('sigma')
 hat_mu = mu_sort.quantile(0.5)['mu']

@@ -43,7 +43,7 @@ circle_area = square_area * expectation
 
 # PLOT DATA
 figure()
-xy_vals = np.array([(sample.p.vals['x'], sample.p.vals['y']) \
+xy_vals = np.array([(sample.p['x'], sample.p['y']) \
                     for sample in samples])
 p_prop = np.array([sample.q.prob for sample in samples])
 accept = np.array([sample.u for sample in samples])

@@ -9,8 +9,8 @@ import numpy as np
 from probayes.field import Field
 from probayes.rv import RV
 from probayes.prob import Prob
-from probayes.dist import Dist
-from probayes.dist_utils import margcond_str
+from probayes.pd import PD
+from probayes.pd_utils import margcond_str
 from probayes.vtypes import isscalar, isunitsetint
 from probayes.pscales import iscomplex, prod_pscale
 from probayes.rf_utils import rv_prod_rule, sample_cond_cov
@@ -508,25 +508,25 @@ class RF (Field, Prob):
     transition conditional distribution dist. This requires a tuple input for
     self.set_tran() to evaluate a new conditional.
     """
-    assert isinstance(dist, Dist), \
+    assert isinstance(dist, PD), \
         "Input must be a distribution, not {} type.".format(type(dist))
     marg, cond = dist.cond, dist.marg
     name = margcond_str(marg, cond)
-    vals = dist.vals
+    vals = collections.OrderedDict(dist)
     dims = dist.dims
     # This next line needs to be modified to handle new API
     """
     prob = dist.prob if self._sym_tran or self._tran is None \
-           else self._tran[1](dist.vals)
+           else self._tran[1](dist)
     """
     prob = dist.prob
-    pscale = dist.ret_pscale()
-    return Dist(name, vals, dims, prob, pscale)
+    pscale = dist.pscale
+    return PD(name, vals, dims=dims, prob=prob, pscale=pscale)
 
 #-------------------------------------------------------------------------------
   def _eval_iid(self, dist_name, vals, dims, prob, iid):
     if not iid: 
-      return Dist(dist_name, vals, dims, prob, self._pscale)
+      return PD(dist_name, vals, dims=dims, prob=prob, pscale=self._pscale)
 
     # Deal with IID cases
     max_dim = None
@@ -536,7 +536,7 @@ class RF (Field, Prob):
 
     # If scalar or prob is expected shape then perform product here
     if max_dim is None or max_dim == prob.ndim - 1:
-      dist = Dist(dist_name, vals, dims, prob, self._pscale)
+      dist = PD(dist_name, vals, dims=dims, prob=prob, pscale=self._pscale)
       return dist.prod(iid)
 
     # Otherwise it is left to the user function to perform the iid product
@@ -545,7 +545,7 @@ class RF (Field, Prob):
       dims[key] = None
 
     # Tidy up probability
-    return Dist(dist_name, vals, dims, prob, self._pscale)
+    return PD(dist_name, vals, dims=dims, prob=prob, pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
@@ -583,7 +583,7 @@ class RF (Field, Prob):
         vals.update({mod_key: vals.pop(key)})
         if key in dims:
           dims.update({mod_key: dims.pop(key)})
-    return Dist(dist_name, vals, dims, prop, self._pscale)
+    return PD(dist_name, vals, dims=dims, prob=prop, pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def step(self, *args, **kwds):
@@ -623,7 +623,7 @@ class RF (Field, Prob):
     dist_succ_name = self.eval_dist_name(succ_vals, "'")
     dist_name = '|'.join([dist_succ_name, dist_pred_name])
 
-    return Dist(dist_name, vals, dims, cond, self._pscale)
+    return PD(dist_name, vals, dims=dims, prob=cond, pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def __eq__(self, other):

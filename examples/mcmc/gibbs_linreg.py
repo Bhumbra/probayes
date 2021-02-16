@@ -78,8 +78,8 @@ samples = [sample for sample in sampler]
 summary = process(samples)
 n_accept = summary.u.count(True)
 inference = summary.v.rescaled()
-b0, b1, ys, post = inference.vals['beta_0'], inference.vals['beta_1'], \
-                   inference.vals['y_sigma'], inference.prob
+b0, b1, ys, post = inference['beta_0'], inference['beta_1'], \
+                   inference['y_sigma'], inference.prob
 hat_beta_0 = np.median(b0)
 hat_beta_1 = np.median(b1)
 hat_y_sigma = np.median(ys)

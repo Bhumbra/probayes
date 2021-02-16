@@ -3,8 +3,9 @@
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-from probayes.dist_utils import str_margcond, margcond_str, product, summate, \
-                                rekey_dict, ismonotonic
+from probayes.named_dict import NamedDict
+from probayes.pd_utils import str_margcond, margcond_str, product, summate, \
+                              rekey_dict, ismonotonic
 from probayes.vtypes import isscalar
 from probayes.pscales import eval_pscale, rescale, iscomplex
 from probayes.pscales import div_prob
@@ -110,19 +111,18 @@ class PD (Distribution):
     Distribution.dims.fset(self, dims)
 
     # Override name entries for scalar values
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       assert key in self._keyset, \
           "Value key {} not found among name keys {}".format(key, self._keyset)
       if self._aresingleton[i]:
         if key in self.marg.keys():
-          self.marg[key] = "{}={}".format(key, self.vals[key])
+          self.marg[key] = "{}={}".format(key, self[key])
         elif key in self.cond.keys():
-          self.cond[key] = "{}={}".format(key, self.vals[key])
+          self.cond[key] = "{}={}".format(key, self[key])
         else:
           raise ValueError("Variable {} not accounted for in name {}".format(
                             key, self.name))
     self._name = margcond_str(self.marg, self.cond)
-    return argout
 
 #-------------------------------------------------------------------------------
   def marginalise(self, keys):
@@ -139,7 +139,7 @@ class PD (Distribution):
     dims = collections.OrderedDict()
     dim_delta = 0
     sum_axes = set()
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         assert not self._aresingleton[i], \
             "Cannot marginalise along scalar for key {}".format(key)
@@ -173,7 +173,7 @@ class PD (Distribution):
         dims.add(dim)
 
     # Check consistency of marginal dims
-    for key in self._keys:
+    for key in self._keylist:
       dim = self._dims[key]
       if dim in dims:
         assert key in keys, \
@@ -184,7 +184,7 @@ class PD (Distribution):
     marginalise_keys = set()
     aresingletons = []
     marg_scalars = set()
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       singleton = self._aresingleton[i]
       marginal = key in keys
       if key in self._marg.keys():
@@ -218,7 +218,7 @@ class PD (Distribution):
     normalise = False
     delta = 0
     marg_scalars = set()
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         cond.update({key: marg.pop(key)})
       if self._aresingleton[i]:
@@ -263,11 +263,11 @@ class PD (Distribution):
 
     # Setup vals dimensions and evaluate probabilities
     name = margcond_str(marg, cond)
-    vals = super().redim(dims).vals
+    vals = collections.OrderedDict(super().redim(dims))
     old_dims = []
     new_dims = []
     sum_axes = set()
-    for key in self._keys:
+    for key in self._keylist:
       old_dim = self._dims[key]
       if old_dim is not None and old_dim not in old_dims:
         old_dims.append(old_dim)
@@ -293,14 +293,14 @@ class PD (Distribution):
     ordered by the order in dims
     """
     dist = super().redim(dims)
-    vals, dims = dist.vals, dist.dims
+    vals, dims = dict(dist), dist.dims
     prob = self._prob
 
     # Need to realign prob axes to new dimensions
     if not self._issingleton:
       old_dims = []
       new_dims = []
-      for i, key in enumerate(self._keys):
+      for i, key in enumerate(self._keylist):
         if not self._aresingletons[i]:
           old_dims.append(self._dims[key])
           new_dims.append(dims[key])
@@ -317,7 +317,7 @@ class PD (Distribution):
     marg = rekey_dict(self._marg, keymap) 
     cond = rekey_dict(self._cond, keymap)
     name = margcond_str(marg, cond)
-    return PD(name, dist.vals, dims=dist.dims, 
+    return PD(name, dict(dist), dims=dist.dims, 
               prob=self.prob, pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
@@ -335,7 +335,7 @@ class PD (Distribution):
     dims = collections.OrderedDict()
     dim_delta = 0
     prod_axes = []
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         assert not self._aresingleton[i], \
             "Cannot apply product along scalar for key {}".format(key)
@@ -372,7 +372,7 @@ class PD (Distribution):
     keys = set(keys)
     sum_axes = []
     dims = collections.OrderedDict(self._dims)
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         if self.dims[key] is not None:
           sum_axes.append(self._dims[key])
@@ -383,7 +383,7 @@ class PD (Distribution):
     else:
       sum_prob = np.sum(prob)
     vals = collections.OrderedDict()
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         val = self[key] if not exponent else self[key]**exponent
         if self._aresingleton[i]:
@@ -403,14 +403,14 @@ class PD (Distribution):
 
     # Deal with trivial scalar case
     if self._issingleton:
-      quantiles = [self.vals] * len(quants)
+      quantiles = [collections.OrderedDict(self)] * len(quants)
       if isscalar(q):
         return quantiles[0]
       return quantiles
 
     # Check for monotonicity
     unsorted = set()
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if not self._aresingleton[i]:
         if not ismonotonic(self[key]):
           unsorted.add(key)
@@ -427,7 +427,7 @@ class PD (Distribution):
       rav_idx = int(_cum_idx)
       unr_idx = np.unravel_index(rav_idx, self._shape)
       quantiles[j] = collections.OrderedDict()
-      for i, key in enumerate(self._keys):
+      for i, key in enumerate(self._keylist):
         if self._aresingleton[i]:
           quantiles[j].update({key: self[key]})
         elif key in unsorted:
@@ -481,8 +481,8 @@ class PD (Distribution):
         vals.update({_key: keyval})
       else:
         vals.update({_key: np.ravel(_val)[keyidx]})
-    return Distribution(self.name, vals, dims=self.dims, 
-                        prob=prob, pscale=self._pscale)
+    return PD(self.name, vals, dims=self._dims, 
+              prob=prob, pscale=self._pscale)
     
 #-------------------------------------------------------------------------------
   def rescaled(self, pscale=None):
@@ -494,6 +494,11 @@ class PD (Distribution):
   def __call__(self, values, keepdims=False):
     # Slices distribution according to scalar values given as a dictionary
 
+    if isinstance(values, str):
+      assert values in ['marg', 'cond'], \
+          "String call must be either 'marg' or 'cond'"
+      dictionary = self.marg if values == 'marg' else self.cond
+      return self.lookup(list(dictionary.keys()))
     assert isinstance(values, dict),\
         "Values must be dict type, not {}".format(type(values))
     keys = values.keys()
@@ -506,7 +511,7 @@ class PD (Distribution):
     vals = collections.OrderedDict(self)
     slices = [slice(None) for _ in range(self.ndim)]
     dim_delta = 0
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       check_dims = False
       if not self._aresingleton[i]:
         dim = self.dims[key]
@@ -570,7 +575,7 @@ class PD (Distribution):
     divs = other.issingleton
     if divs:
       marg_scalars = set()
-      for i, key in enumerate(self._keys):
+      for i, key in enumerate(self._keylist):
         if key in self._marg.keys() and self._aresingleton[i]:
           marg_scalars.add(key)
       assert marg_scalars == set(other.marg.keys()), \
@@ -582,7 +587,7 @@ class PD (Distribution):
     cond = collections.OrderedDict(self._cond)
     vals = collections.OrderedDict(self._cond)
     re_shape = np.ones(self._ndim, dtype=int)
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         cond.update({key:marg.pop(key)})
         if not self._aresingleton[i] and not divs:
@@ -591,7 +596,7 @@ class PD (Distribution):
         vals.update({key:self[key]})
 
     # Append the marginalised variables and end of vals
-    for i, key in enumerate(self._keys):
+    for i, key in enumerate(self._keylist):
       if key in keys:
         vals.update({key:self[key]})
 
@@ -625,14 +630,14 @@ class PD (Distribution):
       vals = dict(kwds)
     assert isinstance(vals, dict), \
         "Dictionary argument expected, not {}".format(type(vals))
-    marg_keys = list(distribution.vals.keys())
+    marg_keys = list(distribution.keys())
     dims = distribution.dims
     for key, val in vals.items():
       if dims[key] is not None:
         assert np.all(np.array(val.shape) == np.array(self.shape)),\
             "Values for {} incommensurate".format
         assert key in marg_keys, \
-            "Key {} not present in inputted manifold"
+            "Key {} not present in inputted distribution"
 
     # Evaluate output indices for each space in probability
     shape = distribution.shape
@@ -655,7 +660,7 @@ class PD (Distribution):
     rem_vals = collections.OrderedDict(distribution)
     rem_dims = collections.OrderedDict(distribution.dims)
     marg_str = []
-    for key, val in manifold.vals.items():
+    for key, val in distribution.items():
       marg_str.append(key)
       if val is not None:
         if np.isscalar(val):
@@ -679,6 +684,6 @@ class PD (Distribution):
   def __repr__(self):
     prefix = 'logp' if iscomplex(self._pscale) else 'p'
     suffix = '' if not self._issingleton else '={}'.format(self.prob)
-    return super().__repr__() + ": " + prefix + "(" + self._name + ")" + suffix
+    return prefix + "(" + self._name + ")" + suffix
 
 #-------------------------------------------------------------------------------

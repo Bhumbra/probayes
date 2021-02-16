@@ -55,7 +55,7 @@ samples = [sample for sample in sampler]
 summary = process(samples)
 n_accept = summary.u.count(True)
 inference = summary.v.rescaled()
-xvals, yvals, post = inference.vals['x'], inference.vals['y'], inference.prob
+xvals, yvals, post = inference['x'], inference['y'], inference.prob
 
 # PLOT DATA
 figure()
