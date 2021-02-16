@@ -13,7 +13,7 @@ class Distribution (NamedDict):
   {variable_name: values} [Distribution.values()] with dimensions 
   {variable_name: dim} [Distribution.dims]. The dimensionality defines a finite 
   space of sizes with it permissable for variables to share dimensions and in 
-  such cases  reducing the shape dimensions.
+  such cases reducing the shape dimensions.
 
   :example:
   >>> import numpy as np
@@ -183,6 +183,22 @@ class Distribution (NamedDict):
         if re_shape:
           self[key] = values.reshape(vals_shape)
     self._size = int(np.prod(self._shape))
+
+#-------------------------------------------------------------------------------
+  def singleton(self, key=None):
+    """ Returns whether Distribution defines a singleton according key:
+
+    if key is None (default): returns self.issingleton
+    if key is an int: returns self.aresingleton[key]
+    if key is an key: returns key-corresponded element of self.aresingleton
+    """
+    if key is None:
+      return self._issingleton
+    if isinstance(key, str):
+      if key not in self._keys:
+        return None
+      key = self._keys.index(key)
+    return self._issingleton[key]
 
 #-------------------------------------------------------------------------------
   def lookup(self, keys):

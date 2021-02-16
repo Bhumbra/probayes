@@ -1,5 +1,5 @@
 
-# A module to perform operations on Dist() instances.
+# A module to perform utility functions for PD() instances.
 
 #-------------------------------------------------------------------------------
 import collections
@@ -82,27 +82,27 @@ def rekey_dict(ordereddict, keymap):
 
 #-------------------------------------------------------------------------------
 def product(*args, **kwds):
-  """ Multiplies two or more distributions subject to the following:
+  """ Multiplies two or more PDs subject to the following:
   1. They must not share the same marginal variables. 
   2. Conditional variables must be identical unless contained as marginal from
      another distribution.
   """
-  from probayes.dist import Dist
+  from probayes.pd import PD
 
   # Check pscales, scalars, possible fasttrack
   if not len(args):
     return None
   kwds = dict(kwds)
-  pscales = [arg.ret_pscale() for arg in args]
+  pscales = [arg.pscale for arg in args]
   pscale = kwds.get('pscale', None) or prod_pscale(pscales)
-  aresingleton = [arg.ret_issingleton() for arg in args]
+  aresingleton = [arg.issingleton for arg in args]
   maybe_fasttrack = all(aresingleton) and \
                     np.all(pscale == np.array(pscales)) and \
                     pscale in [0, 1.]
 
 
   # Collate vals, probs, marg_names, and cond_names as lists
-  vals = [arg.vals for arg in args]
+  vals = [list(arg.values()) for arg in args]
   probs = [arg.prob for arg in args]
   marg_names = [list(arg.marg.values()) for arg in args]
   cond_names = [list(arg.cond.values()) for arg in args]
@@ -160,8 +160,8 @@ def product(*args, **kwds):
             cond_same = False
             break
     if marg_same and cond_same:
-      marg_names =  marg_names[0]
-      cond_names =  cond_names[0]
+      marg_names = marg_names[0]
+      cond_names = cond_names[0]
       prod_marg_name = ','.join(marg_names)
       prod_cond_name = ','.join(cond_names)
       prod_name = '|'.join([prod_marg_name, prod_cond_name])
@@ -182,12 +182,12 @@ def product(*args, **kwds):
               if areunitsetints[j]:
                 prod_vals.update({key: {list(prod_vals[key])[0] + \
                                         list(val[key])[0]}})
-      if marg_sets:
+      if marg_sets is not None:
         prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
-        return Dist(prod_name, prod_vals, args[0].dims, prob, pscale)
+        return PD(prod_name, prod_vals, dims=args[0].dims, prob=prob, pscale=pscale)
       else:
         prod_prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-        return Dist(prod_name, prod_vals, {}, prod_prob, pscale)
+        return PD(prod_name, prod_vals, prob=prod_prob, pscale=pscale)
 
   # Check cond->marg accounts for all differences between conditionals
   prod_marg = [name for dist_marg_names in marg_names \
@@ -211,8 +211,8 @@ def product(*args, **kwds):
           "Incompatible product conditional {} for conditional set {}: ".format(
               prod_cond_set, cond_set)
     for name in cond2marg:
-      if name in arg.vals:
-        values = arg.vals[name]
+      if name in arg.keys():
+        values = arg[name]
         if not isscalar(values):
           values = np.ravel(values)
         if cond2marg_dict[name] is None:
@@ -278,7 +278,7 @@ def product(*args, **kwds):
   # Fast-track scalar products
   if maybe_fasttrack and prod_ndims == 0:
      prob = float(sum(probs)) if iscomplex(pscale) else float(np.prod(probs))
-     return Dist(prod_name, prod_vals, {}, prob, pscale)
+     return PD(prod_name, prod_vals, prob=prob, pscale=pscale)
 
   # Reshape values - they require no axes swapping
   ones_ndims = np.ones(prod_ndims, dtype=int)
@@ -324,17 +324,17 @@ def product(*args, **kwds):
   # Multiply the probabilities and output the result as a distribution instance
   prob, pscale = prod_rule(*tuple(probs), pscales=pscales, pscale=pscale)
 
-  return Dist(prod_name, prod_vals, prod_dims, prob, pscale)
+  return PD(prod_name, prod_vals, dims=prod_dims, prob=prob, pscale=pscale)
 
 
 #-------------------------------------------------------------------------------
 def summate(*args):
   """ Quick and dirty concatenation """
-  from probayes.dist import Dist
+  from probayes.pd import PD
   if not len(args):
     return None
-  pscales = [arg.ret_pscale() for arg in args]
-  vals = [arg.vals for arg in args]
+  pscales = [arg.pscale for arg in args]
+  vals = [dict(arg) for arg in args]
   probs = [arg.prob for arg in args]
 
   # Check pscales are the same
@@ -357,13 +357,13 @@ def summate(*args):
     sum_name += '|' + ','.join(cond_keys)
 
   # If all singleton, concatenate in dimension 0
-  if all([arg.ret_issingleton() for arg in args]):
+  if all([arg.issingleton for arg in args]):
     unitsets = {key: isunitsetint(args[0].vals[key]) for key in sum_keys}
     sum_dims = {key: None if unitsets[key] else 0 for key in sum_keys}
     sum_vals = {key: 0 if unitsets[key] else [] for key in sum_keys}
     sum_prob = []
     for arg in args:
-      for key, val in arg.vals.items():
+      for key, val in arg.items():
         if unitsets[key]:
           assert isunitsetint(val), \
               "Cannot mix unspecified set and specified values"
@@ -379,7 +379,7 @@ def summate(*args):
       else:
         sum_vals[key] = np.ravel(sum_vals[key])
     sum_prob = np.ravel(sum_prob)
-    return Dist(sum_name, sum_vals, sum_dims, sum_prob, pscale)
+    return PD(sum_name, sum_vals, dims=sum_dims, prob=sum_prob, pscale=pscale)
 
   # 2. all identical but in one dimension: concatenate in that dimension
   # TODO: fix the remaining code of this function below
@@ -391,12 +391,12 @@ def summate(*args):
     for key in marg_keys:
       if sum_dims[i-1] is not None:
         continue
-      elif not arg.ret_is_singleton(key):
-        key_vals = arg.vals[key]
+      elif not arg.singleton(key):
+        key_vals = arg[key]
         if key_vals.size == sum_vals[key].size:
           if np.allclose(key_vals, sum_vals[key]):
             continue
-        sum_dims[i-1] = arg.ret_dimension(key)
+        sum_dims[i-1] = arg.dims[key]
   assert len(set(sum_dims)) > 1, "Cannot find unique concatenation axis"
   sum_dim = sum_dims[0]
   sum_dims = args[0].dims
@@ -407,9 +407,17 @@ def summate(*args):
       continue
     sum_vals[key] = np.concatenate([sum_vals[key], val[key]], axis=sum_dim)
     sum_prob = np.concatenate([sum_prob, probs[i]], axis=sum_dim)
-  return Dist(sum_name, sum_vals, sum_dims, sum_prob, pscale)
+  return PD(sum_name, sum_vals, dims=sum_dims, prob=sum_prob, pscale=pscale)
 
-
+#-------------------------------------------------------------------------------
+def ismonotonic(vals):
+  if issingleton(vals):
+    return True
+  vals = np.ravel(vals)
+  is_ge = vals[1:] >= vals[:-1]
+  if len(np.unique(is_ge)) == 1:
+    return True
+  return False
 
 #-------------------------------------------------------------------------------
 def iterdict(dicts):
