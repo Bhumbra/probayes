@@ -15,17 +15,16 @@ p_xy = xy({num_samples})
 
 xpy = np.linspace(-0.001, 2.001, num_resamples)
 xmy = np.linspace(-1.001, 1.001, num_resamples)
-manifold_vals = collections.OrderedDict({'p': xpy, 'm': xmy})
-manifold = pb.Manifold(manifold_vals)
-vals = p_xy.vals
-mapping = {'p': vals['x'] + vals['y'],
-           'm': vals['x'] - vals['y']}
-p_pm = p_xy.remarginalise(manifold, mapping)
+distribution_vals = collections.OrderedDict({'p': xpy, 'm': xmy})
+distribution = pb.Distribution('p,m', distribution_vals)
+mapping = {'p': p_xy['x'] + p_xy['y'],
+           'm': p_xy['x'] - p_xy['y']}
+p_pm = p_xy.remarginalise(distribution, mapping)
 pmf = p_pm.prob[:-1, :-1]
 
 figure()
-pcolor(np.ravel(p_pm.vals['m']), 
-       np.ravel(p_pm.vals['p']), 
+pcolor(np.ravel(p_pm['m']), 
+       np.ravel(p_pm['p']), 
        pmf, cmap=cm.jet)
 colorbar()
 

@@ -21,7 +21,7 @@ for i in range(nsteps):
     cond = xy.step({'x':0., 'y':0.}, {0})
   else:
     cond = xy.step({'x': x_t[i-1], 'y': y_t[i-1]}, {0})
-  x_t[i], y_t[i] = cond.vals["x'"], cond.vals["y'"]
+  x_t[i], y_t[i] = cond["x'"], cond["y'"]
   p_xy = xy({'x': x_t[i], 'y': y_t[i]})
   p_t[i] = p_xy.prob
 

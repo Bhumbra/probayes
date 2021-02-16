@@ -94,7 +94,7 @@ def slice_by_keyvals(spec, vals, prob, vals_dims=None, spec_dims=None):
         dims.update({key: None})
       else:
         assert val.size == np.product(vals.shape), \
-            "Multiple non-singleton dimensions: {}".vals.shape
+            "Multiple non-singleton dimensions: {}".format(val.size)
         if val.size > 1:
           run_dim = np.argmax(val.shape)
         dims.update({key: run_dim})

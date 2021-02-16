@@ -8,12 +8,12 @@ from probayes.named_dict import NamedDict
 
 #-------------------------------------------------------------------------------
 class Distribution (NamedDict):
-  """ A distribution is a topological space defined over specific values for
-  one or more variables. Those values are defined a the dictionary
-  {variable_name: values} [Manifold.values()] with dimensions {variable_name: 
-  dim} [Distribuion.dims]. The dimensionality defines a finite space of sizes 
-  with it permissable for variables to share dimensions and in such cases 
-  reducing the shape dimensions.
+  """ A distribution is a anmed topological space defined over specific values 
+  for one or more variables. Those values are defined by the dictionary
+  {variable_name: values} [Distribution.values()] with dimensions 
+  {variable_name: dim} [Distribution.dims]. The dimensionality defines a finite 
+  space of sizes with it permissable for variables to share dimensions and in 
+  such cases reducing the shape dimensions.
 
   :example:
   >>> import numpy as np
@@ -24,7 +24,7 @@ class Distribution (NamedDict):
   [3, 2]
 
   Scalars can be included among vals, but must possess dimensionality None and
-  do not contribute to the size or shape of the manifold.
+  do not contribute to the size or shape of the distribution.
   """
 
   # Protected
@@ -110,7 +110,7 @@ class Distribution (NamedDict):
     self._shape = []
     self._size = None
     self._keylist = list(self.keys())
-    self._keyset = set(self._keylist)
+    self._keyset = frozenset(self._keylist)
     self._aresingleton = []
     self._issingleton = None
     eval_dims = self._dims is None
@@ -185,20 +185,59 @@ class Distribution (NamedDict):
     self._size = int(np.prod(self._shape))
 
 #-------------------------------------------------------------------------------
-  def lookup(self, keys):
+  def singleton(self, key=None):
+    """ Returns whether Distribution defines a singleton according key:
+
+    if key is None (default): returns self.issingleton
+    if key is an int: returns self.aresingleton[key]
+    if key is an key: returns key-corresponded element of self.aresingleton
+    """
+    if key is None:
+      return self._issingleton
+    if isinstance(key, str):
+      if key not in self._keys:
+        return None
+      key = self._keys.index(key)
+    return self._issingleton[key]
+
+#-------------------------------------------------------------------------------
+  def lookup(self, keys, as_dist=False):
     """ Returns the values of Distribution filtering by keys """ 
-    if isinstance(keys, str):
-      keys = [keys]
-    for key in keys:
-      assert key in self._keyset, "Key {} not found among {}".\
-          format(key, self._keylist)
+    keys = keys or self._keyset
     keys = set(keys)
     vals = collections.OrderedDict()
-    for key in self._keylist:
-      if key in keys:
-        vals.update({key: self[key]})
+    if as_dist:
+      dims = collections.OrderedDict()
+      keylist = []
+      for key in self._keylist:
+        if key in keys:
+          keylist.append(key)
+          vals.update({key: self[key]})
+          dims.update({key: self._dims[key]})
+      return Distribution(','.join(keylist), vals, dims=dims)
+    seen_keys = set()
+    for i, key in enumerate(self._keylist):
+      if key in keys and key not in seen_keys:
+        if self._aresingleton[i]:
+          seen_keys.add(key)
+          vals.update({key: self[key]})
+        else:
+          shared_keys = [key]
+          for j, cand_key in enumerate(self._keylist):
+            if j > i and cand_key in keys and not self._aresingleton[j]:
+              if self.dims[key] == self.dims[cand_key]:
+                shared_keys.append(cand_key)
+          if len(shared_keys) == 1:
+            vals.update({key: np.ravel(self[key])})
+            seen_keys.add(key)
+          else:
+            val = [None] * len(shared_keys)
+            for j, shared_key in enumerate(shared_keys):
+              val[j] = np.ravel(self[shared_key])
+              seen_keys.add(shared_key)
+            vals.update({','.join(shared_keys): tuple(val)})
     return vals
-    
+
 #-------------------------------------------------------------------------------
   def redim(self, dims):
     """  Returns a Distribution according to redimensionised values in dims, 

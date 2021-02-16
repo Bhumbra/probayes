@@ -39,8 +39,8 @@ nc = int(np.ceil(n_steps / nr))
 for i in range(n_steps):
   subplot(nr, nc, i+1)
   pcolor(
-         np.ravel(cond.vals["x'"]), 
-         np.ravel(cond.vals['x']), 
+         np.ravel(cond["x'"]), 
+         np.ravel(cond['x']), 
          conds[i].prob[:-1, :-1], cmap=cm.jet,
         )
   colorbar()

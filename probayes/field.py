@@ -12,7 +12,7 @@ from probayes.variable_utils import parse_as_str_dict
 from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless
 from probayes.pscales import real_sqrt
 from probayes.expression import Expression
-from probayes.manifold import Manifold
+from probayes.distribution import Distribution
 
 NX_UNDIRECTED_GRAPH = nx.OrderedGraph
 
@@ -603,7 +603,8 @@ class Field (NX_UNDIRECTED_GRAPH):
       iid = self._defiid
     values = self.parse_args(*args, **kwds)
     vals, dims = self.evaluate(values, _skip_parsing=True)
-    return Manifold(vals, dims)
+    name = ','.join(list(vals.keys()))
+    return Distribution(name, vals, dims=dims)
 
 #-------------------------------------------------------------------------------
   def __eq__(self, other):

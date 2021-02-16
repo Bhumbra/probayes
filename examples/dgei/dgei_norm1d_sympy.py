@@ -48,8 +48,8 @@ post_prob = posterior.rescaled().prob
 # Plot posterior
 figure()
 pcolor(
-       np.ravel(posterior.vals['sigma']), 
-       np.ravel(posterior.vals['mu']), 
+       np.ravel(posterior['sigma']), 
+       np.ravel(posterior['mu']), 
        post_prob[:-1, :-1], cmap=cm.jet,
       )
 colorbar()

@@ -9,8 +9,8 @@ import inspect
 import warnings
 from probayes.sd import SD
 from probayes.expression import Expression
-from probayes.dist import Dist
-from probayes.dist_utils import summate
+from probayes.pd import PD
+from probayes.pd_utils import summate
 from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
@@ -130,10 +130,10 @@ class SP (SD):
     # Summating distributions is straightforward
     samples = None if not len(args) else args[0]
     if samples and isinstance(samples, (list, tuple, collections.deque)) \
-        and len(samples) and isinstance(samples[0], Dist):
+        and len(samples) and isinstance(samples[0], PD):
       samples = list(samples)
       for sample in samples[1:]:
-        assert isinstance(sample, Dist),\
+        assert isinstance(sample, PD),\
             "If using distributions, all samples must be distributions, not {}".\
             format(type(sample))
       if isinstance(samples, (list, collections.deque)):

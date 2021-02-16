@@ -16,7 +16,7 @@ pxy = xy({'x': set_size_0, 'y': set_size_1})
 p_xy = pxy.rescaled()
 pmf = p_xy.prob[:-1, :-1]
 figure()
-pcolor(np.ravel(p_xy.vals['y']), 
-       np.ravel(p_xy.vals['x']), 
+pcolor(np.ravel(p_xy['y']), 
+       np.ravel(p_xy['x']), 
        pmf, cmap=cm.jet)
 colorbar()

@@ -7,7 +7,6 @@ import numpy as np
 import sympy
 from probayes.variable import Variable, DEFAULT_VNAME
 from probayes.prob import Prob
-from probayes.dist import Dist
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
 from probayes.pscales import rescale, eval_pscale
@@ -16,6 +15,7 @@ from probayes.sympy_prob import bernoulli_prob, bernoulli_sfun
 from probayes.rv_utils import uniform_prob, matrix_cond_sample, \
                           lookup_square_matrix
 from probayes.distribution import Distribution
+from probayes.pd import PD
 
 """
 A random variable is a triple (x, A_x, P_x) defined for an outcome x for every 
@@ -498,7 +498,7 @@ class RV (Variable, Prob):
     vals = self.evaluate(values)
     prob = self.eval_prob(vals)
     dims = {self._name: None} if isscalar(vals[self.name]) else {self._name: 0}
-    return Dist(dist_name, vals, dims, prob, self._pscale)
+    return PD(dist_name, vals, dims=dims, prob=prob, pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def step(self, *args, reverse=False):
@@ -536,7 +536,7 @@ class RV (Variable, Prob):
         if isinstance(val, np.ndarray):
           cond = cond * np.ones(val.shape, dtype=float)
 
-    return Dist(dist_name, vals, dims, cond, self._pscale)
+    return PD(dist_name, vals, dims=dims, prob=cond, pscale=self._pscale)
 
 #-------------------------------------------------------------------------------
   def __and__(self, other):

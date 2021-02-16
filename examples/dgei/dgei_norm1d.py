@@ -32,7 +32,7 @@ model.set_prob(scipy.stats.norm.pdf,
 
 # Evaluate probabilities
 likelihood = model({x: data, **resolution}, iid=True)
-para_vals = likelihood.ret_cond_vals()
+para_vals = likelihood('cond')
 prior = paras(para_vals)
 prior_x_likelihood = prior * likelihood
 evidence = prior_x_likelihood.marginal('x')
@@ -50,8 +50,8 @@ post_prob = posterior.prob
 # Plot posterior
 figure()
 pcolor(
-       np.ravel(posterior.vals['sigma']), 
-       np.ravel(posterior.vals['mu']), 
+       np.ravel(posterior['sigma']), 
+       np.ravel(posterior['mu']), 
        post_prob[:-1, :-1], cmap=cm.jet,
       )
 colorbar()

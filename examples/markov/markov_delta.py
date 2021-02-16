@@ -41,8 +41,8 @@ for i in range(n_steps):
     cond[i] = x.step(0.)
   else:
     cond[i] = x.step(succ[i-1])
-  pred[i] = cond[i].vals['x']
-  succ[i] = cond[i].vals["x'"]
+  pred[i] = cond[i]['x']
+  succ[i] = cond[i]["x'"]
   prob[i] = cond[i].prob
 print('...done')
 

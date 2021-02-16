@@ -31,10 +31,10 @@ coef_max = float(norm2d(radius, 1.))
 coef = pb.RV('coef', {0., coef_max})
 coefs = coef(set_size)
 p_prop = xy.propose({(x,y): set_size}, suffix=False)
-thresholds = coefs.vals['coef'] * p_prop.prob
+thresholds = coefs['coef'] * p_prop.prob
 
 # CALL TARGET DENSITY AND APPLY REJECTION SAMPLING
-xy_vals = p_prop.ret_marg_vals()
+xy_vals = p_prop('marg')
 p_xy = xy(xy_vals)
 accept = p_xy.prob >= thresholds
 reject = np.logical_not(accept)

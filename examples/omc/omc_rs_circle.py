@@ -22,12 +22,9 @@ oxy = o | xy
 oxy.set_prob(inside)
 
 # CALL PROBABILITIES AND EVALUATE EXPECTATION AND AREA
-print("foo")
 p_cond_omc = oxy({'x,y': set_size})
-print("bar")
 p_omc_true = p_cond_omc({'o': True})
-print("baz")
-xy_vals = p_cond_omc.ret_cond_vals()
+xy_vals = p_cond_omc('cond')
 p_marg_omc = xy(xy_vals)
 p_joint_omc = p_marg_omc * p_cond_omc
 joint_expt = p_joint_omc.expectation()
@@ -38,7 +35,7 @@ circle_area = square_area * joint_expt['o']
 figure()
 true = np.nonzero(p_omc_true.prob)[0]
 false = np.nonzero(np.logical_not(p_omc_true.prob))[0]
-x_all, y_all = p_omc_true.vals['x'], p_omc_true.vals['y']
+x_all, y_all = p_omc_true['x'], p_omc_true['y']
 plot(x_all[true], y_all[true], 'b.')
 plot(x_all[false], y_all[false], 'r.')
 xlabel('x')

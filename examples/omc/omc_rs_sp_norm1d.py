@@ -40,7 +40,7 @@ summary = process(samples)
 
 # DETERMINE HAT VALUES
 inference = summary.rescaled()
-mu, sigma, post = inference.vals['mu'], inference.vals['sigma'], inference.prob
+mu, sigma, post = inference['mu'], inference['sigma'], inference.prob
 mu_sort = inference.sorted('mu')
 sigma_sort = inference.sorted('sigma')
 hat_mu = mu_sort.quantile(0.5)['mu']
