@@ -214,7 +214,7 @@ class Distribution (NamedDict):
           keylist.append(key)
           vals.update({key: self[key]})
           dims.update({key: self._dims[key]})
-      return Distribution(','.join(names), vals, dims=dims)
+      return Distribution(','.join(keylist), vals, dims=dims)
     seen_keys = set()
     for i, key in enumerate(self._keylist):
       if key in keys and key not in seen_keys:
