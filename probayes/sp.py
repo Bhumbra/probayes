@@ -1,8 +1,5 @@
-"""
-A stocastic process is an indexable sequence of realisations of a directed graph. 
-It is therefore implemented here using a sample generator that iteratively 
-samples a directed graph.
-"""
+""" Provides SP, a class for stochastic processes """
+
 #-------------------------------------------------------------------------------
 import collections
 import inspect
@@ -15,10 +12,10 @@ from probayes.sp_utils import sample_generator, MCMC_SAMPLERS
 
 #-------------------------------------------------------------------------------
 class SP (SD):
-
-  # Public
-  stuv = None     # scores + thresholds + update + verdit
-  opqrstuv = None # opqr + stuv
+  """ A stocastic process is stochastic dependence that supports an indexable 
+  sequence of realisations from a directed graph. It is therefore implemented 
+  here using a sample generator that iteratively samples a directed graph.
+  """
 
   # Protected
   _scores = None # Scores function used for the basis of acceptance
@@ -36,12 +33,20 @@ class SP (SD):
     self.reset()
 
 #-------------------------------------------------------------------------------
+  @property
+  def stuv(self):
+    return self._stuv
+
+  @property
+  def opqrstuv(self):
+    return self._opqrstuv
+
   def _refresh(self, *args, **kwds):
     super()._refresh(*args, **kwds)
     if not self._nvars:
       return
-    self.stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
-    self.opqrstuv = collections.namedtuple(self._id, 
+    self._stuv = collections.namedtuple(self._id, ['s', 't', 'u', 'v'])
+    self._opqrstuv = collections.namedtuple(self._id, 
                         ['o', 'p', 'q', 'r', 's', 't', 'u', 'v'])
 
 #-------------------------------------------------------------------------------
@@ -171,7 +176,7 @@ class SP (SD):
         _maybe_append(sample.r, 'r')
       
       else:
-        assert isinstance(sample, self.opqrstuv), \
+        assert isinstance(sample, self._opqrstuv), \
             "Sample must be outputted from sampler: {}".format(self._id)
         if sample.u == False:
           continue
@@ -190,7 +195,7 @@ class SP (SD):
         opqrstuv[key] = summate(*tuple(opqrstuv[key]))
         if conditionalise and key in ['o', 'p', 'v']:
           opqrstuv[key] = opqrstuv[key].conditionalise(self._leafs.keyset)
-    return self.opqrstuv(**opqrstuv)
+    return self._opqrstuv(**opqrstuv)
 
 #-------------------------------------------------------------------------------
   def get_sampler(self, sampler_id=None):
@@ -240,17 +245,17 @@ class SP (SD):
         opqr = self.sample(*args, **kwds)
 
     # Set to last if accept is not False
-    stuv = self.stuv(self.eval_expr(self._scores, opqr),
-                     self.eval_expr(self._thresh),
-                     None,
-                     None)
+    stuv = self._stuv(self.eval_expr(self._scores, opqr),
+                      self.eval_expr(self._thresh),
+                      None,
+                      None)
     update = self.eval_expr(self._update, stuv)
     verdit = opqr.o
     if self._update is None or self.__last[sampler] is None or update:
       self.__last[sampler] = opqr
       verdit = opqr.p
-    return self.opqrstuv(opqr.o, opqr.p, opqr.q, opqr.r, 
-                         stuv.s, stuv.t, update, verdit)
+    return self._opqrstuv(opqr.o, opqr.p, opqr.q, opqr.r, 
+                          stuv.s, stuv.t, update, verdit)
 
 #-------------------------------------------------------------------------------
   def sampler(self, *args, **kwds):

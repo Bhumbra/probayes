@@ -164,7 +164,7 @@ class Expr:
     """ Performs evaluation of expression inputting symbols as a dictionary 
     (see sympy.Symbol.subs() input specificion using dictionaries. """
     parse_values = True
-    keys, symbols = list(self._symbols.keys()), list(self._symbols.values())
+    keys = list(self._symbols.keys())
     if not(len(kwds)) and len(args) == len(self._symbols):
       if not any([isinstance(arg, dict) for arg in args]):
         values = collections.OrderedDict()
@@ -183,7 +183,6 @@ class Expr:
     ekeys = [None] * len(keys)
     isarray = [None] * len(keys)
     vec_dim = [None] * len(keys)
-    found_multidimensional = False
     for i, key in enumerate(keys):
       if isinstance(values[key], bool): # Sympy doesn't like bool types
         values[key] = int(values[key])
@@ -195,8 +194,6 @@ class Expr:
         non_sing = np.array(evalues[i].shape) > 1
         non_sing_sum = non_sing.sum()
         if non_sing_sum > 0:
-          if non_sing_sum > 1:
-            found_multidimensional = True
           vec_dim[i] = int(np.nonzero(non_sing)[0][0])
       if etype is None: 
         if _etype in self._efun.keys():
