@@ -374,7 +374,7 @@ class PD (Distribution):
     dims = collections.OrderedDict(self._dims)
     for i, key in enumerate(self._keylist):
       if key in keys:
-        if self.dims[key] is not None:
+        if self._dims[key] is not None:
           sum_axes.append(self._dims[key])
         dims[key] = None
     prob = rescale(self._prob, self._pscale, 1.)
@@ -389,7 +389,7 @@ class PD (Distribution):
         if self._aresingleton[i]:
           vals.update({key: val})
         else:
-          expt_numerator = np.sum(prob*val, 
+          expt_numerator = np.sum(prob*np.array(val, dtype=float), 
                                   axis=tuple(set(sum_axes)), keepdims=False)
           vals.update({key: div_prob(expt_numerator, sum_prob)})
       elif key in self._cond.keys():
