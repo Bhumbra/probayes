@@ -326,10 +326,21 @@ class Field (NX_UNDIRECTED_GRAPH):
         assert seen_keys[-1] in self._keyset, \
             "Unrecognised key {} among available Variables {}".format(
                 seen_keys[-1], self._keyset)
-    val = {0} if self._anyfloat else None # Randomly sample if any float
+
+    # Default values
+    def_val = None
+    if self._anyfloat:
+      if not len(values):
+        def_val = {0}
+      else:
+        def_val = {0}
+        for val in values.values():
+          if isunitsetint(val):
+            if val == {0}:
+              def_val = None
     for key in self._keylist:
       if key not in seen_keys:
-        values.update({key: val})
+        values.update({key: def_val})
     if pass_all:
       list_keys = list(values.keys())
       for key in list_keys:

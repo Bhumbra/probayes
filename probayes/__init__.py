@@ -14,6 +14,7 @@ from probayes.prob import Prob
 from probayes.rv import RV, RVs
 from probayes.field import Field
 from probayes.rf import RF
+from probayes.dependence import Dependence
 from probayes.sd import SD
 from probayes.sp import SP
 from probayes.cf import CF
