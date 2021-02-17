@@ -15,9 +15,8 @@ the following:
 
 In the near-future, it is intended to expand the scope of probayes to include:
 
-1. Support Gibbs sampling using semi-conjugacy.
-2. Code initial support for approximate inference using using dense mean field messaging.
-3. Support derivative-based updates (HMC, gradient ascent/descent optimisation).
+1. Code initial support for approximate inference using using dense mean field messaging.
+2. Support derivative-based updates (HMC, gradient ascent/descent optimisation).
 
 A quickstart is also intended, but for now there are examples in the examples/ subdirectories:
 

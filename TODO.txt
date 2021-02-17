@@ -1,4 +1,3 @@
-Support iconic posterior evaluation from semi conjugate priors.
 Support Fields of Variables sharing Expressions collected as Functionals.
 Support Dependences between Domains with respect to Functionals.
 Support explicit Naive Bayes.
