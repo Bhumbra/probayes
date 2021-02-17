@@ -9,7 +9,7 @@ the following:
 2. Transitional simulation, including random walks, using Markov chain conditionals.
 3. Discrete grid exact inference.
 4. Ordinary Monte Carlo random sampling.
-5. Ordinary Monto Carlo rejection sampling.
+5. Ordinary Monte Carlo rejection sampling.
 6. Metropolis-Hastings MCMC sampling.
 7. Limited support for multivariate normal-covariance Gibbs sampling.
 

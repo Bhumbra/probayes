@@ -8,7 +8,6 @@ from probayes.rv import RV
 from probayes.rf import RF
 from probayes.pd_utils import product
 from probayes.sd_utils import desuffix, get_suffixed, arch_prob
-from probayes.cf import CF
 
 #-------------------------------------------------------------------------------
 class SD (Dependence, RF):
@@ -42,17 +41,6 @@ class SD (Dependence, RF):
     self.set_prob()
 
 #-------------------------------------------------------------------------------
-  def def_deps(self, *args):
-    """ Defaults the dependence of SD with RVs, RFs. or SD arguments.
-
-    :param args: each arg may be an RV, RF, or SD with the dependence chain
-                 compatible with running right to left. If one argument in an 
-                 SD then all arguments must comprise of SD instances.
-    """
-    self.__sym_tran = False
-    return super().def_deps(*args)
-
-#-------------------------------------------------------------------------------
   @property
   def opqr(self):
     return self._opqr
@@ -66,7 +54,9 @@ class SD (Dependence, RF):
     :param leafs: sets default for leafs
     :param roots: sets default for roots
     """
+    self.__sym_tran = False
     super()._refresh(leafs, roots)
+
     # Determine unit RVRF
     self._opqr = collections.namedtuple(self._id, ['o', 'p', 'q', 'r'])
     self._unit_prob = False

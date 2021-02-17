@@ -1,7 +1,6 @@
 """ Provides Dependence class """
 
 #-------------------------------------------------------------------------------
-import numpy as np
 import collections
 import networkx as nx
 from probayes.variable import Variable

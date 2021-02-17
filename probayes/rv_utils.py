@@ -1,6 +1,6 @@
 import numpy as np
 from probayes.vtypes import isunitset, isscalar, uniform, eval_vtype, VTYPES
-from probayes.pscales import eval_pscale, rescale, iscomplex, NEARLY_NEGATIVE_INF
+from probayes.pscales import eval_pscale, iscomplex, NEARLY_NEGATIVE_INF
 """
 A module to provide functional support to rv.py
 """

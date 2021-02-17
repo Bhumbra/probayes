@@ -9,7 +9,7 @@ from probayes.variable import Variable, DEFAULT_VNAME
 from probayes.prob import Prob
 from probayes.vtypes import uniform, VTYPES, isscalar, \
                         isunitset, isunitsetint, isunitsetfloat, issingleton
-from probayes.pscales import rescale, eval_pscale
+from probayes.pscales import rescale
 from probayes.expression import Expression
 from probayes.sympy_prob import bernoulli_prob, bernoulli_sfun
 from probayes.rv_utils import uniform_prob, matrix_cond_sample, \
@@ -84,7 +84,6 @@ class RV (Variable, Prob):
     self._name = name
     self._Delta = collections.namedtuple('ð', [self._name])
     self.__prime_key = self._name + "'"
-
 
 #-------------------------------------------------------------------------------
   @property
