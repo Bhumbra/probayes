@@ -218,7 +218,6 @@ class Expr:
         return np.array(vals)
       return vals
 
-
     # Try to support iterating numpy-array even without a NumPy eval func
     if any(isarray) and np.ndarray not in self._efun:
       efun = self._efun[None]
@@ -275,6 +274,26 @@ class Expr:
         "{}".format(arg)
     return self._expr
 
+#-------------------------------------------------------------------------------
+  def sub_real(self):
+    real_symbols = collections.OrderedDict()
+    for key, val in self._symbols.items():
+      real_name = '__{}__'.format(key)
+      real_symbols.update({val: sympy.Symbol(real_name, real=True)})
+    return self._expr.subs(real_symbols)
+
+#-------------------------------------------------------------------------------
+  def resub(self, real_expr):
+    real_symbols = collate_symbols(real_expr)
+    symbols = collections.OrderedDict()
+    for key, val in self._symbols.items():
+      if key[:2] == '__' and key[-2:] == '__':
+        orig_name = key[2:-2]
+        if orig_name in self._symbols:
+          symbols.update({val: self._symbols[orig_name]})
+    return real_expr.subs(symbols)
+
+#-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

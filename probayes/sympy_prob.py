@@ -149,7 +149,9 @@ class SympyProb:
     # Set PDF, CDF, ICDF
     if hasattr(self._probj, 'pdf'):
       self._exprs.update({'prob': Expr(self._probj.pdf(self._cterm))})
-      self._exprs.update({'logp': Expr(sympy.log(self._exprs['prob'].expr))})
+      prob_expr = self._exprs['prob']
+      log_prob = prob_expr.resub(sympy.log(prob_expr.sub_real())).simplify()
+      self._exprs.update({'logp': Expr(log_prob)})
     if hasattr(self._probj, '_cdf'):
       try:
         cdf_expr = Expr(self._probj._cdf(self._cterm))
