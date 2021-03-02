@@ -665,7 +665,8 @@ class RF (Field, Prob):
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
-    if not self.issympy or isinstance(arg, (str, int)):
+    if not self.issympy or isinstance(arg, int) or \
+        (isinstance(arg, str) and arg in self._keyset):
       return Field.__getitem__(self, arg)
     return Prob.__getitem__(self, arg)
 

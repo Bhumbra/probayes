@@ -475,7 +475,7 @@ class Variable (Icon):
     if not isiconic(self._ufun):
       assert self._vtype in VTYPES[float], \
           "Values transformation function only supported for floating point"
-      message = "Input ufun be a two-sized tuple of callable functions"
+      message = "Non-iconic input ufun be a two-sized tuple of callable functions"
       assert isinstance(self._ufun, tuple), message
       assert len(self._ufun) == 2, message
       assert callable(self._ufun[0]), message

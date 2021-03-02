@@ -275,7 +275,9 @@ class Expr:
     return self._expr
 
 #-------------------------------------------------------------------------------
-  def sub_real(self):
+  def subre(self):
+    """ Substitutes known symbols within expression with explicitly real
+    equivalents, denoted using __name__. """
     real_symbols = collections.OrderedDict()
     for key, val in self._symbols.items():
       real_name = '__{}__'.format(key)
@@ -284,6 +286,7 @@ class Expr:
 
 #-------------------------------------------------------------------------------
   def resub(self, real_expr):
+    """ Reverses the substitution performed by subre. """
     real_symbols = collate_symbols(real_expr)
     symbols = collections.OrderedDict()
     for key, val in self._symbols.items():
