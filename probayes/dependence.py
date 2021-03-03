@@ -6,8 +6,8 @@ import networkx as nx
 from probayes.variable import Variable
 from probayes.field import Field
 from probayes.cf import CF
-
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
+
 
 #-------------------------------------------------------------------------------
 class Dependence (NX_DIRECTED_GRAPH, Field):

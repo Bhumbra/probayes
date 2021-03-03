@@ -295,6 +295,10 @@ class Expression:
           "Index specification non_sequitur: {}".format(indset)
 
 #-------------------------------------------------------------------------------
+  @property
+  def partials(self):
+    return self._partials
+
   def _set_partials(self):
     # Protected function to update partial function dictionary of calls
     self._partials = collections.OrderedDict()

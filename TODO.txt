@@ -1,5 +1,6 @@
-Support Fields of Variables sharing Expressions collected as Functionals.
-Support Dependences between Domains with respect to Functionals.
+Support fields of Variables sharing Expressions collected as Functionals.
+Support stochastic functionals as Conditionals
+Code probabilistic backend for supporting automated Gibbs.
 Support explicit Naive Bayes.
 Introduce mean-field variational inference support
 Support SAS derivate structures.

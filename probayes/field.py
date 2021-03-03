@@ -5,8 +5,8 @@ directional dependences.
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
-import networkx as nx
 
+from probayes.functional import NX_UNDIRECTED_GRAPH
 from probayes.variable import Variable
 from probayes.variable_utils import parse_as_str_dict
 from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless
@@ -14,7 +14,6 @@ from probayes.pscales import real_sqrt
 from probayes.expression import Expression
 from probayes.distribution import Distribution
 
-NX_UNDIRECTED_GRAPH = nx.OrderedGraph
 
 #-------------------------------------------------------------------------------
 class Field (NX_UNDIRECTED_GRAPH):
