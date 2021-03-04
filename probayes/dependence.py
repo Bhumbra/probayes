@@ -34,6 +34,7 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
   _variable_cls = Variable # Variable class
   _field_cls = Field       # Field class
   _subfields = None        # Convenience dictionary for the roots and leafs RFs
+  _is_stochastic = False   # Flag of stochasticity status
 
 #------------------------------------------------------------------------------- 
   def __init__(self, *args):

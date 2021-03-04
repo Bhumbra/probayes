@@ -29,6 +29,7 @@ class Field (NX_UNDIRECTED_GRAPH):
   _nvars = None      # Number of variables
   _unitvar = None    # Boolean flag for one variable
   _anyfloat = None   # Boolean flag to denote if any variables are float type
+  _anystoch = None   # Boolean flag of whether any variable stochastic
   _varlist = None    # List of variable objects
   _keylist = None    # List of keys of variable names
   _keyset = None     # Unordered set of keys of random variable names
@@ -41,8 +42,13 @@ class Field (NX_UNDIRECTED_GRAPH):
   _leafs = None      # Field of Variables that do not condition others (for SD)
   _roots = None      # Field of Vairables not dependent on others (for SD)
   _stems = None      # OrderedDict of latent Variables (for Dependencies)
+  _is_stochastic = False      # Flag of whether stochastic
 
 #-------------------------------------------------------------------------------
+  @property
+  def is_stochastic(self):
+    return self._is_stochastic
+
   def __init__(self, *args): # over-rides NX_GRAPH.__init__()
     """ Initialises a random field with Variables for in args. See set_vars(). """
     super().__init__()
@@ -146,6 +152,10 @@ class Field (NX_UNDIRECTED_GRAPH):
   def anyfloat(self):
     return self._anyfloat
 
+  @property
+  def anystoch(self):
+    return self._anystoch
+
   def __len__(self):
     return self._nvars
 
@@ -180,6 +190,10 @@ class Field (NX_UNDIRECTED_GRAPH):
     self._unitvar = self._nvars == 1
     self._varlist = list(self._vars.values())
     self._anyfloat = any([var.vtype is float for var in self._varlist])
+    self._anystoch = any([var.is_stochastic for var in self._varlist])
+    if not self._is_stochastic:
+      assert not self._anystoch,\
+          "Stochastic variables cannot contribute to a non-stochastic field"
     self._keylist = list(self._vars.keys())
     self._keyset = frozenset(self._keylist)
     self._defiid = self._leafs.keylist
@@ -300,7 +314,7 @@ class Field (NX_UNDIRECTED_GRAPH):
     """ Evaluates and returns the joint length of the field. """
     self._lengths = np.array([var.length for var in self._varlist], 
                              dtype=float)
-    self._length = np.sqrt(np.sum(self._lengths))
+    self._length = np.sqrt(np.sum(self._lengths**2))
     return self._length
 
 #-------------------------------------------------------------------------------

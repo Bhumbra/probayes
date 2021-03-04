@@ -29,6 +29,7 @@ class SD (Dependence, RF):
   _field_cls = RF      # Field class
   _unit_prob = None    # Flag for single RV probability
   _unit_tran = None    # Flag for single RV transitional
+  _is_stochastic = True  # Flag of stochasticity status
 
   # Private
   __sub_cfs = None     # Dictionary of conditional functions
@@ -146,7 +147,8 @@ class SD (Dependence, RF):
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
     """ Like RF.__call__ but optionally takes 'joint' keyword """
-
+    if not self.anystoch:
+      return Dependence.__call__(self, *args, **kwds)
     if not self._nvars:
       return None
     joint = False if 'joint' not in kwds else kwds.pop('joint')

@@ -67,11 +67,16 @@ class Variable (Icon):
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
   _delta_kwds = None # Optional delta keywords 
+  _is_stochastic = False # Flag of whether stochastic
 
   # Private       
   __no_ucov = None   # Boolean flag to denote no univariate change of variables
 
 #-------------------------------------------------------------------------------
+  @property
+  def is_stochastic(self):
+    return self._is_stochastic
+
   def __init__(self, name=None,
                      vtype=None,
                      vset=None, 
