@@ -25,11 +25,10 @@ def test_func(func, vals):
   ab.add_node(a)
   ab.add_node(b)
   functional = pb.Functional(ab, xy)
-  functional.add_map(a, func[0](x))
-  functional.add_map(b, func[1](y))
+  functional.add_func(a, func[0](x))
+  functional.add_func(b, func[1](y))
   eval_a = functional[a](vals[0])
   eval_b = functional[b](vals[1])
-  import pdb; pdb.set_trace()
   assert np.isclose(eval_a, vals[1])
   assert np.isclose(eval_b, vals[0])
 
