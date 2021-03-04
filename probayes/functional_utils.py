@@ -32,8 +32,7 @@ def parse_identifiers(identifiers):
   if isinstance(identifiers, str):
     return frozenset(identifiers.split(','))
   if not isinstance(identifiers, (list, tuple, set)):
-    raise TypeError("Input identigiers be a string or tuple/list/set, not {}".\
-        format(type(identifiers)))
+    identifiers = identifiers,
   keys = list(identifiers)
   for i, key in enumerate(keys):
     if not isinstance(key, str):

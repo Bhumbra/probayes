@@ -23,4 +23,5 @@ from probayes.pd import PD
 from probayes.pd_utils import product, summate, iterdict
 from probayes.likelihoods import bool_perm_freq
 from probayes.expression import Expression
+from probayes.functional import Functional
 from probayes.sympy_prob import SympyProb
