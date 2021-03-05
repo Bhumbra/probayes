@@ -288,14 +288,3 @@ class SD (Dependence, RF):
     return self._opqr(orig, prob, prop, revp)
 
 #-------------------------------------------------------------------------------
-  def __and__(self, other):
-    return SD(other, self)
-
-#-------------------------------------------------------------------------------
-  def __or__(self, other):
-    if isinstance(other, SD):
-      if self._roots and other.roots:
-        raise ValueError("Cannot cross-conditionalise stochastic dependencies")
-    return SD(self, other)
-
-#-------------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import numpy as np
 import scipy.stats
 import probayes as pb
 from pylab import *; ion()
+from mpl_toolkits.mplot3d import Axes3D # import needed for 3D projection
 
 n_steps = 1000
 

@@ -6,12 +6,13 @@ directional dependences.
 import collections
 import numpy as np
 
-from probayes.functional import NX_UNDIRECTED_GRAPH
 from probayes.variable import Variable
 from probayes.variable_utils import parse_as_str_dict
 from probayes.vtypes import isscalar, isunitsetint, issingleton, isdimensionless
 from probayes.pscales import real_sqrt
+from probayes.ops import and_op, or_op
 from probayes.expression import Expression
+from probayes.functional import NX_UNDIRECTED_GRAPH
 from probayes.distribution import Distribution
 
 #-------------------------------------------------------------------------------
@@ -629,6 +630,14 @@ class Field (NX_UNDIRECTED_GRAPH):
     vals, dims = self.evaluate(values, _skip_parsing=True)
     name = ','.join(list(vals.keys()))
     return Distribution(name, vals, dims=dims)
+
+#-------------------------------------------------------------------------------
+  def __and__(self, other):
+    return and_op(self, other)
+
+#-------------------------------------------------------------------------------
+  def __or__(self, other):
+    return or_op(self, other)
 
 #-------------------------------------------------------------------------------
   def __eq__(self, other):

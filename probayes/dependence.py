@@ -8,7 +8,6 @@ from probayes.field import Field
 from probayes.cf import CF
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 
-
 #-------------------------------------------------------------------------------
 class Dependence (NX_DIRECTED_GRAPH, Field):
   """ A dependence is field with an explicit directed conditionality. The 
@@ -396,16 +395,5 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
       return super().step(*args, **kwds)
     prop_obj = prop_obj or self._def_prop_obj
     return prop_obj.step(*args, **kwds)
-
-#-------------------------------------------------------------------------------
-  def __and__(self, other):
-    return type(self)(other, self)
-
-#-------------------------------------------------------------------------------
-  def __or__(self, other):
-    if isinstance(other, type(self)):
-      if self._roots and other.roots:
-        raise ValueError("Cannot cross-conditionalise dependencies")
-    return type(self)(self, other)
 
 #-------------------------------------------------------------------------------

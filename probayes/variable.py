@@ -14,6 +14,7 @@ from probayes.variable_utils import parse_as_str_dict
 from probayes.pscales import log_prob
 from probayes.expression import Expression
 from probayes.distribution import Distribution
+from probayes.ops import and_op, or_op
 
 # Defaults
 DEFAULT_VNAME = 'var'
@@ -772,34 +773,13 @@ class Variable (Icon):
   def __and__(self, other):
     """ Combination operator between Variable and another Variable, Field, or
     Dependence. """
-    from probayes.field import Field
-    from probayes.dependence import Dependence
-    if isinstance(other, Dependence):
-      leafs = [self] + list(other.leafs.vars.values())
-      stems = other.stems
-      roots = other.roots
-      args = Field(*tuple(leafs))
-      if stems:
-        args += list(stems.values())
-      if roots:
-        args += list(roots.values())
-      return Dependence(*args)
-
-    if isinstance(other, Field):
-      var = [self] + list(other.vars.values())
-      return Field(*tuple(var))
-
-    if isinstance(other, Variable):
-      return Field(self, other)
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+    return and_op(self, other)
 
 #-------------------------------------------------------------------------------
   def __or__(self, other):
     """ Combination operator between Variable and another Variable, Field, or
     Dependence. """
-    from probayes.dependence import Dependence
-    return Dependence(self, other)
+    return or_op(self, other)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
