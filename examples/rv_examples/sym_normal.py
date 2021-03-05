@@ -5,8 +5,8 @@ import probayes as pb
 from pylab import *; ion()
 
 x = pb.RV('x', vtype=float, vset=[-2, 2])
-x.set_prob(sympy.stats.Normal(x[:], mean=0, std=1))
-fx = x({1000})
+x.set_prob(sympy.stats.Normal(x[:], mean=0, std=1), pscale='log')
+fx = x({1000}).rescaled()
 rx = x({-1000})
 
 figure()

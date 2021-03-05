@@ -149,7 +149,10 @@ class SympyProb:
     # Set PDF, CDF, ICDF
     if hasattr(self._probj, 'pdf'):
       self._exprs.update({'prob': Expr(self._probj.pdf(self._cterm))})
-      self._exprs.update({'logp': Expr(sympy.log(self._exprs['prob'].expr))})
+      prob_expr = self._exprs['prob']
+      log_prob = sympy.log(prob_expr.subre(prob_expr.expr)).simplify()
+      log_prob= prob_expr.resub(log_prob)
+      self._exprs.update({'logp': Expr(log_prob)})
     if hasattr(self._probj, '_cdf'):
       try:
         cdf_expr = Expr(self._probj._cdf(self._cterm))
@@ -159,7 +162,10 @@ class SympyProb:
     if 'cdf' in self._exprs.keys():
       icdf_name = "_{}_cdf".format(self._cterm.name)
       self.__icdf = sympy.Symbol(icdf_name)
-      invexprs = sympy.solve(self._exprs['cdf'].expr - self.__icdf,  self._cterm)
+      try:
+        invexprs = sympy.solve(self._exprs['cdf'].expr - self.__icdf,  self._cterm)
+      except TypeError: # in case Sympy fails to solve the inverse
+        invexprs = []
       n_exprs = len(invexprs)
       if n_exprs:
         invexpr = invexprs[0]

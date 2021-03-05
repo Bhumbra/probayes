@@ -44,8 +44,9 @@ class RV (Variable, Prob):
   """
 
   # Protected
-  _tran = None        # Transitional prob - can be a matrix
-  _tfun = None        # Like pfun for transitional conditionals
+  _tran = None          # Transitional prob - can be a matrix
+  _tfun = None          # Like pfun for transitional conditionals
+  _is_stochastic = True # Flag of whether stochastic
 
   # Private
   __def_prob = None   # Flag to denote prob is defaulted

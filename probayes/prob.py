@@ -111,6 +111,17 @@ class Prob (Expression, SympyProb):
   def issmvar(self):
     return self.__issmvar
 
+  @property
+  def pr(self):
+    assert self.__issympy or self._isiconic, \
+        "prob.pr only accessible for SymPy expressions"
+    if self.__issympy:
+      if self._logp:
+        return self._exprs['logp']
+      else:
+        return self._exprs['prob']
+    return self
+
   def set_prob(self, prob=None, *args, **kwds):
     """ Sets the probability and pscale with optional arguments and keywords.
 

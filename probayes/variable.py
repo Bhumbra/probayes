@@ -67,11 +67,17 @@ class Variable (Icon):
   _delta = None      # Default delta operation
   _delta_args = None # Optional delta arguments 
   _delta_kwds = None # Optional delta keywords 
+  _is_stochastic = False # Flag of whether stochastic
+  _dexpr = None      # Deterministic expression
 
   # Private       
   __no_ucov = None   # Boolean flag to denote no univariate change of variables
 
 #-------------------------------------------------------------------------------
+  @property
+  def is_stochastic(self):
+    return self._is_stochastic
+
   def __init__(self, name=None,
                      vtype=None,
                      vset=None, 
@@ -475,7 +481,7 @@ class Variable (Icon):
     if not isiconic(self._ufun):
       assert self._vtype in VTYPES[float], \
           "Values transformation function only supported for floating point"
-      message = "Input ufun be a two-sized tuple of callable functions"
+      message = "Non-iconic input ufun be a two-sized tuple of callable functions"
       assert isinstance(self._ufun, tuple), message
       assert len(self._ufun) == 2, message
       assert callable(self._ufun[0]), message
@@ -743,6 +749,57 @@ class Variable (Icon):
   def __invert__(self):
     """ See Variable.inverse() """
     return self.inverse()
+
+#-------------------------------------------------------------------------------
+  @property
+  def dexpr(self):
+    """ Sets iconic deterministic expression, substituting for icon in [:] """
+    return self._dexpr
+
+  @name.setter
+  def dexpr(self, dexpr=None):
+    self._dexpr = None if self._is_stochastic else dexpr
+
+#-------------------------------------------------------------------------------
+  def __getitem__(self, arg):
+    """ Method [:] overloaded to return icon or dexpr object. """
+    assert arg == slice(None), \
+        "Only ':' input accepted for __getitem__ method  Icon[:], not: {}".\
+        format(arg)
+    return self._dexpr or self._icon
+
+#-------------------------------------------------------------------------------
+  def __and__(self, other):
+    """ Combination operator between Variable and another Variable, Field, or
+    Dependence. """
+    from probayes.field import Field
+    from probayes.dependence import Dependence
+    if isinstance(other, Dependence):
+      leafs = [self] + list(other.leafs.vars.values())
+      stems = other.stems
+      roots = other.roots
+      args = Field(*tuple(leafs))
+      if stems:
+        args += list(stems.values())
+      if roots:
+        args += list(roots.values())
+      return Dependence(*args)
+
+    if isinstance(other, Field):
+      var = [self] + list(other.vars.values())
+      return Field(*tuple(var))
+
+    if isinstance(other, Variable):
+      return Field(self, other)
+
+    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
+
+#-------------------------------------------------------------------------------
+  def __or__(self, other):
+    """ Combination operator between Variable and another Variable, Field, or
+    Dependence. """
+    from probayes.dependence import Dependence
+    return Dependence(self, other)
 
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

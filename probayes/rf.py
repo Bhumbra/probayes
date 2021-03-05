@@ -1,7 +1,5 @@
-"""
-A random field is a collection of a random variables that participate in a joint 
-probability distribution function without conditioning directions.
-"""
+""" Provides Random Field class: RF """
+
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
@@ -24,9 +22,9 @@ DEFAULT_CONDITIONAL_PROBABILITY = {False: 1., True: 0.}
 #-------------------------------------------------------------------------------
 class RF (Field, Prob):
   """
-  A random field is a collection of a random variables that participate in a 
-  joint probability distribution function without explicit directional 
-  conditionality. 
+  A random field is a collection of a variables, that includes at least one RV, 
+  that participate in a joint probability distribution function without 
+  explicit directional conditionality.
   
   Since this class is intended as a building block for SD instances and networkx 
   cannot mix undirected and directed graphs, edges cannot be defined explicitly 
@@ -45,6 +43,7 @@ class RF (Field, Prob):
   _tsteps = None     # Number of steps per transitional modificiation
   _cvars = None      # Conditional random variable sampling specification
   _sym_tran = None   # Flag for symmetrical transitional conditional functions
+  _is_stochastic = True # Flag of whether stochastic
 
   # Private
   __def_prob = None   # Flag to denote prob is defaulted
@@ -108,24 +107,35 @@ class RF (Field, Prob):
     super().set_prob(prob, *args, **kwds)
     if self._prob is None:
       self._default_prob()
-    else:
-      self.__def_prob = False
+      return
+    assert self._anystoch, \
+        "Cannot set field probability without any random variables"
+    self.__def_prob = False
 
 #-------------------------------------------------------------------------------
   def _default_prob(self):
-    if self._prob is not None and not self.__def_prob:
+    if not self._anystoch or (self._prob is not None and not self.__def_prob):
       return
     if all([var.isiconic for var in self._varlist]):
       prob = None
       for var in self._varlist:
-        var_prob = var.prob
-        mul = var_prob if not isinstance(var_prob, Expr) else var_prob._expr
-        if prob is not None:
-          prob = prob * mul
-        else:
-          prob = mul
+        if var.is_stochastic:
+          var_prob = var.prob
+          mul = var_prob if not isinstance(var_prob, Expr) else var_prob._expr
+          if prob is not None:
+            prob = prob * mul
+          else:
+            prob = mul
       self.set_prob(prob, pscale=self._pscale)
       self.__def_prob = True
+
+#-------------------------------------------------------------------------------
+  def eval_length(self):
+    """ Evaluates and returns the joint length of the field. """
+    self._lengths = np.array([var.length for var in self._varlist \
+                              if var.is_stochastic], dtype=float)
+    self._length = np.sqrt(np.sum(self._lengths**2))
+    return self._length
 
 #-------------------------------------------------------------------------------
   @property
@@ -144,6 +154,8 @@ class RF (Field, Prob):
     self._prop_deps = self._keylist if 'deps' not in kwds else kwds.pop['deps']
     if self._prop is None:
       return
+    assert self._anystoch, \
+        "Cannot set field proposition without any random variables"
     assert self._tran is None, \
         "Cannot assign both proposition and transition probabilities"
     self._prop = Expression(self._prop, *args, **kwds)
@@ -168,6 +180,8 @@ class RF (Field, Prob):
     self._tsteps = None
     if self._tran is None:
       return
+    assert self._anystoch, \
+        "Cannot set field transitional without any random variables"
     assert self._prop is None, \
         "Cannot assign both proposition and transition probabilities"
     kwds = dict(kwds)
@@ -550,6 +564,8 @@ class RF (Field, Prob):
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
     """ Returns a joint distribution p(args) """
+    if not self.anystoch:
+      return Field.__call__(self, *args, **kwds)
     if not self._nvars:
       return None
     iid = False if 'iid' not in kwds else kwds.pop('iid')
@@ -665,7 +681,8 @@ class RF (Field, Prob):
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
-    if not self.issympy or isinstance(arg, (str, int)):
+    if not self.issympy or isinstance(arg, int) or \
+        (isinstance(arg, str) and arg in self._keyset):
       return Field.__getitem__(self, arg)
     return Prob.__getitem__(self, arg)
 

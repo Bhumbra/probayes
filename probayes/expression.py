@@ -295,6 +295,10 @@ class Expression:
           "Index specification non_sequitur: {}".format(indset)
 
 #-------------------------------------------------------------------------------
+  @property
+  def partials(self):
+    return self._partials
+
   def _set_partials(self):
     # Protected function to update partial function dictionary of calls
     self._partials = collections.OrderedDict()
@@ -461,7 +465,7 @@ class Expression:
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
    r""" Returns the $i$th function from the expr tuple where if is $i$ is
-   numeric, otherwise spec is treated as key returning the corresponding
+   numeric, otherwise arg is treated as key returning the corresponding
    value in the expr dictionary. """
    if arg is not None: 
      assert self._ismulti, \
