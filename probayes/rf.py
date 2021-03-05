@@ -649,37 +649,6 @@ class RF (Field, Prob):
     return self._keyset == other.keyset
 
 #-------------------------------------------------------------------------------
-  def __and__(self, other):
-    from probayes.sd import SD
-    if isinstance(other, SD):
-      leafs = list(self._leafs.varlist) + \
-              list(other.leafs.varlist)
-      stems = other.stems
-      roots = other.roots
-      args = [RF(*tuple(leafs))]
-      if stems:
-        args += list(stems.values())
-      if roots:
-        args += [roots]
-      return SD(*tuple(args))
-
-    if isinstance(other, RF):
-      leafs = list(self._vars.values()) + list(other.vars.values())
-      return RF(*tuple(leafs))
-
-    if isinstance(other, RV):
-      leafs = list(self._vars.values()) + [other]
-      return RF(*tuple(leafs))
-
-    raise TypeError("Unrecognised post-operand type {}".format(type(other)))
-
-#-------------------------------------------------------------------------------
-  def __or__(self, other):
-    """ Conditional operator between RF and another RV, RF, or SD. """
-    from probayes.sd import SD
-    return SD(self, other)
-
-#-------------------------------------------------------------------------------
   def __getitem__(self, arg):
     if not self.issympy or isinstance(arg, int) or \
         (isinstance(arg, str) and arg in self._keyset):

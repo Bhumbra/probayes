@@ -1,4 +1,3 @@
-Build a common code base for & and | operators
 Incorporate Functionals into Dependences
 Support stochastic functionals as Conditionals
 Incorporate Conditionals into RFs and SDs.
