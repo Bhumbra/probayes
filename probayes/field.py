@@ -14,12 +14,12 @@ from probayes.pscales import real_sqrt
 from probayes.expression import Expression
 from probayes.distribution import Distribution
 
-
 #-------------------------------------------------------------------------------
 class Field (NX_UNDIRECTED_GRAPH):
   """
   A field is a collection of a variables that are functionally inter-related
-  without explicit directional dependencies. 
+  without explicit directional dependencies. This lack of directionality means
+  Field does not support Functionals. 
   """
 
   # Protected

@@ -128,6 +128,19 @@ class Functional:
        assert self._isiconic == self._funcs[spec_out].isiconic, \
            "Cannot mix iconic and non-iconic expressions within functional"
 
+    # If iconic, check for single spec_out and update dexpr if available
+    if self._isiconic:
+      assert not len(args) and not len(kwds), \
+          "No optional arguments or keywords supported for iconic functions"
+      assert len(spec_out) == 1, \
+          "Only single output functions supported for iconic expressions"
+      key = list(spec_out)[0]
+      assert key in self._out_set, \
+          "Key {} not found in amount output set {}".format(key, self._out_set)
+      var = self._out_dict[key]
+      if hasattr(var, 'dexpr'):
+        var.dexpr = func
+
     # Detect inputs for iconics if not specified
     if spec_inp is None:
       assert self._isiconic, \

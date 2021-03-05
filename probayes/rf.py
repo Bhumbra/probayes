@@ -1,7 +1,5 @@
-"""
-A random field is a collection of a random variables that participate in a joint 
-probability distribution function without conditioning directions.
-"""
+""" Provides Random Field class: RF """
+
 #-------------------------------------------------------------------------------
 import collections
 import numpy as np
@@ -24,9 +22,9 @@ DEFAULT_CONDITIONAL_PROBABILITY = {False: 1., True: 0.}
 #-------------------------------------------------------------------------------
 class RF (Field, Prob):
   """
-  A random field is a collection of a random variables that participate in a 
-  joint probability distribution function without explicit directional 
-  conditionality. 
+  A random field is a collection of a variables, that includes at least one RV, 
+  that participate in a joint probability distribution function without 
+  explicit directional conditionality.
   
   Since this class is intended as a building block for SD instances and networkx 
   cannot mix undirected and directed graphs, edges cannot be defined explicitly 

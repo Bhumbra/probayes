@@ -9,11 +9,12 @@ import networkx as nx
 import probayes as pb
 
 #-------------------------------------------------------------------------------
-FUNC_TESTS = [((sympy.log, sympy.exp), (2., math.log(2)))]
+SYMBOL_TESTS = [((sympy.log, sympy.exp), (2., math.log(2)))]
+VAR_TESTS = [((sympy.log, sympy.exp), (2., math.log(2)))]
 
 #-------------------------------------------------------------------------------
-@pytest.mark.parametrize("func, vals", FUNC_TESTS)
-def test_func(func, vals):
+@pytest.mark.parametrize("func, vals", SYMBOL_TESTS)
+def test_symbol(func, vals):
   x = sympy.Symbol('x')
   y = sympy.Symbol('y')
   a = sympy.Symbol('a')
@@ -27,6 +28,23 @@ def test_func(func, vals):
   functional = pb.Functional(ab, xy)
   functional.add_func(a, func[0](x))
   functional.add_func(b, func[1](y))
+  eval_a = functional[a](vals[0])
+  eval_b = functional[b](vals[1])
+  assert np.isclose(eval_a, vals[1])
+  assert np.isclose(eval_b, vals[0])
+
+#-------------------------------------------------------------------------------
+@pytest.mark.parametrize("func, vals", VAR_TESTS)
+def test_var(func, vals):
+  x = pb.Variable('x', vtype=float)
+  y = pb.Variable('y', vtype=float)
+  a = pb.Variable('a', vtype=float)
+  b = pb.Variable('b', vtype=float)
+  xy = x & y
+  ab = a & b
+  functional = pb.Functional(ab, xy)
+  functional.add_func(a, func[0](x[:]))
+  functional.add_func(b, func[1](y[:]))
   eval_a = functional[a](vals[0])
   eval_b = functional[b](vals[1])
   assert np.isclose(eval_a, vals[1])
