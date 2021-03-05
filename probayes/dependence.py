@@ -5,7 +5,8 @@ import collections
 import networkx as nx
 from probayes.variable import Variable
 from probayes.field import Field
-from probayes.cf import CF
+from probayes.cd import CF
+from probayes.functional import Functional
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 
 #-------------------------------------------------------------------------------

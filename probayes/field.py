@@ -44,6 +44,7 @@ class Field (NX_UNDIRECTED_GRAPH):
   _roots = None      # Field of Vairables not dependent on others (for SD)
   _stems = None      # OrderedDict of latent Variables (for Dependencies)
   _is_stochastic = False      # Flag of whether stochastic
+  _func = False      # Functional
 
 #-------------------------------------------------------------------------------
   @property
