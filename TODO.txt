@@ -1,5 +1,7 @@
-Support fields of Variables sharing Expressions collected as Functionals.
+Build a common code base for & and | operators
+Incorporate Functionals into Dependences
 Support stochastic functionals as Conditionals
+Incorporate Conditionals into RFs and SDs.
 Code probabilistic backend for supporting automated Gibbs.
 Support explicit Naive Bayes.
 Introduce mean-field variational inference support
