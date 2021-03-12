@@ -5,7 +5,7 @@ import collections
 import networkx as nx
 from probayes.variable import Variable
 from probayes.field import Field
-from probayes.cd import CF
+from probayes.cf import CF
 from probayes.functional import Functional
 NX_DIRECTED_GRAPH = nx.OrderedDiGraph
 
@@ -26,9 +26,10 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
 
   # Protected
   _arch = None             # Implicit archectectural configuration
-  _leafs = None            # RF of RVs that do not condition others
-  _roots = None            # RF of RVs not dependent on others
+  _leafs = None            # Field of variables that do not condition others
+  _roots = None            # Field of variables not dependent on others
   _stems = None            # OrderedDict of latent RVs
+  _preds = None            # Field of variables that are predecessors to leafs
   _def_prop_obj = None     # Default value for prop_obj
   _prop_obj = None         # Object referencing propositional conditions
   _variable_cls = Variable # Variable class
@@ -44,6 +45,10 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
     self.def_deps(*args)
 
 #-------------------------------------------------------------------------------
+  @property
+  def preds(self):
+    return self._preds
+
   @property
   def deps(self):
     return self._deps
@@ -105,6 +110,7 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
         return self._refresh(fields[0], fields[1])
       return self._refresh(self._field_cls(*tuple(leafs_var)), fields[-1])
 
+    # At this point, all arguments must be dependences
     assert all(arg_aredep), "Cannot mix Dependences with other input types"
 
     # Adding all vertices in forward order, starting with leafs then the rest
@@ -221,6 +227,20 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
       if roots:
         self._roots = self._field_cls(*tuple(roots))
 
+    # Evaluate leafs predecessors 
+    self._preds = None
+    if not self._stems:
+      self._preds = None if not self._roots else self._roots
+    else:
+      preds = set()
+      for leaf_var in self._leafs.varlist:
+        [preds.add(pred_var) for pred_var in self.predecessors(leaf_var)]
+      self._preds = self._field_cls(*tuple(preds))
+
+    # Default functions for implicit architectures
+    if self._arch:
+      self._func = Functional(self._leafs, self._preds)
+
     # Set convenience subfields, and evaluate name and id from leafs and roots only
     super()._refresh()
     self._name = self._leafs.name
@@ -237,6 +257,16 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
     self._Delta = self._def_prop_obj.Delta
     self._delta_type = self._def_prop_obj._delta_type
     self.set_prop_obj(None) # this is for the instantiater to decide
+
+#-------------------------------------------------------------------------------
+  @property
+  def func(self):
+    return self._func
+
+  def add_func(self, spec, func, *args, **kwds):
+    assert self._func, \
+        "Architectual specification not able to accommodate functionals"
+    self._func.add_func(spec, func, *args, **kwds)
 
 #-------------------------------------------------------------------------------
   def add_deps(self, out, inp=None, func=None, *args, **kwds):

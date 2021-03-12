@@ -1,3 +1,4 @@
+Harmonise implicit architectures and functionals.
 Instantiate default arch-free Functional instance for each Dependence refresh.
 Incorporate Functionals into Dependences
 Support stochastic functionals as Conditionals

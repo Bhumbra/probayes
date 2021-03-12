@@ -161,6 +161,11 @@ class Field (NX_UNDIRECTED_GRAPH):
   def __len__(self):
     return self._nvars
 
+  def __bool__(self):
+    if self._nvars:
+      return True
+    return False
+
   @property
   def varlist(self):
     return self._varlist

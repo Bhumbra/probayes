@@ -88,6 +88,11 @@ class Functional:
   def __len__(self):
     return self._ndeps
 
+  def __bool__(self):
+    if self._ndeps:
+      return True
+    return False
+
   @property
   def ndeps(self):
     return self._ndeps
