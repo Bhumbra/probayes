@@ -419,9 +419,6 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
     assert len(self._func), \
         "No functions defined for functional {}".format(self._func)
     vals = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
-    
-
-    # The roots RF
 
     # Can only evaluate architectures
     if not self._arch: 
