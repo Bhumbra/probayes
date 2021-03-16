@@ -430,9 +430,13 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
 
 #-------------------------------------------------------------------------------
   def evaluate(self, *args, _skip_parsing=False, **kwds):
+    """ Returns evaluation for Field() if there are no dependencies otherwise
+    evaluation is based on functionals defined for each Dependences.
+    """
     assert self._leafs, "No leaf stochastic random variables defined"
     if not self._arch or not len(self._func):
       return super().evaluate(*args, _skip_parsing=_skip_parsing, **kwds)
+    
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
