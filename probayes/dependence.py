@@ -20,6 +20,10 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
   the implicit architectural interface or explicit dependency interface 
   (self.add_deps()).
 
+  Modification of a dependence functional can be made from an instance, only
+  affecting its correspondence leaf vertices. Intermediate dependence functions
+  can be set only from dependence predecessors.
+
   For convenience to define deltas, Dependence supports defaulting of proposal 
   objects without actually supporting proposals.
   """
@@ -238,7 +242,7 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
       self._preds = self._field_cls(*tuple(preds))
 
     # Default functions for implicit architectures
-    if self._arch:
+    if self._arch: # TODO self._arch must always be defined by this point
       self._func = Functional(self._leafs, self._preds)
 
     # Set convenience subfields, and evaluate name and id from leafs and roots only
@@ -410,9 +414,28 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
     return vals
 
 #-------------------------------------------------------------------------------
+  def eval_func(self, *args, _skip_parsing=False, **kwds):
+    """ Evaluates leaf values from immediate predecessors """
+    assert len(self._func), \
+        "No functions defined for functional {}".format(self._func)
+    vals = self.parse_args(*args, **kwds) if not _skip_parsing else args[0]
+    
+
+    # The roots RF
+
+    # Can only evaluate architectures
+    if not self._arch: 
+      return vals
+
+    # Iconics should be evaluable directly:
+    if self._func.isiconic:
+      pass
+
+#-------------------------------------------------------------------------------
   def evaluate(self, *args, _skip_parsing=False, **kwds):
     assert self._leafs, "No leaf stochastic random variables defined"
-    return super().evaluate(*args, _skip_parsing=_skip_parsing, **kwds)
+    if not self._arch or not len(self._func):
+      return super().evaluate(*args, _skip_parsing=_skip_parsing, **kwds)
 
 #-------------------------------------------------------------------------------
   def __call__(self, *args, **kwds):
