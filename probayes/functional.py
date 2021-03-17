@@ -183,6 +183,13 @@ class Functional:
     for key, val in self._funcs.items():
       call = functools.partial(val.__call__, *self._args, **self._kwds)
       self._partials.update({key: call})
+      if not val.order:
+        order = dict()
+        deps = self._deps[key]
+        for element in self._inp_set:
+          if element not in deps:
+            order.update({element: None})
+        val.set_order(order)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):
