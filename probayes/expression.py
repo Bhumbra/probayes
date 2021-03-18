@@ -254,7 +254,6 @@ class Expression:
     if self.__order is None:
       return
     assert self.__delta is None, "Cannot set both order and delta"
-    assert not self.isiconic, "Cannot set order when using symbols"
     self._check_mapping(self.__order)
 
 #-------------------------------------------------------------------------------
@@ -277,6 +276,9 @@ class Expression:
     # Used to sanity-check mapping dicts e.g. order and delta
     assert isinstance(mapping, dict), \
         "Mapping must be a dictionary type, not {}".format(type(mapping))
+    if self.isiconic:
+      assert not any(list(mapping.values())), \
+          "Cannot remap for iconic expressions"
     key_list = list(mapping.keys())
     ind_list = list(mapping.values())
     keys = []

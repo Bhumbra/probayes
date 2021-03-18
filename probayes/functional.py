@@ -20,6 +20,7 @@ class Functional:
   _kwds = None     # Default kwds
   _deps = None     # Dependences linking inputs to outputs
   _funcs = None    # Expression instances with same keys as deps
+  _ndeps = None    # len(deps)
   _isiconic = None # Flag for being iconic
   _partials = None # Dict of partial functions
 
@@ -30,6 +31,7 @@ class Functional:
     members node.name comprising an identifier string."""
     self.out = out
     self.inp = inp or self._out
+    self._ndeps = 0
     self._args = tuple(args) 
     self._kwds = dict(kwds)
 
@@ -83,6 +85,18 @@ class Functional:
     """ Input/output dependences dictionary """
     return self._deps
 
+  def __len__(self):
+    return self._ndeps
+
+  def __bool__(self):
+    if self._ndeps:
+      return True
+    return False
+
+  @property
+  def ndeps(self):
+    return self._ndeps
+
   @property
   def funcs(self):
     """ Expressions dictionary """
@@ -119,6 +133,7 @@ class Functional:
       assert spec_out not in self._deps.keys(), \
           "Output dependence for {} already previously set".format(spec_out)
     self._deps.update({spec_out: spec_inp})
+    self._ndeps = len(self._deps)
 
     # Update funcs and set isiconic flag if not previously set
     self._funcs.update({spec_out: Expression(func, *args, **kwds)})
@@ -168,6 +183,13 @@ class Functional:
     for key, val in self._funcs.items():
       call = functools.partial(val.__call__, *self._args, **self._kwds)
       self._partials.update({key: call})
+      if not val.order:
+        order = dict()
+        deps = self._deps[key]
+        for element in self._inp_set:
+          if element not in deps:
+            order.update({element: None})
+        val.set_order(order)
 
 #-------------------------------------------------------------------------------
   def __getitem__(self, arg):

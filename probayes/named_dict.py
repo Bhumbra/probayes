@@ -1,10 +1,10 @@
-""" A named dictionary is an ordered dictionary with a name """
-
+""" Provides named dictionary """
 #-------------------------------------------------------------------------------
 import collections
 
 #-------------------------------------------------------------------------------
 class NamedDict(collections.OrderedDict):
+  """ A named dictionary is an ordered dictionary with a name """
   _name = None
   
 #-------------------------------------------------------------------------------
