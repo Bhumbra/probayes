@@ -434,7 +434,7 @@ class Dependence (NX_DIRECTED_GRAPH, Field):
     evaluation is based on functionals defined for each Dependences.
     """
     assert self._leafs, "No leaf stochastic random variables defined"
-    if not self._arch or not len(self._func):
+    if not self._arch or not self._func or not len(self._func):
       return super().evaluate(*args, _skip_parsing=_skip_parsing, **kwds)
     
 
