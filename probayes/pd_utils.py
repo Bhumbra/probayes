@@ -5,6 +5,7 @@
 import collections
 import functools
 import numpy as np
+import h5py
 from probayes.vtypes import isscalar, issingleton, isunitsetint
 from probayes.pscales import prod_pscale, prod_rule, iscomplex
 
@@ -427,5 +428,74 @@ def iterdict(dicts):
              for key in functools.reduce(set.union, [set(_dict.keys()) 
                                                      for _dict in dicts])}
                                 )
+
+#-------------------------------------------------------------------------------
+def serialise(*args):
+  from probayes import Distribution
+  from probayes import PD
+  serialised = {}
+  for arg in args:
+    if not isinstance(arg, (PD, Distribution)):
+      raise TypeError(f"Unrecogised type to serialise: {type(arg)}")
+    serialised.update(arg.serialise())
+  return serialised
+
+#-------------------------------------------------------------------------------
+def deserialise(serialised):
+  from probayes import Distribution
+  from probayes import PD
+  assert isinstance(serialised, dict), \
+    f"Dict-type serialised input expected, not {type(serialised)}"
+  dists = []
+  for dist_name, _dist_dict in serialised.items():
+    dist_dict = dict(_dist_dict)
+    attrs = {} if 'attrs' not in dist_dict else dist_dict.pop('attrs')
+    prob = None if 'prob' not in dist_dict else dist_dict.pop('prob')
+    if attrs is not None and 'pscale' in attrs:
+      pscale = attrs.pop('pscale')
+      attrs = {'pscale': pscale, 'dims': attrs}
+    if prob is None:
+      dists.append(Distribution(dist_name, dist_dict, **attrs))
+    else:
+      dists.append(PD(dist_name, dist_dict, prob=prob, **attrs))
+  return tuple(dists)
+
+#-------------------------------------------------------------------------------
+def write_serialised(path, serialised):
+  assert isinstance(serialised, dict), \
+    f"Dict-type serialised input expected, not {type(serialised)}"
+  with h5py.File(path, 'w', libver='latest') as hdf_write:
+    for dist_name, dist_dict in serialised.items():
+      for sub_key, val in dist_dict.items():
+        key = '/'.join([dist_name, sub_key])
+        print(key)
+        if sub_key == 'attrs':
+          attrs = dist_dict['attrs']
+          for key, val in attrs.items():
+            if val is None:
+              attrs[key] = "None"
+          hdf_write[key] = np.array(len(attrs))
+          hdf_write[key].attrs.update(attrs)
+        else:
+          if isinstance(val, np.ndarray):
+            hdf_write[key] = val
+          elif isinstance(val, set):
+            hdf_write[key] = np.array(list(val)[0])
+
+#-------------------------------------------------------------------------------
+def read_serialised(path):
+  serialised = {}
+  with h5py.File(path, 'r', libver='latest') as hdf_read:
+    groups = hdf_read.keys()
+    for group in groups:
+      serialised[group] = {}
+      if hasattr(group, 'attrs') and group.attrs:
+        serialised[group]['attrs'] = dict(group.attrs)
+        for key, val in serialised[group]['attrs']:
+          if val == 'None':
+            serialised[group]['attrs'] = None
+      for key, val in group.items():
+        serialised[group][key] = np.array(val)
+  return serialised
 
 #-------------------------------------------------------------------------------

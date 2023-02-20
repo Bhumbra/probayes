@@ -80,15 +80,15 @@ class Variable (Icon):
     return self._is_stochastic
 
   def __init__(self, name=None,
-                     vtype=None,
                      vset=None, 
+                     vtype=None,
                      *args,
                      **kwds):
     """ Initialiser sets name, vset, and ufun:
 
     :param name: Name of the variable - string as valid identifier.
-    :param vtype: variable type (bool, int, or float).
     :param vset: variable set over which variable domain defined.
+    :param vtype: variable type (bool, int, or float).
     :param *args: optional arguments to pass onto symbol representation.
     :param **kwds: optional keywords to pass onto symbol representation.
 
@@ -137,27 +137,6 @@ class Variable (Icon):
     self._name = name
     self._Delta = collections.namedtuple('ð', [self._name])
 
-#-------------------------------------------------------------------------------
-  @property
-  def vtype(self):
-    """ Property vtype is the variable type (default bool). If the variable set 
-    if not set, then it is defaulted according to the variable type. """
-    return self._vtype
-
-  @vtype.setter
-  def vtype(self, vtype=None):
-    """ Sets the variable type (default bool). If the variable set if not set,
-    then it is defaulted according to the variable type. """
-
-    if not vtype:
-      if self._vset is not None:
-        self._vtype = eval_vtype(self._vset)
-      else:
-        self._vtype = DEFAULT_VTYPE
-    else:
-      self._vtype = eval_vtype(vtype)
-    if self._vset is None:
-      self.vset = DEFAULT_VSETS[self._vtype]
 
 #-------------------------------------------------------------------------------
   @property
@@ -238,6 +217,28 @@ class Variable (Icon):
     else:
       self._vtype = vtype
     self._eval_vlims()
+
+#-------------------------------------------------------------------------------
+  @property
+  def vtype(self):
+    """ Property vtype is the variable type (default bool). If the variable set 
+    if not set, then it is defaulted according to the variable type. """
+    return self._vtype
+
+  @vtype.setter
+  def vtype(self, vtype=None):
+    """ Sets the variable type (default bool). If the variable set if not set,
+    then it is defaulted according to the variable type. """
+
+    if not vtype:
+      if self._vset is not None:
+        self._vtype = eval_vtype(self._vset)
+      else:
+        self._vtype = DEFAULT_VTYPE
+    else:
+      self._vtype = eval_vtype(vtype)
+    if self._vset is None:
+      self.vset = DEFAULT_VSETS[self._vtype]
 
 #-------------------------------------------------------------------------------
   @property

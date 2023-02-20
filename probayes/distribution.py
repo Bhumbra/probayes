@@ -8,7 +8,7 @@ from probayes.named_dict import NamedDict
 
 #-------------------------------------------------------------------------------
 class Distribution (NamedDict):
-  """ A distribution is a anmed topological space defined over specific values 
+  """ A distribution is a named topological space defined over specific values 
   for one or more variables. Those values are defined by the dictionary
   {variable_name: values} [Distribution.values()] with dimensions 
   {variable_name: dim} [Distribution.dims]. The dimensionality defines a finite 
@@ -37,6 +37,7 @@ class Distribution (NamedDict):
   _keyset = None       # Keys of vals a set
   _aresingleton = None # Whether vals are scalars
   _issingleton = None  # all(_aresingleton)
+  _disallowed = {'attrs', 'prob', 'pscale'} # disallowed keys
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, *args, **kwds):
@@ -73,6 +74,10 @@ class Distribution (NamedDict):
   @property
   def keylist(self):
     return self._keylist
+
+  @property
+  def short_name(self):
+    return ','.join(self._keylist)
 
   @property
   def keyset(self):
@@ -123,6 +128,8 @@ class Distribution (NamedDict):
 
     # Tranform {None} to {0} to play nicely with isunitsetint
     for key in self._keylist:
+      if key in self._disallowed:
+        raise ValueError(f"Disallowed key: {key}")
       if isinstance(self[key], set):
         if len(self[key]) == 1:
           element = list(self[key])[0]
@@ -275,6 +282,13 @@ class Distribution (NamedDict):
         dims.update({map_key: self.dims[key]})
     return Distribution(self._name, vals, dims=dims)
     
+#-------------------------------------------------------------------------------
+  def serialise(self):
+    short_name = self.short_name
+    serialised = {short_name: {key:val for key, val in self.items()}}
+    serialised[short_name].update({'attrs': dict(self.dims)})
+    return serialised
+
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

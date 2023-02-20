@@ -58,3 +58,9 @@ colorbar()
 xlabel(r'$\sigma$')
 ylabel(r'$\mu$')
 title(str(dict(post_expt)))
+
+ms = pb.serialise(post_mean, post_stdv)
+pb.write_serialised('ex/test.hdf', ms)
+new = pb.read_serialised('ex/test.hdf')
+pm, ps = pb.deserialise(new)
+

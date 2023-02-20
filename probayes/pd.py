@@ -62,6 +62,14 @@ class PD (Distribution):
     # Only the name is sensitive to what are marginal and conditional variables
     NamedDict.name.fset(self, name)
     self._marg, self._cond = str_margcond(self.name)
+    
+  @property
+  def short_name(self):
+    marg_keys = list(self._marg.keys())
+    cond_keys = list(self._cond.keys())
+    marg_str = ','.join(marg_keys)
+    cond_str = ','.join(cond_keys)
+    return '|'.join([marg_str, cond_str]) if cond_str else marg_str
 
 #-------------------------------------------------------------------------------
   @property
@@ -685,5 +693,13 @@ class PD (Distribution):
     prefix = 'logp' if iscomplex(self._pscale) else 'p'
     suffix = '' if not self._issingleton else '={}'.format(self.prob)
     return prefix + "(" + self._name + ")" + suffix
+
+#-------------------------------------------------------------------------------
+  def serialise(self):
+    serialised = super().serialise()
+    short_name = self.short_name
+    serialised[short_name].update({'prob': self._prob})
+    serialised[short_name]['attrs'].update({'pscale': self._pscale})
+    return serialised
 
 #-------------------------------------------------------------------------------
