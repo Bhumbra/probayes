@@ -6,6 +6,7 @@ __pycache__/
 # Specific exclusions
 .*.swp
 ex/
+ex
 
 # C extensions
 *.so
