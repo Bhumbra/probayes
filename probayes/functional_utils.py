@@ -3,7 +3,7 @@ import collections
 import networkx as nx
 
 #-------------------------------------------------------------------------------
-NX_UNDIRECTED_GRAPH = nx.OrderedGraph
+NX_UNDIRECTED_GRAPH = nx.Graph
 
 #-------------------------------------------------------------------------------
 def collate_vertices(graph=None):
