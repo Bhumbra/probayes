@@ -454,6 +454,7 @@ def deserialise(serialised):
     if attrs is not None and 'pscale' in attrs:
       pscale = attrs.pop('pscale')
       attrs = {'pscale': pscale, 'dims': attrs}
+    import pdb; pdb.set_trace()
     if prob is None:
       dists.append(Distribution(dist_name, dist_dict, **attrs))
     else:
@@ -466,36 +467,54 @@ def write_serialised(path, serialised):
     f"Dict-type serialised input expected, not {type(serialised)}"
   with h5py.File(path, 'w', libver='latest') as hdf_write:
     for dist_name, dist_dict in serialised.items():
-      for sub_key, val in dist_dict.items():
-        key = '/'.join([dist_name, sub_key])
-        print(key)
-        if sub_key == 'attrs':
+      group_write = hdf_write.create_group(dist_name)
+      for key, val in dist_dict.items():
+        if key == 'attrs':
           attrs = dist_dict['attrs']
-          for key, val in attrs.items():
-            if val is None:
-              attrs[key] = "None"
-          hdf_write[key] = np.array(len(attrs))
-          hdf_write[key].attrs.update(attrs)
+          for k, v in attrs.items():
+            if v is None:
+              attrs[k] = 'None'
+          group_write[key] = np.array(len(attrs))
+          group_write[key].attrs.update(attrs)
         else:
           if isinstance(val, np.ndarray):
-            hdf_write[key] = val
+            group_write[key] = val
           elif isinstance(val, set):
-            hdf_write[key] = np.array(list(val)[0])
+            element = int(list(val)[0])
+            val_set = np.zeros([element], dtype='S')
+            group_write[key] = val_set
 
 #-------------------------------------------------------------------------------
 def read_serialised(path):
   serialised = {}
+  attrs = {}
   with h5py.File(path, 'r', libver='latest') as hdf_read:
-    groups = hdf_read.keys()
-    for group in groups:
-      serialised[group] = {}
-      if hasattr(group, 'attrs') and group.attrs:
-        serialised[group]['attrs'] = dict(group.attrs)
-        for key, val in serialised[group]['attrs']:
-          if val == 'None':
-            serialised[group]['attrs'] = None
-      for key, val in group.items():
-        serialised[group][key] = np.array(val)
+    dist_names = hdf_read.keys()
+    for dist_name in dist_names:
+      serialised[dist_name] = {}
+      group_read = hdf_read[dist_name]
+      for key, val in group_read.items():
+        if key == 'attrs':
+          attrs.update({dist_name: dict(val.attrs)})
+        else:
+          for key, val in group_read.items():
+            serialised[dist_name][key] = np.array(val)
+            if serialised[dist_name][key].dtype in (np.dtype('S'), np.dtype('S21'), np.dtype('|S1')):
+              serialised[dist_name][key] = set([val.size])
+      if dist_name in attrs:
+        attrs_dict  = attrs[dist_name]
+        serialised[dist_name]['attrs'] = attrs_dict
+        for k, v in attrs_dict.items():
+          if v == 'None':
+            serialised[dist_name]['attrs'][k] = None
   return serialised
+
+#-------------------------------------------------------------------------------
+def write_dist(path, *args):
+  return write_serialised(path, serialise(*args))
+
+#-------------------------------------------------------------------------------
+def read_dist(path):
+  return deserialise(read_serialised(path))
 
 #-------------------------------------------------------------------------------

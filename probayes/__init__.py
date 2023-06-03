@@ -1,5 +1,5 @@
 # flake8: noqa
-__version__ = '0.0.3.X'
+__version__ = '0.0.4.X'
 from probayes.constants import NEARLY_POSITIVE_ZERO, \
                                NEARLY_POSITIVE_INF, \
                                NEARLY_NEGATIVE_INF, \
@@ -20,7 +20,8 @@ from probayes.sp import SP
 from probayes.cf import CF
 from probayes.distribution import Distribution
 from probayes.pd import PD
-from probayes.pd_utils import product, summate, iterdict, serialise, deserialise, read_serialised, write_serialised
+from probayes.pd_utils import product, summate, iterdict, read_dist, write_dist
+from probaeys.pd_utils import serialise, deserialise, read_serialised, write_serialised
 from probayes.likelihoods import bool_perm_freq
 from probayes.expression import Expression
 from probayes.functional import Functional

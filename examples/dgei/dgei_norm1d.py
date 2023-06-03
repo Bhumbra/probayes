@@ -1,5 +1,7 @@
 # Example to fit 1-dimensional gaussian data using discrete grid exact inference.
+# This script also tests serialisation and save option
 
+import os
 import numpy as np
 import scipy.stats
 import probayes as pb
@@ -60,7 +62,8 @@ ylabel(r'$\mu$')
 title(str(dict(post_expt)))
 
 ms = pb.serialise(post_mean, post_stdv)
-pb.write_serialised('ex/test.hdf', ms)
-new = pb.read_serialised('ex/test.hdf')
+pb.write_serialised('/tmp/test.hdf', ms)
+new = pb.read_serialised('/tmp/test.hdf')
 pm, ps = pb.deserialise(new)
+os.remove('/tmp/test.hdf')
 
