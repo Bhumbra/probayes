@@ -5,3 +5,4 @@ networkx
 matplotlib
 flake8
 pytest
+h5py>=3.4.0

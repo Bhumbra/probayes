@@ -5,6 +5,7 @@
 import collections
 import functools
 import numpy as np
+import h5py
 from probayes.vtypes import isscalar, issingleton, isunitsetint
 from probayes.pscales import prod_pscale, prod_rule, iscomplex
 
@@ -427,5 +428,93 @@ def iterdict(dicts):
              for key in functools.reduce(set.union, [set(_dict.keys()) 
                                                      for _dict in dicts])}
                                 )
+
+#-------------------------------------------------------------------------------
+def serialise(*args):
+  from probayes import Distribution
+  from probayes import PD
+  serialised = {}
+  for arg in args:
+    if not isinstance(arg, (PD, Distribution)):
+      raise TypeError(f"Unrecogised type to serialise: {type(arg)}")
+    serialised.update(arg.serialise())
+  return serialised
+
+#-------------------------------------------------------------------------------
+def deserialise(serialised):
+  from probayes import Distribution
+  from probayes import PD
+  assert isinstance(serialised, dict), \
+    f"Dict-type serialised input expected, not {type(serialised)}"
+  dists = []
+  for dist_name, _dist_dict in serialised.items():
+    dist_dict = dict(_dist_dict)
+    attrs = {} if 'attrs' not in dist_dict else dist_dict.pop('attrs')
+    prob = None if 'prob' not in dist_dict else dist_dict.pop('prob')
+    if attrs is not None and 'pscale' in attrs:
+      pscale = attrs.pop('pscale')
+      attrs = {'pscale': pscale, 'dims': attrs}
+    import pdb; pdb.set_trace()
+    if prob is None:
+      dists.append(Distribution(dist_name, dist_dict, **attrs))
+    else:
+      dists.append(PD(dist_name, dist_dict, prob=prob, **attrs))
+  return tuple(dists)
+
+#-------------------------------------------------------------------------------
+def write_serialised(path, serialised):
+  assert isinstance(serialised, dict), \
+    f"Dict-type serialised input expected, not {type(serialised)}"
+  with h5py.File(path, 'w', libver='latest') as hdf_write:
+    for dist_name, dist_dict in serialised.items():
+      group_write = hdf_write.create_group(dist_name)
+      for key, val in dist_dict.items():
+        if key == 'attrs':
+          attrs = dist_dict['attrs']
+          for k, v in attrs.items():
+            if v is None:
+              attrs[k] = 'None'
+          group_write[key] = np.array(len(attrs))
+          group_write[key].attrs.update(attrs)
+        else:
+          if isinstance(val, np.ndarray):
+            group_write[key] = val
+          elif isinstance(val, set):
+            element = int(list(val)[0])
+            val_set = np.zeros([element], dtype='S')
+            group_write[key] = val_set
+
+#-------------------------------------------------------------------------------
+def read_serialised(path):
+  serialised = {}
+  attrs = {}
+  with h5py.File(path, 'r', libver='latest') as hdf_read:
+    dist_names = hdf_read.keys()
+    for dist_name in dist_names:
+      serialised[dist_name] = {}
+      group_read = hdf_read[dist_name]
+      for key, val in group_read.items():
+        if key == 'attrs':
+          attrs.update({dist_name: dict(val.attrs)})
+        else:
+          for key, val in group_read.items():
+            serialised[dist_name][key] = np.array(val)
+            if serialised[dist_name][key].dtype in (np.dtype('S'), np.dtype('S21'), np.dtype('|S1')):
+              serialised[dist_name][key] = set([val.size])
+      if dist_name in attrs:
+        attrs_dict  = attrs[dist_name]
+        serialised[dist_name]['attrs'] = attrs_dict
+        for k, v in attrs_dict.items():
+          if v == 'None':
+            serialised[dist_name]['attrs'][k] = None
+  return serialised
+
+#-------------------------------------------------------------------------------
+def write_dist(path, *args):
+  return write_serialised(path, serialise(*args))
+
+#-------------------------------------------------------------------------------
+def read_dist(path):
+  return deserialise(read_serialised(path))
 
 #-------------------------------------------------------------------------------

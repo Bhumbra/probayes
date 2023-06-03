@@ -7,7 +7,7 @@ from probayes.variable import Variable
 from probayes.field import Field
 from probayes.cf import CF
 from probayes.functional import Functional
-NX_DIRECTED_GRAPH = nx.OrderedDiGraph
+NX_DIRECTED_GRAPH = nx.DiGraph
 
 #-------------------------------------------------------------------------------
 class Dependence (NX_DIRECTED_GRAPH, Field):

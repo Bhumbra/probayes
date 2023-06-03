@@ -8,8 +8,8 @@ from pylab import *; ion()
 num_samples = 500
 num_resamples = 50
 
-x = pb.RV('x', vtype=float, vset=[0, 1])
-y = pb.RV('y', vtype=float, vset=[0, 1])
+x = pb.RV('x', vset=[0, 1], vtype=float)
+y = pb.RV('y', vset=[0, 1], vtype=float)
 xy = x & y
 p_xy = xy({num_samples})
 

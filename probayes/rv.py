@@ -55,8 +55,8 @@ class RV (Variable, Prob):
 
 #-------------------------------------------------------------------------------
   def __init__(self, name, 
-                     vtype=None,
                      vset=None, 
+                     vtype=None,
                      prob=None,
                      *args,
                      **kwds):
@@ -64,8 +64,8 @@ class RV (Variable, Prob):
     except invertible monotonic must be specified separately using set_ufun().
 
     :param name: Name of the domain - string as valid identifier.
-    :param vtype: variable type (bool, int, or float).
     :param vset: variable set over which domain defined (see Variable.vset).
+    :param vtype: variable type (bool, int, or float).
     :param prob : uncallable or callable probability expression (see set_prob).
     :param *args: optional arguments to pass if prob is callable.
     :param **kwds: optional keywords to pass if prob is callable.
@@ -88,24 +88,24 @@ class RV (Variable, Prob):
 
 #-------------------------------------------------------------------------------
   @property
-  def vtype(self):
-    return self._vtype
-
-  @Variable.vtype.setter
-  def vtype(self, vtype=None):
-    Variable.vtype.fset(self, vtype)
-    if self.__def_prob:
-      self._prob = None
-      self._default_prob()
-
-#-------------------------------------------------------------------------------
-  @property
   def vset(self):
     return self._vset
 
   @Variable.vset.setter
   def vset(self, vset=None):
     Variable.vset.fset(self, vset)
+    if self.__def_prob:
+      self._prob = None
+      self._default_prob()
+
+#-------------------------------------------------------------------------------
+  @property
+  def vtype(self):
+    return self._vtype
+
+  @Variable.vtype.setter
+  def vtype(self, vtype=None):
+    Variable.vtype.fset(self, vtype)
     if self.__def_prob:
       self._prob = None
       self._default_prob()
