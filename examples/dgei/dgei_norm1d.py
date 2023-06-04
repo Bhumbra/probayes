@@ -62,8 +62,9 @@ ylabel(r'$\mu$')
 title(str(dict(post_expt)))
 
 ms = pb.serialise(post_mean, post_stdv)
+ms.update({'aux data': {'x': np.array(1.)}})
 pb.write_serialised('/tmp/test.hdf', ms)
-new = pb.read_serialised('/tmp/test.hdf')
+new, aux = pb.read_serialised('/tmp/test.hdf')
 pm, ps = pb.deserialise(new)
 os.remove('/tmp/test.hdf')
 

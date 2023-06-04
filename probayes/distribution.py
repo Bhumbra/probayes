@@ -286,7 +286,7 @@ class Distribution (NamedDict):
   def serialise(self):
     short_name = self.short_name
     serialised = {short_name: {key:val for key, val in self.items()}}
-    serialised[short_name].update({'attrs': dict(self.dims)})
+    serialised[short_name].update({'attrs': self.dims})
     return serialised
 
 #-------------------------------------------------------------------------------

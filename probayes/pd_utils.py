@@ -449,22 +449,30 @@ def deserialise(serialised):
   dists = []
   for dist_name, _dist_dict in serialised.items():
     dist_dict = dict(_dist_dict)
-    attrs = {} if 'attrs' not in dist_dict else dist_dict.pop('attrs')
+    dims = {} if 'attrs' not in dist_dict else dist_dict.pop('attrs')
     prob = None if 'prob' not in dist_dict else dist_dict.pop('prob')
-    if attrs is not None and 'pscale' in attrs:
-      pscale = attrs.pop('pscale')
-      attrs = {'pscale': pscale, 'dims': attrs}
-    import pdb; pdb.set_trace()
+    pscale = None if 'pscale' not in dist_dict else dist_dict.pop('pscale')
     if prob is None:
-      dists.append(Distribution(dist_name, dist_dict, **attrs))
+      dists.append(Distribution(dist_name, dist_dict, dims=dims))
     else:
-      dists.append(PD(dist_name, dist_dict, prob=prob, **attrs))
+      pscale = pscale if pscale is None else np.atleast_1d(pscale).tolist()[0]
+      dists.append(PD(dist_name, dist_dict, prob=prob, pscale=pscale, dims=dims))
   return tuple(dists)
 
 #-------------------------------------------------------------------------------
-def write_serialised(path, serialised):
+def write_serialised(path, serialised, aux_dict={}):
   assert isinstance(serialised, dict), \
     f"Dict-type serialised input expected, not {type(serialised)}"
+  for key, val in aux_dict.items():
+    assert isinstance(key, str) and ' ' in key, \
+      f"Aux dict must keyed by space-containing string, found {key}"
+    assert isinstance(val, dict), \
+      f"Aux dict must be a nested dictionary of dicts - found {type(val)}"
+    for subkey, subval in val.items():
+      assert isinstance(subkey, str), \
+        f"Aux dict subkeys must be str, found {subkey}"
+      assert isinstance(subvals, np.ndarray), \
+        f"Aux dict subvals must be NumPy arrays, found {type(subvals)}"
   with h5py.File(path, 'w', libver='latest') as hdf_write:
     for dist_name, dist_dict in serialised.items():
       group_write = hdf_write.create_group(dist_name)
@@ -476,38 +484,65 @@ def write_serialised(path, serialised):
               attrs[k] = 'None'
           group_write[key] = np.array(len(attrs))
           group_write[key].attrs.update(attrs)
+          if isinstance(attrs, collections.OrderedDict):
+            group_write[key].attrs.update({'order': list(attrs.keys())})
         else:
           if isinstance(val, np.ndarray):
             group_write[key] = val
           elif isinstance(val, set):
-            element = int(list(val)[0])
-            val_set = np.zeros([element], dtype='S')
+            val_set = np.zeros(sorted(val) + [0], dtype='S')
             group_write[key] = val_set
+          else:
+            group_write[key] = np.array(val)
+    for aux_name, aux_data in aux_dict.items():
+      group_write = hdf_write.create_group(aux_name)
+      for key, val in aux_data.items():
+        group_write[key] = val
 
 #-------------------------------------------------------------------------------
 def read_serialised(path):
   serialised = {}
-  attrs = {}
+  aux_data = {}
   with h5py.File(path, 'r', libver='latest') as hdf_read:
     dist_names = hdf_read.keys()
     for dist_name in dist_names:
-      serialised[dist_name] = {}
       group_read = hdf_read[dist_name]
-      for key, val in group_read.items():
-        if key == 'attrs':
-          attrs.update({dist_name: dict(val.attrs)})
-        else:
-          for key, val in group_read.items():
-            serialised[dist_name][key] = np.array(val)
-            if serialised[dist_name][key].dtype in (np.dtype('S'), np.dtype('S21'), np.dtype('|S1')):
-              serialised[dist_name][key] = set([val.size])
-      if dist_name in attrs:
-        attrs_dict  = attrs[dist_name]
-        serialised[dist_name]['attrs'] = attrs_dict
-        for k, v in attrs_dict.items():
-          if v == 'None':
-            serialised[dist_name]['attrs'][k] = None
-  return serialised
+      order = None
+      attrs = {}
+      if ' ' not in dist_name:
+        serialised[dist_name] = {}
+        for key, val in group_read.items():
+          if key == 'attrs':
+            attrs = dict(val.attrs)
+            if 'order' in attrs:
+              order = attrs.pop('order')
+              ordered_dict = collections.OrderedDict()
+              for ordered_key in order:
+                ordered_dict.update({ordered_key: attrs[ordered_key]})
+              attrs = ordered_dict
+          else:
+            for key, val in group_read.items():
+              serialised[dist_name][key] = np.array(val)
+              if serialised[dist_name][key].dtype in (np.dtype('S'), np.dtype('S21'), np.dtype('|S1')):
+                serialised[dist_name][key] = set(val.shape[:-1])
+        if attrs: 
+          for k, v in attrs.items():
+            if v == 'None':
+              attrs[k] = None
+          if order is not None:
+            ordered_dict = collections.OrderedDict()
+            for ordered_key in order:
+              ordered_dict.update({ordered_key: serialised[dist_name][ordered_key]})
+            for key, val in serialised[dist_name].items():
+              if key not in ordered_dict:
+                ordered_dict.update({key: val})
+            serialised[dist_name] = ordered_dict
+          serialised[dist_name].update({'attrs': attrs})
+      else:
+        aux_data[dist_name] = {}
+        for key, val in group_read.items():
+          aux_data[dist_name][key] = np.array(val)
+  return serialised, aux_data
 
 #-------------------------------------------------------------------------------
 def write_dist(path, *args):
@@ -515,6 +550,6 @@ def write_dist(path, *args):
 
 #-------------------------------------------------------------------------------
 def read_dist(path):
-  return deserialise(read_serialised(path))
+  return deserialise(read_serialised(path)[0])
 
 #-------------------------------------------------------------------------------
