@@ -471,8 +471,8 @@ def write_serialised(path, serialised, aux_dict={}):
     for subkey, subval in val.items():
       assert isinstance(subkey, str), \
         f"Aux dict subkeys must be str, found {subkey}"
-      assert isinstance(subvals, np.ndarray), \
-        f"Aux dict subvals must be NumPy arrays, found {type(subvals)}"
+      assert isinstance(subval, np.ndarray), \
+        f"Aux dict subvals must be NumPy arrays, found {type(subval)}"
   with h5py.File(path, 'w', libver='latest') as hdf_write:
     for dist_name, dist_dict in serialised.items():
       group_write = hdf_write.create_group(dist_name)
