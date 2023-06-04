@@ -699,7 +699,7 @@ class PD (Distribution):
     serialised = super().serialise()
     short_name = self.short_name
     serialised[short_name].update({'prob': self._prob})
-    serialised[short_name]['attrs'].update({'pscale': self._pscale})
+    serialised[short_name].update({'pscale': self.pscale})
     return serialised
 
 #-------------------------------------------------------------------------------
