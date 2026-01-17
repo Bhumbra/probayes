@@ -110,6 +110,8 @@ class Expr:
     # Make instance play nicely with Sympy by copying attributes and hash content
     members = dir(self._expr)
     for member in members:
+      if member == 'expr_free_symbols':
+          continue # suppress Sympy warnings
       if not hasattr(self, member):
         try:
           attribute = getattr(self._expr, member)

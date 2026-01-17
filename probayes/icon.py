@@ -70,6 +70,8 @@ class Icon:
     # Copy attributes and hash content
     members = dir(self._icon)
     for member in members:
+      if member == 'expr_free_symbols':
+          continue # suppress Sympy warnings
       if not hasattr(self, member):
         try:
           attribute = getattr(self._icon, member)
